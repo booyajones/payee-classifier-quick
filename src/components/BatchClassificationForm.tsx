@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { processBatch } from "@/lib/classificationEngine";
 import { createPayeeClassification } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -11,6 +12,7 @@ import BatchProcessingSummary from "./BatchProcessingSummary";
 import ClassificationResultTable from "./ClassificationResultTable";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import APIKeyInput from "./APIKeyInput";
+import FileUploadForm from "./FileUploadForm";
 import { getOpenAIClient } from "@/lib/openaiService";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
@@ -26,6 +28,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   const [batchResults, setBatchResults] = useState<PayeeClassification[]>([]);
   const [processingSummary, setProcessingSummary] = useState<BatchProcessingResult | null>(null);
   const [apiKeySet, setApiKeySet] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<string>("text");
   const { toast } = useToast();
 
   // Check if API key is already set in session storage
@@ -99,6 +102,19 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
     }
   };
 
+  const handleFileUploadComplete = (results: PayeeClassification[], summary: BatchProcessingResult) => {
+    setBatchResults(results);
+    setProcessingSummary(summary);
+    
+    if (onBatchClassify) {
+      onBatchClassify(results);
+    }
+    
+    if (onComplete) {
+      onComplete(results, summary);
+    }
+  };
+
   // Check if OpenAI API key is set
   const isAIEnabled = apiKeySet || getOpenAIClient() !== null;
 
@@ -120,28 +136,41 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
           <CardHeader>
             <CardTitle>Classify Batch of Payees</CardTitle>
             <CardDescription>
-              Enter a list of payee names, one per line, to classify them as businesses or individuals.
+              Enter a list of payee names or upload a file to classify them as businesses or individuals.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid gap-4">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="payeeNames">Payee Names (one per line)</Label>
-                  <Textarea
-                    id="payeeNames"
-                    placeholder="e.g.,&#x0a;John Smith&#x0a;Acme Corporation&#x0a;Jane Doe"
-                    value={payeeNames}
-                    onChange={(e) => setPayeeNames(e.target.value)}
-                    disabled={isProcessing}
-                    className="min-h-[150px]"
-                  />
-                </div>
-              </div>
-              <Button type="submit" className="w-full" disabled={isProcessing}>
-                {isProcessing ? "Classifying..." : "Classify Batch"}
-              </Button>
-            </form>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mb-6">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="text">Text Input</TabsTrigger>
+                <TabsTrigger value="file">File Upload</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="text" className="mt-4">
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="grid gap-4">
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="payeeNames">Payee Names (one per line)</Label>
+                      <Textarea
+                        id="payeeNames"
+                        placeholder="e.g.,&#x0a;John Smith&#x0a;Acme Corporation&#x0a;Jane Doe"
+                        value={payeeNames}
+                        onChange={(e) => setPayeeNames(e.target.value)}
+                        disabled={isProcessing}
+                        className="min-h-[150px]"
+                      />
+                    </div>
+                  </div>
+                  <Button type="submit" className="w-full" disabled={isProcessing}>
+                    {isProcessing ? "Classifying..." : "Classify Batch"}
+                  </Button>
+                </form>
+              </TabsContent>
+              
+              <TabsContent value="file" className="mt-4">
+                <FileUploadForm onComplete={handleFileUploadComplete} />
+              </TabsContent>
+            </Tabs>
 
             {processingSummary && (
               <div className="mt-6">
