@@ -1,6 +1,7 @@
-import { ClassificationResult } from "./types";
+
 import * as probablepeople from "probablepeople";
 import { classifyPayeeWithAI, getOpenAIClient } from "./openaiService";
+import { ClassificationResult } from "./types";
 
 // Legal entity suffixes for business detection
 const LEGAL_SUFFIXES = [
