@@ -16,10 +16,11 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 
 interface BatchClassificationFormProps {
-  onBatchClassify: (results: PayeeClassification[]) => void;
+  onBatchClassify?: (results: PayeeClassification[]) => void;
+  onComplete?: (results: PayeeClassification[], summary: BatchProcessingResult) => void;
 }
 
-const BatchClassificationForm = ({ onBatchClassify }: BatchClassificationFormProps) => {
+const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassificationFormProps) => {
   const [payeeNames, setPayeeNames] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [batchResults, setBatchResults] = useState<PayeeClassification[]>([]);
@@ -64,7 +65,9 @@ const BatchClassificationForm = ({ onBatchClassify }: BatchClassificationFormPro
       });
 
       setBatchResults(classifications);
-      onBatchClassify(classifications);
+      if (onBatchClassify) {
+        onBatchClassify(classifications);
+      }
       
       const summary: BatchProcessingResult = {
         results: classifications,
@@ -74,6 +77,11 @@ const BatchClassificationForm = ({ onBatchClassify }: BatchClassificationFormPro
       };
       
       setProcessingSummary(summary);
+      
+      // Call onComplete if provided
+      if (onComplete) {
+        onComplete(classifications, summary);
+      }
 
       toast({
         title: "Batch Classification Complete",
