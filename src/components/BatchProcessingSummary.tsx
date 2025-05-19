@@ -10,13 +10,13 @@ const BatchProcessingSummary = ({ summary }: BatchProcessingSummaryProps) => {
   const { successCount, failureCount, processingTime } = summary;
   const totalProcessed = successCount + failureCount;
   
-  // Calculate classification distribution
+  // Calculate classification distribution with null checks
   const businessCount = summary.results.filter(
-    result => result.result.classification === 'Business'
+    result => result && result.result && result.result.classification === 'Business'
   ).length;
   
   const individualCount = summary.results.filter(
-    result => result.result.classification === 'Individual'
+    result => result && result.result && result.result.classification === 'Individual'
   ).length;
   
   const businessPercentage = totalProcessed > 0
@@ -27,10 +27,12 @@ const BatchProcessingSummary = ({ summary }: BatchProcessingSummaryProps) => {
     ? Math.round((individualCount / totalProcessed) * 100)
     : 0;
   
-  // Calculate tier distribution
+  // Calculate tier distribution with null checks
   const tierCounts = summary.results.reduce((acc, result) => {
-    const tier = result.result.processingTier;
-    acc[tier] = (acc[tier] || 0) + 1;
+    if (result && result.result && result.result.processingTier) {
+      const tier = result.result.processingTier;
+      acc[tier] = (acc[tier] || 0) + 1;
+    }
     return acc;
   }, {} as Record<string, number>);
   
