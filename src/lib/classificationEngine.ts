@@ -1,4 +1,3 @@
-
 // Use a try-catch for the import to handle potential issues
 let probablepeople: any;
 try {
@@ -12,7 +11,11 @@ try {
   };
 }
 
-import { classifyPayeeWithAI, classifyPayeesBatchWithAI, getOpenAIClient } from "./openaiService";
+import { 
+  classifyPayeeWithAI, 
+  classifyPayeesBatchWithAI, 
+  getOpenAIClient 
+} from "./openai";
 import { ClassificationResult, ClassificationConfig } from "./types";
 
 // Default classification configuration
@@ -333,7 +336,7 @@ export async function applyAIClassification(payeeName: string): Promise<Classifi
         classification: result.classification,
         confidence: result.confidence,
         reasoning: result.reasoning,
-        processingTier: 'AI-Assisted'
+        processingTier: 'AI-Assisted' as const
       };
     } catch (error) {
       console.error("Error with OpenAI classification:", error);
@@ -408,7 +411,7 @@ export async function applyAIClassification(payeeName: string): Promise<Classifi
     classification,
     confidence,
     reasoning,
-    processingTier: 'AI-Assisted',
+    processingTier: 'AI-Assisted' as const,
     matchingRules: features
   };
 }
@@ -503,7 +506,7 @@ async function applyAIClassificationBatch(payeeNames: string[]): Promise<Map<str
             classification: result.classification, // This is already typed correctly from openaiService
             confidence: result.confidence,
             reasoning: result.reasoning,
-            processingTier: 'AI-Assisted'
+            processingTier: 'AI-Assisted' as const
           });
         });
       } catch (error) {
@@ -523,10 +526,10 @@ async function applyAIClassificationBatch(payeeNames: string[]): Promise<Map<str
               return { 
                 name,
                 result: {
-                  classification: 'Individual' as const, // Fixed: explicitly typed as 'Individual'
+                  classification: 'Individual' as const, 
                   confidence: 40,
                   reasoning: "Classification failed due to API error",
-                  processingTier: 'AI-Assisted'
+                  processingTier: 'AI-Assisted' as const
                 } 
               };
             }
@@ -553,10 +556,10 @@ async function applyAIClassificationBatch(payeeNames: string[]): Promise<Map<str
           return { 
             name, 
             result: {
-              classification: 'Individual' as const, // Fixed: explicitly typed as 'Individual'
+              classification: 'Individual' as const,
               confidence: 40,
               reasoning: "Classification failed due to an error",
-              processingTier: 'AI-Assisted'
+              processingTier: 'AI-Assisted' as const
             }
           };
         }
