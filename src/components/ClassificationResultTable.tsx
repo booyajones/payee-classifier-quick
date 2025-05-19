@@ -32,7 +32,10 @@ const ClassificationResultTable = ({ results }: ClassificationResultTableProps) 
     }
   };
   
-  const sortedResults = [...results].sort((a, b) => {
+  // Filter out any potentially invalid results and add safe comparisons
+  const validResults = results.filter(result => result && result.result);
+  
+  const sortedResults = [...validResults].sort((a, b) => {
     let comparison = 0;
     
     switch (sortField) {
@@ -40,13 +43,22 @@ const ClassificationResultTable = ({ results }: ClassificationResultTableProps) 
         comparison = a.payeeName.localeCompare(b.payeeName);
         break;
       case 'classification':
-        comparison = a.result.classification.localeCompare(b.result.classification);
+        // Add null checks to avoid accessing undefined properties
+        if (a.result && b.result) {
+          comparison = a.result.classification.localeCompare(b.result.classification);
+        }
         break;
       case 'confidence':
-        comparison = a.result.confidence - b.result.confidence;
+        // Add null checks to avoid accessing undefined properties
+        if (a.result && b.result) {
+          comparison = a.result.confidence - b.result.confidence;
+        }
         break;
       case 'processingTier':
-        comparison = a.result.processingTier.localeCompare(b.result.processingTier);
+        // Add null checks to avoid accessing undefined properties
+        if (a.result && b.result && a.result.processingTier && b.result.processingTier) {
+          comparison = a.result.processingTier.localeCompare(b.result.processingTier);
+        }
         break;
     }
     
@@ -94,14 +106,16 @@ const ClassificationResultTable = ({ results }: ClassificationResultTableProps) 
               <TableRow key={result.id}>
                 <TableCell className="font-medium">{result.payeeName}</TableCell>
                 <TableCell>
-                  <Badge variant={result.result.classification === 'Business' ? 'default' : 'secondary'}>
-                    {result.result.classification}
-                  </Badge>
+                  {result.result && (
+                    <Badge variant={result.result.classification === 'Business' ? 'default' : 'secondary'}>
+                      {result.result.classification}
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell>
-                  <ClassificationBadge confidence={result.result.confidence} />
+                  {result.result && <ClassificationBadge confidence={result.result.confidence} />}
                 </TableCell>
-                <TableCell>{result.result.processingTier}</TableCell>
+                <TableCell>{result.result ? result.result.processingTier : 'N/A'}</TableCell>
                 <TableCell>
                   <Button variant="ghost" size="sm" onClick={() => setSelectedResult(result)}>
                     View Details
@@ -115,7 +129,7 @@ const ClassificationResultTable = ({ results }: ClassificationResultTableProps) 
 
       <Dialog open={!!selectedResult} onOpenChange={(open) => !open && setSelectedResult(null)}>
         <DialogContent className="sm:max-w-md">
-          {selectedResult && (
+          {selectedResult && selectedResult.result && (
             <>
               <DialogHeader>
                 <DialogTitle>{selectedResult.payeeName}</DialogTitle>
