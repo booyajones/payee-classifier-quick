@@ -57,7 +57,7 @@ export async function classifyPayeeWithAI(payeeName: string): Promise<{
   try {
     console.log(`Classifying "${payeeName}" with OpenAI...`);
     const response = await openaiClient.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini", // Changed from gpt-4o to gpt-4o-mini for faster processing
       messages: [
         {
           role: "system",
@@ -108,6 +108,92 @@ export async function classifyPayeeWithAI(payeeName: string): Promise<{
     }
   } catch (error) {
     console.error("Error calling OpenAI API:", error);
+    throw error;
+  }
+}
+
+// New function to classify multiple payees in a single batch request
+export async function classifyPayeesBatchWithAI(payeeNames: string[]): Promise<Array<{
+  payeeName: string;
+  classification: 'Business' | 'Individual';
+  confidence: number;
+  reasoning: string;
+}>> {
+  if (!openaiClient) {
+    throw new Error("OpenAI client not initialized. Please set your API key first.");
+  }
+
+  if (!payeeNames.length) {
+    return [];
+  }
+
+  try {
+    console.log(`Classifying batch of ${payeeNames.length} payees with OpenAI...`);
+    
+    // Format the request to include multiple payee names
+    const batchContent = payeeNames.map(name => `"${name}"`).join("\n");
+    
+    const response = await openaiClient.chat.completions.create({
+      model: "gpt-4o-mini", // Using the faster model
+      messages: [
+        {
+          role: "system",
+          content: `You are a financial data specialist focused on classifying payee names as either "Business" or "Individual".
+          
+          You will be given a list of payee names, one per line. For each name:
+          1. Analyze the provided payee name.
+          2. Classify it as either "Business" or "Individual".
+          3. Provide confidence level as a percentage between 0-100.
+          4. Give brief reasoning for your classification.
+          
+          Return ONLY valid JSON in the exact format: 
+          [
+            {"payeeName": "name1", "classification": "Business|Individual", "confidence": number, "reasoning": "brief explanation"},
+            {"payeeName": "name2", "classification": "Business|Individual", "confidence": number, "reasoning": "brief explanation"},
+            ...
+          ]
+          
+          Include ALL payee names in your response in the exact same order provided.`
+        },
+        {
+          role: "user",
+          content: batchContent
+        }
+      ],
+      response_format: { "type": "json_object" },
+      temperature: 0.2,
+      max_tokens: 2000
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error("Failed to get a valid response from OpenAI");
+    }
+
+    // Parse the JSON response
+    try {
+      const results = JSON.parse(content);
+      if (!Array.isArray(results)) {
+        throw new Error("Expected array response from OpenAI");
+      }
+      
+      // Validate and normalize the results
+      return results.map((result, index) => {
+        // Ensure the result has the correct payee name (in case of mismatch)
+        const payeeName = result.payeeName || payeeNames[index];
+        return {
+          payeeName,
+          classification: result.classification as 'Business' | 'Individual',
+          confidence: result.confidence,
+          reasoning: result.reasoning
+        };
+      });
+    } catch (e) {
+      console.error("Failed to parse OpenAI batch response:", content);
+      throw new Error("Failed to parse OpenAI batch response as JSON");
+    }
+  } catch (error) {
+    console.error("Error calling OpenAI API for batch classification:", error);
     throw error;
   }
 }

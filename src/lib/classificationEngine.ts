@@ -1,4 +1,3 @@
-
 // Use a try-catch for the import to handle potential issues
 let probablepeople: any;
 try {
@@ -12,8 +11,14 @@ try {
   };
 }
 
-import { classifyPayeeWithAI, getOpenAIClient } from "./openaiService";
+import { classifyPayeeWithAI, classifyPayeesBatchWithAI, getOpenAIClient } from "./openaiService";
 import { ClassificationResult } from "./types";
+
+// Maximum number of concurrent operations
+const MAX_CONCURRENCY = 10;
+
+// Maximum batch size for AI classification
+const MAX_BATCH_SIZE = 20;
 
 // Legal entity suffixes for business detection
 const LEGAL_SUFFIXES = [
@@ -306,6 +311,7 @@ export function applyNLPClassification(payeeName: string): ClassificationResult 
 
 /**
  * AI-assisted classification using OpenAI API
+ * Now supports single payee classification (legacy) and is used by batch processing
  */
 export async function applyAIClassification(payeeName: string): Promise<ClassificationResult> {
   // Check if OpenAI client is initialized
@@ -401,8 +407,124 @@ export async function applyAIClassification(payeeName: string): Promise<Classifi
 }
 
 /**
+ * Apply rule-based and NLP classification to a batch of payees in parallel
+ */
+async function applyBasicClassificationBatch(payeeNames: string[]): Promise<Map<string, ClassificationResult>> {
+  const results = new Map<string, ClassificationResult>();
+  
+  // Process payees in parallel with a concurrency limit
+  const chunks = [];
+  for (let i = 0; i < payeeNames.length; i += MAX_CONCURRENCY) {
+    chunks.push(payeeNames.slice(i, i + MAX_CONCURRENCY));
+  }
+  
+  // Process each chunk
+  for (const chunk of chunks) {
+    await Promise.all(chunk.map(async (name) => {
+      try {
+        // Try rule-based first
+        const ruleResult = applyRuleBasedClassification(name);
+        if (ruleResult) {
+          results.set(name, ruleResult);
+          return;
+        }
+        
+        // Try NLP-based next
+        const nlpResult = applyNLPClassification(name);
+        if (nlpResult) {
+          results.set(name, nlpResult);
+          return;
+        }
+        
+        // Don't set a result if both fail - will be picked up by AI batch
+      } catch (error) {
+        console.error(`Error classifying ${name} with basic methods:`, error);
+      }
+    }));
+  }
+  
+  return results;
+}
+
+/**
+ * Apply AI classification to a batch of payees
+ */
+async function applyAIClassificationBatch(payeeNames: string[]): Promise<Map<string, ClassificationResult>> {
+  const results = new Map<string, ClassificationResult>();
+  const openaiClient = getOpenAIClient();
+  
+  if (!openaiClient || payeeNames.length === 0) {
+    // Fall back to individual processing if no OpenAI client
+    const simResults = await Promise.all(
+      payeeNames.map(async (name) => {
+        const result = await applyAIClassification(name);
+        return { name, result };
+      })
+    );
+    
+    simResults.forEach(({ name, result }) => {
+      results.set(name, result);
+    });
+    
+    return results;
+  }
+  
+  try {
+    // Process in batches of MAX_BATCH_SIZE
+    for (let i = 0; i < payeeNames.length; i += MAX_BATCH_SIZE) {
+      const batchNames = payeeNames.slice(i, i + MAX_BATCH_SIZE);
+      
+      try {
+        // Use batch API for this chunk
+        const batchResults = await classifyPayeesBatchWithAI(batchNames);
+        
+        // Map results back to the results map
+        batchResults.forEach(result => {
+          results.set(result.payeeName, {
+            classification: result.classification,
+            confidence: result.confidence,
+            reasoning: result.reasoning,
+            processingTier: 'AI-Assisted'
+          });
+        });
+      } catch (error) {
+        console.error(`Error with batch AI classification for batch ${i}:`, error);
+        
+        // Fall back to individual processing for this batch on failure
+        const individualResults = await Promise.all(
+          batchNames.map(async (name) => {
+            const result = await applyAIClassification(name);
+            return { name, result };
+          })
+        );
+        
+        individualResults.forEach(({ name, result }) => {
+          results.set(name, result);
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error processing AI classification batch:", error);
+    
+    // Fall back to individual processing for all names
+    const fallbackResults = await Promise.all(
+      payeeNames.map(async (name) => {
+        const result = await applyAIClassification(name);
+        return { name, result };
+      })
+    );
+    
+    fallbackResults.forEach(({ name, result }) => {
+      results.set(name, result);
+    });
+  }
+  
+  return results;
+}
+
+/**
  * Main classification function that implements the tiered approach
- * Now supports asynchronous AI classification
+ * Updated to support single name classification
  */
 export async function classifyPayee(payeeName: string): Promise<ClassificationResult> {
   // Check if name is empty or invalid
@@ -443,27 +565,127 @@ export function getConfidenceLevel(confidence: number): 'high' | 'medium' | 'low
 
 /**
  * Process a batch of payee names
- * Updated to handle asynchronous classification and provide progress updates
+ * Completely rewritten to implement parallel processing and batch API calls
  */
 export async function processBatch(
   payeeNames: string[], 
   onProgress?: (current: number, total: number, percentage: number) => void
 ): Promise<ClassificationResult[]> {
-  const results: ClassificationResult[] = [];
-  const total = payeeNames.length;
-  
-  for (let i = 0; i < payeeNames.length; i++) {
-    const name = payeeNames[i];
-    const result = await classifyPayee(name);
-    results.push(result);
-    
-    // Call the progress callback if provided
-    if (onProgress) {
-      const current = i + 1;
-      const percentage = Math.round((current / total) * 100);
-      onProgress(current, total, percentage);
-    }
+  // Filter out empty names
+  const validPayeeNames = payeeNames.filter(name => name && name.trim() !== '');
+  if (validPayeeNames.length === 0) {
+    return [];
   }
   
-  return results;
+  const total = validPayeeNames.length;
+  const results: ClassificationResult[] = new Array(total);
+  
+  // Create a map for quick lookup of name to index
+  const nameToIndexMap = new Map<string, number>();
+  validPayeeNames.forEach((name, index) => {
+    nameToIndexMap.set(name, index);
+  });
+  
+  // Set initial progress
+  if (onProgress) {
+    onProgress(0, total, 0);
+  }
+  
+  try {
+    // Step 1: Apply rule-based and NLP classification in parallel (fast)
+    console.time('Basic classification');
+    const basicResults = await applyBasicClassificationBatch(validPayeeNames);
+    console.timeEnd('Basic classification');
+    
+    console.log(`Basic classification results: ${basicResults.size} / ${total}`);
+    
+    // Update progress after basic classification
+    let classifiedCount = basicResults.size;
+    if (onProgress) {
+      const percentage = Math.round((classifiedCount / total) * 50); // Use 50% for basic classification
+      onProgress(classifiedCount, total, percentage);
+    }
+    
+    // Step 2: Apply AI classification to remaining payees
+    const aiClassificationNeeded = validPayeeNames.filter(name => !basicResults.has(name));
+    console.log(`Names needing AI classification: ${aiClassificationNeeded.length} / ${total}`);
+    
+    let aiResults = new Map<string, ClassificationResult>();
+    if (aiClassificationNeeded.length > 0) {
+      console.time('AI classification');
+      aiResults = await applyAIClassificationBatch(aiClassificationNeeded);
+      console.timeEnd('AI classification');
+    }
+    
+    // Combine results
+    for (const name of validPayeeNames) {
+      // Get the original index of this name
+      const index = nameToIndexMap.get(name)!;
+      
+      if (basicResults.has(name)) {
+        results[index] = basicResults.get(name)!;
+      } else if (aiResults.has(name)) {
+        results[index] = aiResults.get(name)!;
+      } else {
+        // Fallback for any missed names
+        console.warn(`No classification result for: ${name}, using fallback`);
+        results[index] = {
+          classification: 'Individual', // Default fallback
+          confidence: 40,
+          reasoning: "Classification could not be determined with high confidence",
+          processingTier: 'Rule-Based'
+        };
+      }
+      
+      // Update progress as each AI result comes in
+      if (onProgress) {
+        classifiedCount++;
+        const percentage = Math.min(
+          Math.round(50 + (classifiedCount / total) * 50), // 50% for AI classification
+          99 // Never show 100% until we're done
+        );
+        onProgress(classifiedCount, total, percentage);
+      }
+    }
+    
+    // Set final progress
+    if (onProgress) {
+      onProgress(total, total, 100);
+    }
+    
+    return results;
+  } catch (error) {
+    console.error("Error in batch processing:", error);
+    
+    // Fall back to sequential processing on error
+    console.log("Falling back to sequential processing");
+    
+    const fallbackResults: ClassificationResult[] = [];
+    let processed = 0;
+    
+    for (const name of validPayeeNames) {
+      try {
+        const result = await classifyPayee(name);
+        fallbackResults.push(result);
+      } catch (innerError) {
+        console.error(`Error classifying ${name}:`, innerError);
+        // Use default fallback
+        fallbackResults.push({
+          classification: 'Individual',
+          confidence: 40,
+          reasoning: "Classification failed due to an error",
+          processingTier: 'Rule-Based'
+        });
+      }
+      
+      // Update progress
+      processed++;
+      if (onProgress) {
+        const percentage = Math.round((processed / total) * 100);
+        onProgress(processed, total, percentage);
+      }
+    }
+    
+    return fallbackResults;
+  }
 }
