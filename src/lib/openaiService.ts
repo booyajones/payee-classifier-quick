@@ -4,10 +4,20 @@ import OpenAI from 'openai';
 let openaiClient: OpenAI | null = null;
 
 export function initializeOpenAI(apiKey: string): void {
-  openaiClient = new OpenAI({
-    apiKey,
-    dangerouslyAllowBrowser: true // Note: In a production app, API calls should be made from a backend
-  });
+  if (!apiKey || apiKey.trim() === '') {
+    throw new Error("Invalid API key provided");
+  }
+
+  try {
+    openaiClient = new OpenAI({
+      apiKey,
+      dangerouslyAllowBrowser: true // Note: In a production app, API calls should be made from a backend
+    });
+    console.log("OpenAI client initialized successfully");
+  } catch (error) {
+    console.error("Error initializing OpenAI client:", error);
+    throw error;
+  }
 }
 
 export function getOpenAIClient(): OpenAI | null {
@@ -20,10 +30,15 @@ export async function classifyPayeeWithAI(payeeName: string): Promise<{
   reasoning: string;
 }> {
   if (!openaiClient) {
-    throw new Error("OpenAI client not initialized. Please set your API key.");
+    throw new Error("OpenAI client not initialized. Please set your API key first.");
+  }
+
+  if (!payeeName || payeeName.trim() === '') {
+    throw new Error("Invalid payee name provided");
   }
 
   try {
+    console.log(`Classifying "${payeeName}" with OpenAI...`);
     const response = await openaiClient.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -60,6 +75,8 @@ export async function classifyPayeeWithAI(payeeName: string): Promise<{
       throw new Error("Failed to get a valid response from OpenAI");
     }
 
+    console.log("OpenAI response content:", content);
+    
     // Parse the JSON response
     try {
       const result = JSON.parse(content);
@@ -69,6 +86,7 @@ export async function classifyPayeeWithAI(payeeName: string): Promise<{
         reasoning: result.reasoning
       };
     } catch (e) {
+      console.error("Failed to parse OpenAI response:", content);
       throw new Error("Failed to parse OpenAI response as JSON");
     }
   } catch (error) {

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { classifyPayee } from "@/lib/classificationEngine";
@@ -11,6 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileSpreadsheet, Upload } from "lucide-react";
+import { getOpenAIClient } from "@/lib/openaiService";
+import APIKeyInput from "./APIKeyInput";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface BatchClassificationFormProps {
   onComplete: (results: PayeeClassification[], summary: BatchProcessingResult) => void;
@@ -24,7 +27,14 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
   const [file, setFile] = useState<File | null>(null);
   const [columns, setColumns] = useState<string[]>([]);
   const [selectedColumn, setSelectedColumn] = useState<string>("");
+  const [apiKeySet, setApiKeySet] = useState<boolean>(false);
   const { toast } = useToast();
+  
+  // Check if API key is already set in session storage
+  useEffect(() => {
+    const storedApiKey = sessionStorage.getItem("openai_api_key");
+    setApiKeySet(!!storedApiKey && getOpenAIClient() !== null);
+  }, []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -166,12 +176,30 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     setPayeeNames(examplePayees.join('\n'));
   };
 
+  // Check if OpenAI API key is set
+  const isAIEnabled = apiKeySet || getOpenAIClient() !== null;
+
+  if (!isAIEnabled) {
+    return (
+      <>
+        <Alert className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>OpenAI API Key Required</AlertTitle>
+          <AlertDescription>
+            To enable batch classification with AI, please set your OpenAI API key below.
+          </AlertDescription>
+        </Alert>
+        <APIKeyInput onApiKeySet={() => setApiKeySet(true)} />
+      </>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Batch Classification</CardTitle>
         <CardDescription>
-          Enter multiple payee names or upload a file to classify them in batch.
+          Enter multiple payee names or upload a file to classify them in batch using our AI-powered system.
         </CardDescription>
       </CardHeader>
       <CardContent>
