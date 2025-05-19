@@ -1,9 +1,9 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { initializeOpenAI } from "@/lib/openaiService";
+import { initializeOpenAI, getOpenAIClient } from "@/lib/openaiService";
 import { useToast } from "@/components/ui/use-toast";
 import { AlertCircle, CheckCircle, KeyRound } from "lucide-react";
 
@@ -16,6 +16,20 @@ const APIKeyInput = ({ onApiKeySet }: APIKeyInputProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const { toast } = useToast();
+
+  // Check if API key is already set in session storage on component mount
+  useEffect(() => {
+    const storedApiKey = sessionStorage.getItem("openai_api_key");
+    if (storedApiKey) {
+      try {
+        initializeOpenAI(storedApiKey);
+        onApiKeySet();
+      } catch (error) {
+        console.error("Error with stored API key:", error);
+        sessionStorage.removeItem("openai_api_key");
+      }
+    }
+  }, [onApiKeySet]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,10 +49,6 @@ const APIKeyInput = ({ onApiKeySet }: APIKeyInputProps) => {
     try {
       // Initialize the OpenAI client with the provided API key
       initializeOpenAI(apiKey);
-      
-      // Store API key in session storage (not local storage for slightly better security)
-      // In a production app, this should be handled by a secure backend
-      sessionStorage.setItem("openai_api_key", apiKey);
       
       toast({
         title: "API Key Set Successfully",
