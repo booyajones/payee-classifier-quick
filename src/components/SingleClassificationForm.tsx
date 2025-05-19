@@ -3,15 +3,19 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { classifyPayee } from "@/lib/classificationEngine";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { classifyPayee, DEFAULT_CLASSIFICATION_CONFIG } from "@/lib/classificationEngine";
 import { createPayeeClassification } from "@/lib/utils";
 import ClassificationResultCard from "./ClassificationResultCard";
-import { PayeeClassification } from "@/lib/types";
+import { PayeeClassification, ClassificationConfig } from "@/lib/types";
 import { useToast } from "@/components/ui/use-toast";
 import { getOpenAIClient } from "@/lib/openaiService";
 import APIKeyInput from "./APIKeyInput";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Label } from "@/components/ui/label";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel } from "@/components/ui/form";
 
 interface SingleClassificationFormProps {
   onClassify: (result: PayeeClassification) => void;
@@ -22,6 +26,7 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentResult, setCurrentResult] = useState<PayeeClassification | null>(null);
   const [apiKeySet, setApiKeySet] = useState<boolean>(false);
+  const [config, setConfig] = useState<ClassificationConfig>(DEFAULT_CLASSIFICATION_CONFIG);
   const { toast } = useToast();
 
   // Check if API key is already set in session storage
@@ -45,8 +50,8 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
     setIsProcessing(true);
     
     try {
-      // Classification is now async
-      const result = await classifyPayee(payeeName);
+      // Classification is now async and uses the config
+      const result = await classifyPayee(payeeName, config);
       const classification = createPayeeClassification(payeeName, result);
       
       setCurrentResult(classification);
@@ -71,6 +76,16 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
   // Check if OpenAI API key is set
   const isAIEnabled = apiKeySet || getOpenAIClient() !== null;
 
+  // Handle AI threshold change
+  const handleThresholdChange = (value: number[]) => {
+    setConfig(prev => ({ ...prev, aiThreshold: value[0] }));
+  };
+
+  // Handle AI-only mode toggle
+  const handleAIOnlyToggle = (checked: boolean) => {
+    setConfig(prev => ({ ...prev, bypassRuleNLP: checked }));
+  };
+
   return (
     <>
       {!isAIEnabled ? (
@@ -93,7 +108,7 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid gap-4">
                 <div className="flex flex-col gap-2">
                   <Input
@@ -105,6 +120,45 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
                   />
                 </div>
               </div>
+              
+              <div className="space-y-4 border rounded-md p-4">
+                <h3 className="text-md font-medium">Classification Settings</h3>
+                
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <Label htmlFor="aiThreshold">AI Confidence Threshold: {config.aiThreshold}%</Label>
+                    </div>
+                    <Slider
+                      id="aiThreshold"
+                      min={0}
+                      max={100}
+                      step={5}
+                      value={[config.aiThreshold]}
+                      onValueChange={handleThresholdChange}
+                      disabled={config.bypassRuleNLP}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {config.bypassRuleNLP 
+                        ? "AI-Only mode is active - threshold is ignored"
+                        : `AI will be used when rule-based or NLP classification confidence is below ${config.aiThreshold}%`}
+                    </p>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="aiOnly"
+                      checked={config.bypassRuleNLP}
+                      onCheckedChange={handleAIOnlyToggle}
+                    />
+                    <Label htmlFor="aiOnly">AI-Only Mode</Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    When enabled, rule-based and NLP classification will be skipped, and all payees will be classified using AI
+                  </p>
+                </div>
+              </div>
+              
               <Button type="submit" className="w-full" disabled={isProcessing}>
                 {isProcessing ? "Classifying..." : "Classify Payee"}
               </Button>

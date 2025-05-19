@@ -3,6 +3,9 @@ import OpenAI from 'openai';
 
 let openaiClient: OpenAI | null = null;
 
+// Default timeout for OpenAI API calls (in ms)
+const DEFAULT_API_TIMEOUT = 30000; // 30 seconds
+
 export function initializeOpenAI(apiKey: string): void {
   if (!apiKey || apiKey.trim() === '') {
     throw new Error("Invalid API key provided");
@@ -41,7 +44,37 @@ export function getOpenAIClient(): OpenAI | null {
   return openaiClient;
 }
 
-export async function classifyPayeeWithAI(payeeName: string): Promise<{
+/**
+ * Helper function to create a promise that rejects after a timeout
+ */
+function timeoutPromise<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timeoutId: NodeJS.Timeout;
+  
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`Request timed out after ${ms}ms`));
+    }, ms);
+  });
+  
+  return Promise.race([
+    promise,
+    timeoutPromise
+  ]).then(
+    result => {
+      clearTimeout(timeoutId);
+      return result as T;
+    },
+    error => {
+      clearTimeout(timeoutId);
+      throw error;
+    }
+  );
+}
+
+export async function classifyPayeeWithAI(
+  payeeName: string, 
+  timeout: number = DEFAULT_API_TIMEOUT
+): Promise<{
   classification: 'Business' | 'Individual';
   confidence: number;
   reasoning: string;
@@ -56,8 +89,9 @@ export async function classifyPayeeWithAI(payeeName: string): Promise<{
 
   try {
     console.log(`Classifying "${payeeName}" with OpenAI...`);
-    const response = await openaiClient.chat.completions.create({
-      model: "gpt-4o-mini", // Changed from gpt-4o to gpt-4o-mini for faster processing
+    
+    const apiCall = openaiClient.chat.completions.create({
+      model: "gpt-4o-mini", // Using the faster model for better performance
       messages: [
         {
           role: "system",
@@ -86,6 +120,9 @@ export async function classifyPayeeWithAI(payeeName: string): Promise<{
       temperature: 0.2,
       max_tokens: 500
     });
+    
+    // Add timeout to prevent hanging
+    const response = await timeoutPromise(apiCall, timeout);
 
     const content = response.choices[0]?.message?.content;
     if (!content) {
@@ -113,7 +150,10 @@ export async function classifyPayeeWithAI(payeeName: string): Promise<{
 }
 
 // New function to classify multiple payees in a single batch request
-export async function classifyPayeesBatchWithAI(payeeNames: string[]): Promise<Array<{
+export async function classifyPayeesBatchWithAI(
+  payeeNames: string[],
+  timeout: number = DEFAULT_API_TIMEOUT
+): Promise<Array<{
   payeeName: string;
   classification: 'Business' | 'Individual';
   confidence: number;
@@ -133,7 +173,7 @@ export async function classifyPayeesBatchWithAI(payeeNames: string[]): Promise<A
     // Format the request to include multiple payee names
     const batchContent = payeeNames.map(name => `"${name}"`).join("\n");
     
-    const response = await openaiClient.chat.completions.create({
+    const apiCall = openaiClient.chat.completions.create({
       model: "gpt-4o-mini", // Using the faster model
       messages: [
         {
@@ -164,6 +204,9 @@ export async function classifyPayeesBatchWithAI(payeeNames: string[]): Promise<A
       temperature: 0.2,
       max_tokens: 2000
     });
+    
+    // Add timeout to prevent hanging
+    const response = await timeoutPromise(apiCall, timeout);
 
     const content = response.choices[0]?.message?.content;
     if (!content) {

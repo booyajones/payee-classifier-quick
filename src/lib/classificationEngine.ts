@@ -12,13 +12,19 @@ try {
 }
 
 import { classifyPayeeWithAI, classifyPayeesBatchWithAI, getOpenAIClient } from "./openaiService";
-import { ClassificationResult } from "./types";
+import { ClassificationResult, ClassificationConfig } from "./types";
+
+// Default classification configuration
+export const DEFAULT_CLASSIFICATION_CONFIG: ClassificationConfig = {
+  aiThreshold: 75, // Default threshold - use AI when confidence is below 75%
+  bypassRuleNLP: false // By default, don't bypass rule-based and NLP classification
+};
 
 // Maximum number of concurrent operations
 const MAX_CONCURRENCY = 10;
 
 // Maximum batch size for AI classification
-const MAX_BATCH_SIZE = 20;
+const MAX_BATCH_SIZE = 10; // Reduced from 20 to improve reliability
 
 // Legal entity suffixes for business detection
 const LEGAL_SUFFIXES = [
@@ -409,7 +415,15 @@ export async function applyAIClassification(payeeName: string): Promise<Classifi
 /**
  * Apply rule-based and NLP classification to a batch of payees in parallel
  */
-async function applyBasicClassificationBatch(payeeNames: string[]): Promise<Map<string, ClassificationResult>> {
+async function applyBasicClassificationBatch(
+  payeeNames: string[],
+  config: ClassificationConfig = DEFAULT_CLASSIFICATION_CONFIG
+): Promise<Map<string, ClassificationResult>> {
+  // If we're bypassing rule-based and NLP classification, return an empty map
+  if (config.bypassRuleNLP) {
+    return new Map<string, ClassificationResult>();
+  }
+  
   const results = new Map<string, ClassificationResult>();
   
   // Process payees in parallel with a concurrency limit
@@ -424,19 +438,19 @@ async function applyBasicClassificationBatch(payeeNames: string[]): Promise<Map<
       try {
         // Try rule-based first
         const ruleResult = applyRuleBasedClassification(name);
-        if (ruleResult) {
+        if (ruleResult && ruleResult.confidence >= config.aiThreshold) {
           results.set(name, ruleResult);
           return;
         }
         
-        // Try NLP-based next
+        // Try NLP-based next if rule-based didn't meet the threshold
         const nlpResult = applyNLPClassification(name);
-        if (nlpResult) {
+        if (nlpResult && nlpResult.confidence >= config.aiThreshold) {
           results.set(name, nlpResult);
           return;
         }
         
-        // Don't set a result if both fail - will be picked up by AI batch
+        // Don't set a result if both fail to meet the threshold - will be picked up by AI batch
       } catch (error) {
         console.error(`Error classifying ${name} with basic methods:`, error);
       }
@@ -524,9 +538,12 @@ async function applyAIClassificationBatch(payeeNames: string[]): Promise<Map<str
 
 /**
  * Main classification function that implements the tiered approach
- * Updated to support single name classification
+ * Updated to support configuration options
  */
-export async function classifyPayee(payeeName: string): Promise<ClassificationResult> {
+export async function classifyPayee(
+  payeeName: string, 
+  config: ClassificationConfig = DEFAULT_CLASSIFICATION_CONFIG
+): Promise<ClassificationResult> {
   // Check if name is empty or invalid
   if (!payeeName || payeeName.trim() === '') {
     return {
@@ -537,15 +554,20 @@ export async function classifyPayee(payeeName: string): Promise<ClassificationRe
     };
   }
 
+  // If we're bypassing rule-based and NLP classification, go straight to AI
+  if (config.bypassRuleNLP) {
+    return await applyAIClassification(payeeName);
+  }
+
   // Tier 1: Apply rule-based classification
   const ruleBasedResult = applyRuleBasedClassification(payeeName);
-  if (ruleBasedResult) {
+  if (ruleBasedResult && ruleBasedResult.confidence >= config.aiThreshold) {
     return ruleBasedResult;
   }
 
   // Tier 2: Apply NLP-based classification
   const nlpResult = applyNLPClassification(payeeName);
-  if (nlpResult) {
+  if (nlpResult && nlpResult.confidence >= config.aiThreshold) {
     return nlpResult;
   }
 
@@ -564,12 +586,12 @@ export function getConfidenceLevel(confidence: number): 'high' | 'medium' | 'low
 }
 
 /**
- * Process a batch of payee names
- * Completely rewritten to implement parallel processing and batch API calls
+ * Process a batch of payee names with configuration options
  */
 export async function processBatch(
   payeeNames: string[], 
-  onProgress?: (current: number, total: number, percentage: number) => void
+  onProgress?: (current: number, total: number, percentage: number) => void,
+  config: ClassificationConfig = DEFAULT_CLASSIFICATION_CONFIG
 ): Promise<ClassificationResult[]> {
   // Filter out empty names
   const validPayeeNames = payeeNames.filter(name => name && name.trim() !== '');
@@ -592,9 +614,9 @@ export async function processBatch(
   }
   
   try {
-    // Step 1: Apply rule-based and NLP classification in parallel (fast)
+    // Step 1: Apply rule-based and NLP classification in parallel (fast) if not bypassed
     console.time('Basic classification');
-    const basicResults = await applyBasicClassificationBatch(validPayeeNames);
+    const basicResults = await applyBasicClassificationBatch(validPayeeNames, config);
     console.timeEnd('Basic classification');
     
     console.log(`Basic classification results: ${basicResults.size} / ${total}`);
@@ -602,8 +624,9 @@ export async function processBatch(
     // Update progress after basic classification
     let classifiedCount = basicResults.size;
     if (onProgress) {
-      const percentage = Math.round((classifiedCount / total) * 50); // Use 50% for basic classification
-      onProgress(classifiedCount, total, percentage);
+      const progressPercentage = config.bypassRuleNLP ? 0 : 
+        Math.round((classifiedCount / total) * 50); // Use 50% for basic classification
+      onProgress(classifiedCount, total, progressPercentage);
     }
     
     // Step 2: Apply AI classification to remaining payees
@@ -640,8 +663,9 @@ export async function processBatch(
       // Update progress as each AI result comes in
       if (onProgress) {
         classifiedCount++;
+        const startPercentage = config.bypassRuleNLP ? 0 : 50;
         const percentage = Math.min(
-          Math.round(50 + (classifiedCount / total) * 50), // 50% for AI classification
+          Math.round(startPercentage + (classifiedCount / total) * (100 - startPercentage)), 
           99 // Never show 100% until we're done
         );
         onProgress(classifiedCount, total, percentage);
@@ -665,7 +689,7 @@ export async function processBatch(
     
     for (const name of validPayeeNames) {
       try {
-        const result = await classifyPayee(name);
+        const result = await classifyPayee(name, config);
         fallbackResults.push(result);
       } catch (innerError) {
         console.error(`Error classifying ${name}:`, innerError);

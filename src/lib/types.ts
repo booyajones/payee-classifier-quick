@@ -1,3 +1,4 @@
+
 export interface ClassificationResult {
   classification: 'Business' | 'Individual';
   confidence: number;
@@ -39,4 +40,9 @@ export interface ParsedCorporation {
   CorporationLegalType?: string;
   OrganizationNameType?: string;
   [key: string]: string | undefined;
+}
+
+export interface ClassificationConfig {
+  aiThreshold: number;   // Confidence threshold below which AI will be used
+  bypassRuleNLP: boolean; // Whether to skip rule-based and NLP classification
 }

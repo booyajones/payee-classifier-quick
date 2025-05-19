@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { processBatch } from "@/lib/classificationEngine";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { processBatch, DEFAULT_CLASSIFICATION_CONFIG } from "@/lib/classificationEngine";
 import { createPayeeClassification } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import BatchProcessingSummary from "./BatchProcessingSummary";
 import ClassificationResultTable from "./ClassificationResultTable";
-import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
+import { PayeeClassification, BatchProcessingResult, ClassificationConfig } from "@/lib/types";
 import APIKeyInput from "./APIKeyInput";
 import FileUploadForm from "./FileUploadForm";
 import { getOpenAIClient } from "@/lib/openaiService";
@@ -32,6 +34,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   const [activeTab, setActiveTab] = useState<string>("text");
   const [progress, setProgress] = useState<number>(0);
   const [processingStatus, setProcessingStatus] = useState<string>("");
+  const [config, setConfig] = useState<ClassificationConfig>(DEFAULT_CLASSIFICATION_CONFIG);
   const { toast } = useToast();
 
   // Check if API key is already set in session storage
@@ -68,7 +71,8 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
         (current, total, percentage) => {
           setProgress(percentage);
           setProcessingStatus(`Processing ${current} of ${total} payees`);
-        }
+        },
+        config // Pass the configuration
       );
       const endTime = performance.now();
       const processingTime = endTime - startTime;
@@ -130,6 +134,16 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
     }
   };
 
+  // Handle AI threshold change
+  const handleThresholdChange = (value: number[]) => {
+    setConfig(prev => ({ ...prev, aiThreshold: value[0] }));
+  };
+
+  // Handle AI-only mode toggle
+  const handleAIOnlyToggle = (checked: boolean) => {
+    setConfig(prev => ({ ...prev, bypassRuleNLP: checked }));
+  };
+
   // Check if OpenAI API key is set
   const isAIEnabled = apiKeySet || getOpenAIClient() !== null;
 
@@ -155,6 +169,44 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="space-y-4 border rounded-md p-4 mb-6">
+              <h3 className="text-md font-medium">Classification Settings</h3>
+              
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <Label htmlFor="batchAiThreshold">AI Confidence Threshold: {config.aiThreshold}%</Label>
+                  </div>
+                  <Slider
+                    id="batchAiThreshold"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={[config.aiThreshold]}
+                    onValueChange={handleThresholdChange}
+                    disabled={config.bypassRuleNLP}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {config.bypassRuleNLP 
+                      ? "AI-Only mode is active - threshold is ignored"
+                      : `AI will be used when rule-based or NLP classification confidence is below ${config.aiThreshold}%`}
+                  </p>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="batchAiOnly"
+                    checked={config.bypassRuleNLP}
+                    onCheckedChange={handleAIOnlyToggle}
+                  />
+                  <Label htmlFor="batchAiOnly">AI-Only Mode</Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  When enabled, rule-based and NLP classification will be skipped, and all payees will be classified using AI
+                </p>
+              </div>
+            </div>
+          
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mb-6">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="text">Text Input</TabsTrigger>
