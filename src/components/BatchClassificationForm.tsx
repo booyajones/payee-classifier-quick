@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,11 +9,11 @@ import { createPayeeClassification } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import BatchProcessingSummary from "./BatchProcessingSummary";
 import ClassificationResultTable from "./ClassificationResultTable";
-import { PayeeClassification } from "@/lib/types";
+import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import APIKeyInput from "./APIKeyInput";
 import { getOpenAIClient } from "@/lib/openaiService";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react"; // Added the missing import
+import { AlertCircle } from "lucide-react";
 
 interface BatchClassificationFormProps {
   onBatchClassify: (results: PayeeClassification[]) => void;
@@ -22,7 +23,7 @@ const BatchClassificationForm = ({ onBatchClassify }: BatchClassificationFormPro
   const [payeeNames, setPayeeNames] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [batchResults, setBatchResults] = useState<PayeeClassification[]>([]);
-  const [processingSummary, setProcessingSummary] = useState<{ successCount: number; failureCount: number; processingTime: number } | null>(null);
+  const [processingSummary, setProcessingSummary] = useState<BatchProcessingResult | null>(null);
   const [apiKeySet, setApiKeySet] = useState<boolean>(false);
   const { toast } = useToast();
 
@@ -64,7 +65,15 @@ const BatchClassificationForm = ({ onBatchClassify }: BatchClassificationFormPro
 
       setBatchResults(classifications);
       onBatchClassify(classifications);
-      setProcessingSummary({ successCount, failureCount, processingTime });
+      
+      const summary: BatchProcessingResult = {
+        results: classifications,
+        successCount,
+        failureCount,
+        processingTime
+      };
+      
+      setProcessingSummary(summary);
 
       toast({
         title: "Batch Classification Complete",
