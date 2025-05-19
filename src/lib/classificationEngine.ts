@@ -1,5 +1,6 @@
-
 import { ClassificationResult } from "./types";
+import * as probablepeople from "probablepeople";
+import { classifyPayeeWithAI, getOpenAIClient } from "./openaiService";
 
 // Legal entity suffixes for business detection
 const LEGAL_SUFFIXES = [
@@ -37,7 +38,7 @@ const PROFESSIONAL_TITLES = [
 ];
 
 /**
- * Rule-based classification of payee name
+ * Rule-based classification using probablepeople library and custom rules
  */
 export function applyRuleBasedClassification(payeeName: string): ClassificationResult | null {
   // Convert to uppercase for consistent matching
@@ -46,6 +47,23 @@ export function applyRuleBasedClassification(payeeName: string): ClassificationR
   const matchingRules: string[] = [];
   let isBusinessIndicator = false;
   let isIndividualIndicator = false;
+
+  // Use probablepeople to parse the name
+  try {
+    const [parsed, nameType] = probablepeople.parse(payeeName);
+    
+    // If probablepeople confidently identifies the type
+    if (nameType === 'person') {
+      matchingRules.push("Identified as person by name structure analysis");
+      isIndividualIndicator = true;
+    } else if (nameType === 'corporation') {
+      matchingRules.push("Identified as corporation by name structure analysis");
+      isBusinessIndicator = true;
+    }
+  } catch (error) {
+    // Parsing failed, continue with other rules
+    console.log("Probablepeople parsing failed, using fallback rules");
+  }
 
   // Check for legal suffixes
   for (const suffix of LEGAL_SUFFIXES) {
@@ -140,19 +158,70 @@ export function applyRuleBasedClassification(payeeName: string): ClassificationR
 }
 
 /**
- * NLP-based classification (simplified implementation for demo)
- * In a production system, this would use actual NLP libraries
+ * NLP-based classification using probablepeople for entity recognition
  */
 export function applyNLPClassification(payeeName: string): ClassificationResult | null {
-  // This is a simplified implementation
-  // In a real system, this would use spaCy, probablepeople, etc.
+  const matchingPatterns: string[] = [];
+  
+  try {
+    // Try to get detailed parsing from probablepeople
+    const [parsed, nameType] = probablepeople.parse(payeeName);
+    
+    // If we get a confident result but it wasn't strong enough for rule-based tier
+    if (nameType === 'person') {
+      // Extract components that indicate a person
+      const hasFirstName = parsed.GivenName || parsed.FirstInitial;
+      const hasLastName = parsed.Surname || parsed.LastInitial;
+      const hasNameSuffix = parsed.SuffixGenerational || parsed.SuffixOther;
+      const hasNamePrefix = parsed.PrefixMarital || parsed.PrefixOther;
+      
+      const components = [];
+      if (hasFirstName) components.push("first name");
+      if (hasLastName) components.push("last name");
+      if (hasNameSuffix) components.push("name suffix");
+      if (hasNamePrefix) components.push("name prefix");
+      
+      if (components.length >= 2) {
+        matchingPatterns.push(`Person name components detected: ${components.join(", ")}`);
+        return {
+          classification: 'Individual',
+          confidence: 75,
+          reasoning: `Name contains typical personal name components (${components.join(", ")})`,
+          processingTier: 'NLP-Based',
+          matchingRules: matchingPatterns
+        };
+      }
+    } else if (nameType === 'corporation') {
+      // Extract components that indicate an organization
+      const hasCorpName = parsed.CorporationName;
+      const hasCorpSuffix = parsed.CorporationLegalType;
+      const hasOrgType = parsed.OrganizationNameType;
+      
+      const components = [];
+      if (hasCorpName) components.push("corporation name");
+      if (hasCorpSuffix) components.push("legal suffix");
+      if (hasOrgType) components.push("organization type");
+      
+      if (components.length >= 1) {
+        matchingPatterns.push(`Business entity components detected: ${components.join(", ")}`);
+        return {
+          classification: 'Business',
+          confidence: 75,
+          reasoning: `Name contains typical business organization components (${components.join(", ")})`,
+          processingTier: 'NLP-Based',
+          matchingRules: matchingPatterns
+        };
+      }
+    }
+  } catch (error) {
+    // Parsing failed, fall back to other NLP methods
+  }
   
   const name = payeeName.trim();
   const words = name.split(/\s+/);
   
   // Simplified NER simulation
   // Detect patterns that might indicate individual vs business
-  const matchingPatterns: string[] = [];
   
   // Check for possessive forms (typically individuals)
   if (/'\s*s\b/.test(name)) {
@@ -223,10 +292,31 @@ export function applyNLPClassification(payeeName: string): ClassificationResult 
 }
 
 /**
- * AI-assisted classification (simulation for demo)
- * In production, this would call GPT-4o
+ * AI-assisted classification using OpenAI API
  */
-export function applyAIClassification(payeeName: string): ClassificationResult {
+export async function applyAIClassification(payeeName: string): Promise<ClassificationResult> {
+  // Check if OpenAI client is initialized
+  const openaiClient = getOpenAIClient();
+  
+  if (openaiClient) {
+    try {
+      // Use the real OpenAI API
+      const result = await classifyPayeeWithAI(payeeName);
+      
+      return {
+        classification: result.classification,
+        confidence: result.confidence,
+        reasoning: result.reasoning,
+        processingTier: 'AI-Assisted'
+      };
+    } catch (error) {
+      console.error("Error with OpenAI classification:", error);
+      // Fall back to simulated AI
+      console.log("Falling back to simulated AI classification");
+    }
+  }
+  
+  // Fallback to simulated AI if OpenAI is not available or fails
   // This is a simplified implementation
   // In a real system, this would call GPT-4o API
   
@@ -299,8 +389,9 @@ export function applyAIClassification(payeeName: string): ClassificationResult {
 
 /**
  * Main classification function that implements the tiered approach
+ * Now supports asynchronous AI classification
  */
-export function classifyPayee(payeeName: string): ClassificationResult {
+export async function classifyPayee(payeeName: string): Promise<ClassificationResult> {
   // Check if name is empty or invalid
   if (!payeeName || payeeName.trim() === '') {
     return {
@@ -323,8 +414,8 @@ export function classifyPayee(payeeName: string): ClassificationResult {
     return nlpResult;
   }
 
-  // Tier 3: Apply AI-assisted classification
-  return applyAIClassification(payeeName);
+  // Tier 3: Apply AI-assisted classification (now asynchronous)
+  return await applyAIClassification(payeeName);
 }
 
 /**
@@ -339,13 +430,15 @@ export function getConfidenceLevel(confidence: number): 'high' | 'medium' | 'low
 
 /**
  * Process a batch of payee names
+ * Updated to handle asynchronous classification
  */
-export function processBatch(payeeNames: string[]): Promise<ClassificationResult[]> {
-  return new Promise((resolve) => {
-    // Simulate processing time
-    setTimeout(() => {
-      const results = payeeNames.map(name => classifyPayee(name));
-      resolve(results);
-    }, 1000); // Simulated processing delay
-  });
+export async function processBatch(payeeNames: string[]): Promise<ClassificationResult[]> {
+  const results: ClassificationResult[] = [];
+  
+  for (const name of payeeNames) {
+    const result = await classifyPayee(name);
+    results.push(result);
+  }
+  
+  return results;
 }

@@ -1,4 +1,3 @@
-
 export interface ClassificationResult {
   classification: 'Business' | 'Individual';
   confidence: number;
@@ -19,4 +18,25 @@ export interface BatchProcessingResult {
   successCount: number;
   failureCount: number;
   processingTime: number;
+}
+
+export interface ParsedPerson {
+  GivenName?: string;
+  FirstInitial?: string;
+  Surname?: string;
+  LastInitial?: string;
+  SuffixGenerational?: string;
+  SuffixOther?: string;
+  PrefixMarital?: string;
+  PrefixOther?: string;
+  MiddleName?: string;
+  MiddleInitial?: string;
+  [key: string]: string | undefined;
+}
+
+export interface ParsedCorporation {
+  CorporationName?: string;
+  CorporationLegalType?: string;
+  OrganizationNameType?: string;
+  [key: string]: string | undefined;
 }
