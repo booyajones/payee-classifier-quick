@@ -1,3 +1,4 @@
+
 // Use a try-catch for the import to handle potential issues
 let probablepeople: any;
 try {
@@ -373,7 +374,7 @@ export async function applyAIClassification(payeeName: string): Promise<Classifi
   
   // Generate confidence based on conflicting or reinforcing features
   let confidence = 60; // Start with very low confidence
-  let classification: 'Business' | 'Individual';
+  let classification: 'Business' | 'Individual'; // Fixed: properly typed as union
   let reasoning = "";
   
   // Make a determination based on available features
@@ -485,6 +486,7 @@ async function applyAIClassificationBatch(payeeNames: string[]): Promise<Map<str
   
   try {
     // Process in smaller batches of MAX_BATCH_SIZE (now 5)
+    const MAX_BATCH_SIZE = 5;
     for (let i = 0; i < payeeNames.length; i += MAX_BATCH_SIZE) {
       const batchNames = payeeNames.slice(i, i + MAX_BATCH_SIZE);
       
@@ -496,8 +498,9 @@ async function applyAIClassificationBatch(payeeNames: string[]): Promise<Map<str
         
         // Map results back to the results map
         batchResults.forEach(result => {
+          // Ensure we're using the proper type for classification
           results.set(result.payeeName, {
-            classification: result.classification,
+            classification: result.classification, // This is already typed correctly from openaiService
             confidence: result.confidence,
             reasoning: result.reasoning,
             processingTier: 'AI-Assisted'
@@ -520,7 +523,7 @@ async function applyAIClassificationBatch(payeeNames: string[]): Promise<Map<str
               return { 
                 name,
                 result: {
-                  classification: 'Individual', // Default fallback
+                  classification: 'Individual' as const, // Fixed: explicitly typed as 'Individual'
                   confidence: 40,
                   reasoning: "Classification failed due to API error",
                   processingTier: 'AI-Assisted'
@@ -550,7 +553,7 @@ async function applyAIClassificationBatch(payeeNames: string[]): Promise<Map<str
           return { 
             name, 
             result: {
-              classification: 'Individual', // Default fallback
+              classification: 'Individual' as const, // Fixed: explicitly typed as 'Individual'
               confidence: 40,
               reasoning: "Classification failed due to an error",
               processingTier: 'AI-Assisted'
