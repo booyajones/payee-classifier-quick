@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -100,7 +99,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     processNames(names);
   };
   
-  const processNames = (names: string[]) => {
+  const processNames = async (names: string[]) => {
     setIsProcessing(true);
     setProgress(0);
     
@@ -114,13 +113,14 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     // Process in batches to avoid UI freezing
     const batchSize = 5;
     
-    const processBatch = (startIndex: number) => {
+    const processBatch = async (startIndex: number) => {
       const endIndex = Math.min(startIndex + batchSize, total);
       const batch = names.slice(startIndex, endIndex);
       
-      batch.forEach(name => {
+      for (const name of batch) {
         try {
-          const result = classifyPayee(name);
+          // Updated to properly await the async classification
+          const result = await classifyPayee(name);
           const classification = createPayeeClassification(name, result);
           results.push(classification);
         } catch (error) {
@@ -130,7 +130,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
         
         processed++;
         setProgress(Math.round((processed / total) * 100));
-      });
+      }
       
       if (endIndex < total) {
         // Process next batch
