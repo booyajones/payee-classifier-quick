@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { processBatch } from "@/lib/classificationEngine";
 import { createPayeeClassification } from "@/lib/utils";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
+import { Progress } from "@/components/ui/progress";
 
 interface FileUploadFormProps {
   onComplete: (results: PayeeClassification[], summary: BatchProcessingResult) => void;
@@ -22,6 +23,8 @@ const FileUploadForm = ({ onComplete }: FileUploadFormProps) => {
   const [selectedColumn, setSelectedColumn] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number>(0);
+  const [processingStatus, setProcessingStatus] = useState<string>("");
   const { toast } = useToast();
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,6 +81,8 @@ const FileUploadForm = ({ onComplete }: FileUploadFormProps) => {
     }
 
     setIsLoading(true);
+    setProgress(0);
+    setProcessingStatus("");
     
     try {
       // Parse the full file
@@ -98,9 +103,17 @@ const FileUploadForm = ({ onComplete }: FileUploadFormProps) => {
         return;
       }
 
+      setProcessingStatus(`Processing 0 of ${payeeNames.length} payees`);
+
       // Process the batch of payee names
       const startTime = performance.now();
-      const results = await processBatch(payeeNames);
+      const results = await processBatch(
+        payeeNames,
+        (current, total, percentage) => {
+          setProgress(percentage);
+          setProcessingStatus(`Processing ${current} of ${total} payees`);
+        }
+      );
       const endTime = performance.now();
       const processingTime = endTime - startTime;
 
@@ -136,6 +149,8 @@ const FileUploadForm = ({ onComplete }: FileUploadFormProps) => {
       });
     } finally {
       setIsLoading(false);
+      setProgress(0);
+      setProcessingStatus("");
     }
   };
 
@@ -201,6 +216,16 @@ const FileUploadForm = ({ onComplete }: FileUploadFormProps) => {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        )}
+        
+        {isLoading && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>{processingStatus}</span>
+              <span>{progress}%</span>
+            </div>
+            <Progress value={progress} className="h-2" />
           </div>
         )}
         

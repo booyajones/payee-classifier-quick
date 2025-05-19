@@ -1,3 +1,4 @@
+
 // Use a try-catch for the import to handle potential issues
 let probablepeople: any;
 try {
@@ -442,14 +443,26 @@ export function getConfidenceLevel(confidence: number): 'high' | 'medium' | 'low
 
 /**
  * Process a batch of payee names
- * Updated to handle asynchronous classification
+ * Updated to handle asynchronous classification and provide progress updates
  */
-export async function processBatch(payeeNames: string[]): Promise<ClassificationResult[]> {
+export async function processBatch(
+  payeeNames: string[], 
+  onProgress?: (current: number, total: number, percentage: number) => void
+): Promise<ClassificationResult[]> {
   const results: ClassificationResult[] = [];
+  const total = payeeNames.length;
   
-  for (const name of payeeNames) {
+  for (let i = 0; i < payeeNames.length; i++) {
+    const name = payeeNames[i];
     const result = await classifyPayee(name);
     results.push(result);
+    
+    // Call the progress callback if provided
+    if (onProgress) {
+      const current = i + 1;
+      const percentage = Math.round((current / total) * 100);
+      onProgress(current, total, percentage);
+    }
   }
   
   return results;

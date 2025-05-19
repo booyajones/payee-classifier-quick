@@ -16,6 +16,7 @@ import FileUploadForm from "./FileUploadForm";
 import { getOpenAIClient } from "@/lib/openaiService";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 interface BatchClassificationFormProps {
   onBatchClassify?: (results: PayeeClassification[]) => void;
@@ -29,6 +30,8 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   const [processingSummary, setProcessingSummary] = useState<BatchProcessingResult | null>(null);
   const [apiKeySet, setApiKeySet] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>("text");
+  const [progress, setProgress] = useState<number>(0);
+  const [processingStatus, setProcessingStatus] = useState<string>("");
   const { toast } = useToast();
 
   // Check if API key is already set in session storage
@@ -52,11 +55,21 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
     setIsProcessing(true);
     setBatchResults([]);
     setProcessingSummary(null);
+    setProgress(0);
+    setProcessingStatus("");
 
     try {
       const names = payeeNames.split("\n").map(name => name.trim()).filter(name => name !== "");
+      setProcessingStatus(`Processing 0 of ${names.length} payees`);
+      
       const startTime = performance.now();
-      const results = await processBatch(names);
+      const results = await processBatch(
+        names,
+        (current, total, percentage) => {
+          setProgress(percentage);
+          setProcessingStatus(`Processing ${current} of ${total} payees`);
+        }
+      );
       const endTime = performance.now();
       const processingTime = endTime - startTime;
 
@@ -99,6 +112,8 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
       });
     } finally {
       setIsProcessing(false);
+      setProcessingStatus("");
+      setProgress(0);
     }
   };
 
@@ -161,6 +176,17 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
                       />
                     </div>
                   </div>
+                  
+                  {isProcessing && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm text-muted-foreground">
+                        <span>{processingStatus}</span>
+                        <span>{progress}%</span>
+                      </div>
+                      <Progress value={progress} className="h-2" />
+                    </div>
+                  )}
+                  
                   <Button type="submit" className="w-full" disabled={isProcessing}>
                     {isProcessing ? "Classifying..." : "Classify Batch"}
                   </Button>
