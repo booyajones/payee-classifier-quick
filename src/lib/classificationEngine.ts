@@ -21,10 +21,10 @@ export const DEFAULT_CLASSIFICATION_CONFIG: ClassificationConfig = {
 };
 
 // Maximum number of concurrent operations
-const MAX_CONCURRENCY = 10;
+const MAX_CONCURRENCY = 5; // Reduced from 10 to improve reliability
 
-// Maximum batch size for AI classification
-const MAX_BATCH_SIZE = 10; // Reduced from 20 to improve reliability
+// Maximum batch size for AI classification - IMPORTANT: must match the batch size in openaiService.ts
+const MAX_BATCH_SIZE = 5; // Reduced from 10 to improve reliability
 
 // Legal entity suffixes for business detection
 const LEGAL_SUFFIXES = [
@@ -426,7 +426,7 @@ async function applyBasicClassificationBatch(
   
   const results = new Map<string, ClassificationResult>();
   
-  // Process payees in parallel with a concurrency limit
+  // Process payees in parallel with a reduced concurrency limit
   const chunks = [];
   for (let i = 0; i < payeeNames.length; i += MAX_CONCURRENCY) {
     chunks.push(payeeNames.slice(i, i + MAX_CONCURRENCY));
@@ -461,7 +461,7 @@ async function applyBasicClassificationBatch(
 }
 
 /**
- * Apply AI classification to a batch of payees
+ * Apply AI classification to a batch of payees with improved error handling
  */
 async function applyAIClassificationBatch(payeeNames: string[]): Promise<Map<string, ClassificationResult>> {
   const results = new Map<string, ClassificationResult>();
@@ -484,13 +484,15 @@ async function applyAIClassificationBatch(payeeNames: string[]): Promise<Map<str
   }
   
   try {
-    // Process in batches of MAX_BATCH_SIZE
+    // Process in smaller batches of MAX_BATCH_SIZE (now 5)
     for (let i = 0; i < payeeNames.length; i += MAX_BATCH_SIZE) {
       const batchNames = payeeNames.slice(i, i + MAX_BATCH_SIZE);
       
       try {
-        // Use batch API for this chunk
-        const batchResults = await classifyPayeesBatchWithAI(batchNames);
+        console.log(`Processing AI batch ${Math.floor(i/MAX_BATCH_SIZE) + 1} of ${Math.ceil(payeeNames.length/MAX_BATCH_SIZE)}`);
+        
+        // Use batch API for this chunk with a larger timeout
+        const batchResults = await classifyPayeesBatchWithAI(batchNames, 60000); // 60 second timeout for batches
         
         // Map results back to the results map
         batchResults.forEach(result => {
@@ -502,13 +504,29 @@ async function applyAIClassificationBatch(payeeNames: string[]): Promise<Map<str
           });
         });
       } catch (error) {
-        console.error(`Error with batch AI classification for batch ${i}:`, error);
+        console.error(`Error with batch AI classification for batch ${Math.floor(i/MAX_BATCH_SIZE) + 1}:`, error);
         
         // Fall back to individual processing for this batch on failure
+        console.log(`Falling back to individual processing for batch ${Math.floor(i/MAX_BATCH_SIZE) + 1}`);
+        
         const individualResults = await Promise.all(
           batchNames.map(async (name) => {
-            const result = await applyAIClassification(name);
-            return { name, result };
+            try {
+              const result = await applyAIClassification(name);
+              return { name, result };
+            } catch (innerError) {
+              console.error(`Error classifying ${name} individually:`, innerError);
+              // Provide a fallback result with low confidence
+              return { 
+                name,
+                result: {
+                  classification: 'Individual', // Default fallback
+                  confidence: 40,
+                  reasoning: "Classification failed due to API error",
+                  processingTier: 'AI-Assisted'
+                } 
+              };
+            }
           })
         );
         
@@ -520,11 +538,25 @@ async function applyAIClassificationBatch(payeeNames: string[]): Promise<Map<str
   } catch (error) {
     console.error("Error processing AI classification batch:", error);
     
-    // Fall back to individual processing for all names
+    // Fall back to individual processing for all remaining names
     const fallbackResults = await Promise.all(
       payeeNames.map(async (name) => {
-        const result = await applyAIClassification(name);
-        return { name, result };
+        try {
+          const result = await applyAIClassification(name);
+          return { name, result };
+        } catch (innerError) {
+          console.error(`Error classifying ${name} individually:`, innerError);
+          // Provide a fallback with low confidence
+          return { 
+            name, 
+            result: {
+              classification: 'Individual', // Default fallback
+              confidence: 40,
+              reasoning: "Classification failed due to an error",
+              processingTier: 'AI-Assisted'
+            }
+          };
+        }
       })
     );
     
@@ -586,7 +618,7 @@ export function getConfidenceLevel(confidence: number): 'high' | 'medium' | 'low
 }
 
 /**
- * Process a batch of payee names with configuration options
+ * Process a batch of payee names with configuration options and improved progress tracking
  */
 export async function processBatch(
   payeeNames: string[], 
@@ -624,8 +656,9 @@ export async function processBatch(
     // Update progress after basic classification
     let classifiedCount = basicResults.size;
     if (onProgress) {
+      // Calculate progress percentage - if we're using AI-Only mode, this step is skipped
       const progressPercentage = config.bypassRuleNLP ? 0 : 
-        Math.round((classifiedCount / total) * 50); // Use 50% for basic classification
+        Math.round((classifiedCount / total) * 20); // Use 20% for basic classification
       onProgress(classifiedCount, total, progressPercentage);
     }
     
@@ -633,10 +666,45 @@ export async function processBatch(
     const aiClassificationNeeded = validPayeeNames.filter(name => !basicResults.has(name));
     console.log(`Names needing AI classification: ${aiClassificationNeeded.length} / ${total}`);
     
+    // Set progress to show we're beginning AI classification
+    if (onProgress && aiClassificationNeeded.length > 0) {
+      const startPercentage = config.bypassRuleNLP ? 5 : 25; // 5% if AI-only, 25% if standard
+      onProgress(classifiedCount, total, startPercentage);
+    }
+    
     let aiResults = new Map<string, ClassificationResult>();
     if (aiClassificationNeeded.length > 0) {
       console.time('AI classification');
-      aiResults = await applyAIClassificationBatch(aiClassificationNeeded);
+      
+      // Process AI classification in smaller batches to update progress more frequently
+      const AI_PROGRESS_BATCH_SIZE = 10;
+      for (let i = 0; i < aiClassificationNeeded.length; i += AI_PROGRESS_BATCH_SIZE) {
+        // Get the current batch of names
+        const currentBatch = aiClassificationNeeded.slice(i, i + AI_PROGRESS_BATCH_SIZE);
+        
+        // Process this batch
+        const batchResults = await applyAIClassificationBatch(currentBatch);
+        
+        // Add these results to our overall results
+        batchResults.forEach((value, key) => {
+          aiResults.set(key, value);
+        });
+        
+        // Update progress as each AI batch completes
+        if (onProgress) {
+          const totalAIItems = aiClassificationNeeded.length;
+          const processedAIItems = Math.min(i + AI_PROGRESS_BATCH_SIZE, totalAIItems);
+          const aiProgressPercent = Math.floor((processedAIItems / totalAIItems) * 75);
+          
+          // Calculate overall progress (25% for basic + 75% for AI = 100%)
+          const baseProgress = config.bypassRuleNLP ? 5 : 25;
+          const overallProgress = baseProgress + Math.floor(aiProgressPercent * (100 - baseProgress) / 100);
+          
+          classifiedCount = basicResults.size + processedAIItems;
+          onProgress(classifiedCount, total, Math.min(overallProgress, 99)); // Never show 100% until we're done
+        }
+      }
+      
       console.timeEnd('AI classification');
     }
     
@@ -658,17 +726,6 @@ export async function processBatch(
           reasoning: "Classification could not be determined with high confidence",
           processingTier: 'Rule-Based'
         };
-      }
-      
-      // Update progress as each AI result comes in
-      if (onProgress) {
-        classifiedCount++;
-        const startPercentage = config.bypassRuleNLP ? 0 : 50;
-        const percentage = Math.min(
-          Math.round(startPercentage + (classifiedCount / total) * (100 - startPercentage)), 
-          99 // Never show 100% until we're done
-        );
-        onProgress(classifiedCount, total, percentage);
       }
     }
     
