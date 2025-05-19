@@ -1,4 +1,3 @@
-
 export interface ClassificationResult {
   classification: 'Business' | 'Individual';
   confidence: number;
