@@ -1,9 +1,16 @@
 
-declare module 'probablepeople' {
+declare module "probablepeople" {
   /**
-   * Parse a name string into components
+   * Parse a name into components
    * @param name The name string to parse
-   * @returns A tuple containing the parsed components and the determined name type ('person' or 'corporation')
+   * @returns A tuple with [parsed components, type] where type is 'person' or 'corporation'
    */
-  export function parse(name: string): [Record<string, string>, 'person' | 'corporation'];
+  export function parse(name: string): [any, 'person' | 'corporation'];
+  
+  /**
+   * Tag a name string with components
+   * @param name The name string to tag
+   * @returns A tagged string
+   */
+  export function tag(name: string): string;
 }
