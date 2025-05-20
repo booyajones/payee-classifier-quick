@@ -25,10 +25,10 @@ export async function classifyPayeeWithAI(
   }
 
   try {
-    console.log(`Classifying "${payeeName}" with OpenAI...`);
+    console.log(`Classifying "${payeeName}" with OpenAI (model: ${CLASSIFICATION_MODEL})...`);
     
     const apiCall = openaiClient.chat.completions.create({
-      model: CLASSIFICATION_MODEL,
+      model: CLASSIFICATION_MODEL, // Using most accurate model configured in config.ts
       messages: [
         {
           role: "system",
@@ -46,6 +46,11 @@ export async function classifyPayeeWithAI(
           - Individual indicators: personal names, titles (Dr., Mr., Mrs.), name patterns
           - Ambiguous cases: sole proprietorships may use personal names
           
+          IMPORTANT: Names that contain business terms like "Pools", "Maintenance", "Travel", "Graphics", "Creative", 
+          "Planners", "Events", "Distributors", etc. are almost always businesses. Names with ALL CAPS frequently indicate 
+          businesses. Multi-word proper nouns with industry terms are typically businesses. 
+          Most business payees include industry descriptions or terms in their names.
+
           Be precise and objective in your analysis.`
         },
         {

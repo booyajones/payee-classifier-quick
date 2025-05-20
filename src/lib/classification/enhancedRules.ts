@@ -1,4 +1,3 @@
-
 import { LEGAL_SUFFIXES, BUSINESS_KEYWORDS, PROFESSIONAL_TITLES } from './config';
 
 /**
@@ -171,36 +170,42 @@ export function normalizeText(text: string): string {
  * Implements the ultra-fast regex gate as described in spec
  */
 export function detectBusinessByExtendedRules(payeeName: string): { isMatch: boolean; rules: string[] } {
-  const normalizedName = normalizeText(payeeName);
-  const matchingRules: string[] = [];
-  
-  // Check for legal suffixes - O(1) lookup
-  for (const suffix of EXTENDED_LEGAL_SUFFIXES) {
-    // Check for suffix as a whole word or at the end with punctuation
-    const suffixRegex = new RegExp(`\\b${suffix}\\b|\\b${suffix}[.,]?$`, 'i');
-    if (suffixRegex.test(normalizedName)) {
-      matchingRules.push(`Legal suffix: ${suffix}`);
-      break;
-    }
+  const name = normalizeText(payeeName);
+  const rules: string[] = [];
+
+  // Single-word capitalized names (likely business names)
+  if (/^[A-Z]{2,}$/.test(payeeName)) {
+    rules.push('All-caps single word (business identifier)');
   }
-  
-  // Check for business keywords - O(1) lookup
-  for (const keyword of EXTENDED_BUSINESS_KEYWORDS) {
-    if (normalizedName.includes(keyword)) {
-      matchingRules.push(`Business keyword: ${keyword}`);
-      break;
+
+  // Check for business indicators in the name
+  const businessIndicators = [
+    { pattern: /\b(LLC|INC|CORP|LTD|CO|LP|LLP|PC|PLC|GMBH|SA|AG|PTY|LIMITED|INCORPORATED|COMPANY|CORPORATION)\b/i, rule: 'Legal suffix' },
+    { pattern: /\b(SERVICES|SOLUTIONS|SYSTEMS|INDUSTRIES|ENTERPRISES|ASSOCIATES|CONSULTANTS|GROUP|AGENCY|STUDIOS|PARTNERS)\b/i, rule: 'Business suffix' },
+    { pattern: /\b(GLOBAL|INTERNATIONAL|WORLDWIDE|NATIONAL|REGIONAL|LOCAL)\b/i, rule: 'Geographic scope indicator' },
+    { pattern: /\b(POOL|POOLS|MAINTENANCE|GAS|PROPANE|HVAC|TRAVEL|PRO|DESIGNS|PLANNERS|EVENTS|DISTRIBUTORS|ENTERTAINMENT|SURFACE|HOTEL|IMAGE|BAKERY|RESTAURANT|CAFE|GRAPHICS|CREATIVE|MECHANICAL)\b/i, rule: 'Industry/service term' },
+    { pattern: /\b(AIR|DELTA|AMERICAN|ADVANCED|EXPERT|CLEAN|CRUISE|CURATED|FLORAL)\b/i, rule: 'Business descriptor' },
+    { pattern: /\b(AT|BY)\b/i, rule: 'Business relationship term' },
+    { pattern: /\&/i, rule: 'Ampersand (common in business names)' },
+    { pattern: /\//i, rule: 'Forward slash (common in business partnerships)' }
+  ];
+
+  // Check each business indicator
+  businessIndicators.forEach(({ pattern, rule }) => {
+    if (pattern.test(name) && !rules.includes(rule)) {
+      rules.push(rule);
     }
+  });
+
+  // Two or more capitalized words (likely business names)
+  if (/^([A-Z][a-z]+\s+){1,}[A-Z][a-z]+$/.test(payeeName)) {
+    rules.push('Multi-word capitalized name (likely business)');
   }
-  
-  // Check for government entity patterns
-  for (const pattern of EXTENDED_GOVERNMENT_PATTERNS) {
-    if (normalizedName.includes(pattern)) {
-      matchingRules.push(`Government entity pattern: ${pattern}`);
-      break;
-    }
-  }
-  
-  return { isMatch: matchingRules.length > 0, rules: matchingRules };
+
+  return {
+    isMatch: rules.length > 0,
+    rules,
+  };
 }
 
 /**

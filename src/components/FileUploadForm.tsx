@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +5,7 @@ import { parseUploadedFile } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, File, Upload } from "lucide-react";
+import { AlertCircle, File, Upload, RefreshCw } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { processBatch, DEFAULT_CLASSIFICATION_CONFIG } from "@/lib/classificationEngine";
 import { enhancedProcessBatch } from "@/lib/classification/enhancedClassification";
@@ -19,7 +18,11 @@ interface FileUploadFormProps {
   config?: ClassificationConfig;
 }
 
-const FileUploadForm = ({ onComplete, config = DEFAULT_CLASSIFICATION_CONFIG }: FileUploadFormProps) => {
+const FileUploadForm = ({ onComplete, config = {
+  ...DEFAULT_CLASSIFICATION_CONFIG,
+  useEnhanced: false, // Default to standard mode
+  bypassRuleNLP: true  // Always use AI classification
+} }: FileUploadFormProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [columns, setColumns] = useState<string[]>([]);
   const [selectedColumn, setSelectedColumn] = useState<string>("");
@@ -28,6 +31,24 @@ const FileUploadForm = ({ onComplete, config = DEFAULT_CLASSIFICATION_CONFIG }: 
   const [progress, setProgress] = useState<number>(0);
   const [processingStatus, setProcessingStatus] = useState<string>("");
   const { toast } = useToast();
+
+  const resetForm = () => {
+    setFile(null);
+    setColumns([]);
+    setSelectedColumn("");
+    setFileError(null);
+    setProgress(0);
+    setProcessingStatus("");
+    
+    // Reset the file input
+    const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+    if (fileInput) fileInput.value = "";
+    
+    toast({
+      title: "Form Reset",
+      description: "The file upload form has been reset. You can now start over.",
+    });
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setFileError(null);
@@ -246,14 +267,26 @@ const FileUploadForm = ({ onComplete, config = DEFAULT_CLASSIFICATION_CONFIG }: 
           </div>
         )}
         
-        <Button 
-          type="button" 
-          className="w-full" 
-          disabled={!file || !selectedColumn || isLoading}
-          onClick={handleProcess}
-        >
-          {isLoading ? "Processing..." : "Process File"}
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            type="button" 
+            className="flex-1" 
+            disabled={!file || !selectedColumn || isLoading}
+            onClick={handleProcess}
+          >
+            {isLoading ? "Processing..." : "Process File"}
+          </Button>
+          
+          <Button
+            type="button"
+            variant="outline"
+            onClick={resetForm}
+            disabled={isLoading}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Start Over
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

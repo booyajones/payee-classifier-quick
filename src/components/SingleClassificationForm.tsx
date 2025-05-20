@@ -12,10 +12,9 @@ import { PayeeClassification, ClassificationConfig } from "@/lib/types";
 import { useToast } from "@/components/ui/use-toast";
 import { getOpenAIClient } from "@/lib/openaiService";
 import APIKeyInput from "./APIKeyInput";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel } from "@/components/ui/form";
 
 interface SingleClassificationFormProps {
   onClassify: (result: PayeeClassification) => void;
@@ -28,7 +27,8 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
   const [apiKeySet, setApiKeySet] = useState<boolean>(false);
   const [config, setConfig] = useState<ClassificationConfig>({
     ...DEFAULT_CLASSIFICATION_CONFIG,
-    useEnhanced: true // Default to enhanced mode
+    useEnhanced: false, // Default to standard mode instead of enhanced
+    bypassRuleNLP: true, // Always use AI classification
   });
   const { toast } = useToast();
 
@@ -37,6 +37,16 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
     const storedApiKey = sessionStorage.getItem("openai_api_key");
     setApiKeySet(!!storedApiKey && getOpenAIClient() !== null);
   }, []);
+
+  const resetForm = () => {
+    setPayeeName("");
+    setCurrentResult(null);
+    
+    toast({
+      title: "Form Reset",
+      description: "The classification form has been reset. You can now start over.",
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,17 +181,29 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
                       checked={config.useEnhanced}
                       onCheckedChange={handleEnhancedToggle}
                     />
-                    <Label htmlFor="enhancedMode">Enhanced Mode (99.5% Accuracy)</Label>
+                    <Label htmlFor="enhancedMode">Enhanced Mode</Label>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    When enabled, uses advanced techniques including consensus classification, multi-cultural name recognition, and cache optimization
+                    When enabled, uses advanced techniques including consensus classification and multi-cultural name recognition
                   </p>
                 </div>
               </div>
               
-              <Button type="submit" className="w-full" disabled={isProcessing}>
-                {isProcessing ? "Classifying..." : "Classify Payee"}
-              </Button>
+              <div className="flex gap-2">
+                <Button type="submit" className="flex-1" disabled={isProcessing}>
+                  {isProcessing ? "Classifying..." : "Classify Payee"}
+                </Button>
+                
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={resetForm}
+                  disabled={isProcessing}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Start Over
+                </Button>
+              </div>
             </form>
 
             {currentResult && (

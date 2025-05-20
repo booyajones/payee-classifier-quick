@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +17,7 @@ import APIKeyInput from "./APIKeyInput";
 import FileUploadForm from "./FileUploadForm";
 import { getOpenAIClient } from "@/lib/openaiService";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 interface BatchClassificationFormProps {
@@ -37,7 +36,8 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   const [processingStatus, setProcessingStatus] = useState<string>("");
   const [config, setConfig] = useState<ClassificationConfig>({
     ...DEFAULT_CLASSIFICATION_CONFIG,
-    useEnhanced: true // Default to enhanced mode
+    useEnhanced: false, // Default to standard mode instead of enhanced
+    bypassRuleNLP: true, // Always use AI classification
   });
   const { toast } = useToast();
 
@@ -46,6 +46,19 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
     const storedApiKey = sessionStorage.getItem("openai_api_key");
     setApiKeySet(!!storedApiKey && getOpenAIClient() !== null);
   }, []);
+
+  const resetForm = () => {
+    setPayeeNames("");
+    setBatchResults([]);
+    setProcessingSummary(null);
+    setProgress(0);
+    setProcessingStatus("");
+    
+    toast({
+      title: "Form Reset",
+      description: "The batch classification form has been reset. You can now start over.",
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -232,10 +245,10 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
                     checked={config.useEnhanced}
                     onCheckedChange={handleEnhancedToggle}
                   />
-                  <Label htmlFor="batchEnhancedMode">Enhanced Mode (99.5% Accuracy)</Label>
+                  <Label htmlFor="batchEnhancedMode">Enhanced Mode</Label>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  When enabled, uses advanced techniques including consensus classification, multi-cultural name recognition, and cache optimization
+                  When enabled, uses advanced techniques including consensus classification and multi-cultural name recognition
                 </p>
               </div>
             </div>
@@ -272,9 +285,21 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
                     </div>
                   )}
                   
-                  <Button type="submit" className="w-full" disabled={isProcessing}>
-                    {isProcessing ? "Classifying..." : "Classify Batch"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button type="submit" className="flex-1" disabled={isProcessing}>
+                      {isProcessing ? "Classifying..." : "Classify Batch"}
+                    </Button>
+                    
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={resetForm}
+                      disabled={isProcessing}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Start Over
+                    </Button>
+                  </div>
                 </form>
               </TabsContent>
               
@@ -293,6 +318,18 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
               <div className="mt-6">
                 <h3 className="text-lg font-medium mb-2">Classification Results</h3>
                 <ClassificationResultTable results={batchResults} />
+                
+                <div className="mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={resetForm}
+                    disabled={isProcessing}
+                    className="w-full"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Start Over
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>
