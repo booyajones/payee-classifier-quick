@@ -1,12 +1,14 @@
+
 import { ClassificationResult, ClassificationConfig } from '../types';
 import { DEFAULT_CLASSIFICATION_CONFIG } from './config';
 import { applyRuleBasedClassification } from './ruleBasedClassification';
 import { applyNLPClassification } from './nlpClassification';
 import { enhancedClassifyPayeeWithAI, consensusClassification } from '../openai/enhancedClassification';
 import { detectBusinessByExtendedRules, detectIndividualByExtendedRules, normalizeText } from './enhancedRules';
+import { normalizePayeeName, deduplicateNames, getCanonicalName } from './nameProcessing';
 
 // Increased concurrency for parallel processing
-const MAX_PARALLEL_PROCESSING = 10; 
+const MAX_PARALLEL_PROCESSING = 15;
 
 /**
  * Enhanced classification function that implements a multi-tiered approach
@@ -53,6 +55,21 @@ export async function enhancedClassifyPayee(
       matchingRules: individualCheck.rules
     };
     return result;
+  }
+  
+  // If we're in offline mode, stick with rule-based classification
+  if (config.offlineMode) {
+    // Use our best guess based on rules
+    const isLikelyBusiness = payeeName.split(' ').length > 2 || 
+                            /\d/.test(payeeName) || 
+                            payeeName.length > 25;
+    
+    return {
+      classification: isLikelyBusiness ? 'Business' : 'Individual',
+      confidence: 65, // Moderate confidence in offline mode
+      reasoning: `Offline classification based on name structure and patterns.`,
+      processingTier: 'Rule-Based'
+    };
   }
   
   // If we're bypassing rule-based and NLP classification, go straight to AI
@@ -130,60 +147,49 @@ export async function enhancedClassifyPayee(
 
 /**
  * Process a batch of payee names with the enhanced classifier
- * Implements parallel processing with controlled concurrency
+ * Implements parallel processing with controlled concurrency and name deduplication
  */
 export async function enhancedProcessBatch(
   payeeNames: string[],
   progressCallback?: (current: number, total: number, percentage: number) => void,
   config: ClassificationConfig = DEFAULT_CLASSIFICATION_CONFIG
 ): Promise<ClassificationResult[]> {
-  // Filter out empty names and deduplicate to improve performance
-  const uniqueNames = new Map<string, string>();
-  payeeNames.forEach(name => {
-    if (name && name.trim() !== '') {
-      const normalized = normalizeText(name);
-      // Keep original naming but avoid duplicate processing
-      if (!uniqueNames.has(normalized)) {
-        uniqueNames.set(normalized, name);
-      }
-    }
-  });
-  
-  // Create a map from original name to index for reconstructing the order
-  const nameToIndexMap = new Map<string, number>();
-  payeeNames.forEach((name, index) => {
-    if (name && name.trim() !== '') {
-      nameToIndexMap.set(name, index);
-    }
-  });
-  
-  const deduplicatedNames = Array.from(uniqueNames.values());
-  const totalUnique = deduplicatedNames.length;
+  // Filter out empty names
+  const filteredNames = payeeNames.filter(name => name && name.trim() !== '');
   const total = payeeNames.length;
   
-  console.log(`Processing ${totalUnique} unique names out of ${total} total`);
-  
+  // Initial progress update
   if (progressCallback) {
     progressCallback(0, total, 0);
   }
   
-  // Results array will hold all results in the original order
-  const results: ClassificationResult[] = new Array(total);
+  // Step 1: Deduplicate names if enabled
+  let uniqueNameMapping: Map<string, string[]> | null = null;
+  let uniqueNames: string[] = [];
   
-  // Track the results for unique names
-  const uniqueResults = new Map<string, ClassificationResult>();
+  if (config.useCacheForDuplicates && filteredNames.length > 5) {
+    console.log("Deduplicating names for faster processing...");
+    uniqueNameMapping = deduplicateNames(filteredNames);
+    uniqueNames = Array.from(uniqueNameMapping.keys());
+    console.log(`Reduced ${filteredNames.length} names to ${uniqueNames.length} unique groups`);
+  } else {
+    uniqueNames = [...filteredNames];
+  }
+  
+  // Results mapping from canonical names to classification results
+  const canonicalResults = new Map<string, ClassificationResult>();
   let processedCount = 0;
   
   // Process in batches with controlled parallelism
-  for (let i = 0; i < deduplicatedNames.length; i += MAX_PARALLEL_PROCESSING) {
-    const batch = deduplicatedNames.slice(i, i + MAX_PARALLEL_PROCESSING);
+  for (let i = 0; i < uniqueNames.length; i += MAX_PARALLEL_PROCESSING) {
+    const batch = uniqueNames.slice(i, i + MAX_PARALLEL_PROCESSING);
     
     // Process this batch in parallel
     const promises = batch.map(name => 
       enhancedClassifyPayee(name, config)
         .then(result => {
-          // Track the normalized name and its result
-          uniqueResults.set(normalizeText(name), result);
+          // Store result with canonical name
+          canonicalResults.set(name, result);
           return { name, result };
         })
         .catch(error => {
@@ -195,7 +201,7 @@ export async function enhancedProcessBatch(
             reasoning: "Classification failed: " + (error instanceof Error ? error.message : "Unknown error"),
             processingTier: 'Rule-Based'
           };
-          uniqueResults.set(normalizeText(name), fallback);
+          canonicalResults.set(name, fallback);
           return { name, result: fallback };
         })
     );
@@ -207,12 +213,14 @@ export async function enhancedProcessBatch(
     
     // Update progress if callback provided
     if (progressCallback) {
-      const percentage = Math.round((processedCount / totalUnique) * 100);
+      const percentage = Math.round((processedCount / uniqueNames.length) * 100);
       progressCallback(processedCount, total, percentage);
     }
   }
   
   // Map results back to original array positions
+  const results: ClassificationResult[] = new Array(total);
+  
   for (let i = 0; i < payeeNames.length; i++) {
     const name = payeeNames[i];
     if (!name || name.trim() === '') {
@@ -223,10 +231,36 @@ export async function enhancedProcessBatch(
         reasoning: "Empty payee name",
         processingTier: 'Rule-Based'
       };
+    } else if (uniqueNameMapping) {
+      // Find the canonical name for this name
+      let found = false;
+      for (const [canonicalName, similarNames] of uniqueNameMapping.entries()) {
+        if (similarNames.includes(name)) {
+          // Use result from canonical name
+          results[i] = { ...canonicalResults.get(canonicalName)! };
+          
+          // Add a note if this is a similar match but not exact
+          if (name !== canonicalName) {
+            results[i].reasoning = `${results[i].reasoning} (matched with similar name "${canonicalName}")`;
+          }
+          
+          found = true;
+          break;
+        }
+      }
+      
+      // Fallback if no match found
+      if (!found) {
+        results[i] = {
+          classification: 'Individual',
+          confidence: 0,
+          reasoning: "Classification failed: no match found in deduplicated names",
+          processingTier: 'Rule-Based'
+        };
+      }
     } else {
-      // Get the result for this name (using normalized version for lookup)
-      const normalized = normalizeText(name);
-      const result = uniqueResults.get(normalized);
+      // Direct lookup when not using deduplication
+      const result = canonicalResults.get(name);
       
       if (result) {
         results[i] = result;

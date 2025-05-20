@@ -1,3 +1,4 @@
+
 import { ClassificationResult } from '../types';
 import { getOpenAIClient } from './client';
 import { timeoutPromise } from './utils';
@@ -9,14 +10,16 @@ interface AIClassificationResponse {
   matchingRules?: string[];
 }
 
+interface CacheEntry {
+  result: AIClassificationResponse;
+  timestamp: number;
+}
+
 // Time to live for cached classifications (24 hours in milliseconds)
 const CACHE_TTL = 24 * 60 * 60 * 1000;
 
 // In-memory cache for faster access during session
-const inMemoryCache = new Map<string, {
-  result: AIClassificationResponse;
-  timestamp: number;
-}>();
+const inMemoryCache = new Map<string, CacheEntry>();
 
 // Normalize payee name for consistent caching
 function normalizeCacheKey(payeeName: string): string {
@@ -51,7 +54,7 @@ function saveToCache(payeeName: string, result: AIClassificationResponse): void 
     if (keys.length > 1000) {
       // Sort by timestamp and remove the oldest ones
       const oldestKeys = Object.entries(cachedClassifications)
-        .sort((a, b) => a[1].timestamp - b[1].timestamp)
+        .sort((a, b) => (a[1] as CacheEntry).timestamp - (b[1] as CacheEntry).timestamp)
         .slice(0, keys.length - 900) // Remove oldest to keep around 900
         .map(entry => entry[0]);
         
@@ -84,7 +87,7 @@ function getFromCache(payeeName: string): AIClassificationResponse | null {
     
     // Try localStorage if not in memory
     const cachedClassifications = JSON.parse(localStorage.getItem('payeeClassifications') || '{}');
-    const entry = cachedClassifications[normalizedName];
+    const entry = cachedClassifications[normalizedName] as CacheEntry | undefined;
     
     if (entry && Date.now() - entry.timestamp < CACHE_TTL) {
       // Update in-memory cache for faster access next time
@@ -107,9 +110,10 @@ function loadCacheFromStorage(): void {
     
     // Filter out expired entries while loading
     const now = Date.now();
-    Object.entries(cachedClassifications).forEach(([key, entry]: [string, any]) => {
-      if (now - entry.timestamp < CACHE_TTL) {
-        inMemoryCache.set(key, entry);
+    Object.entries(cachedClassifications).forEach(([key, entry]) => {
+      const typedEntry = entry as CacheEntry;
+      if (now - typedEntry.timestamp < CACHE_TTL) {
+        inMemoryCache.set(key, typedEntry);
       }
     });
     

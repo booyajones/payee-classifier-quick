@@ -46,6 +46,9 @@ export interface ClassificationConfig {
   aiThreshold: number;   // Confidence threshold below which AI will be used
   bypassRuleNLP: boolean; // Whether to skip rule-based and NLP classification
   useEnhanced?: boolean;  // Whether to use the enhanced classification system
+  offlineMode?: boolean;  // Whether to operate in offline mode (no API calls)
+  useFuzzyMatching?: boolean; // Whether to use fuzzy matching for similar names
+  useCacheForDuplicates?: boolean; // Whether to deduplicate similar names
 }
 
 // Enhanced statistics for batch processing
@@ -59,5 +62,6 @@ export interface EnhancedBatchStatistics {
   lowConfidenceCount: number;
   processingTierCounts: Record<string, number>;
   processingTime: number;
+  deduplicationSavings?: number; // How many API calls were saved by deduplication
+  cacheSavings?: number; // How many API calls were saved by caching
 }
-
