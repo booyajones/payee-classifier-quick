@@ -17,13 +17,13 @@ export function getConfidenceLevel(confidence: number): 'high' | 'medium' | 'low
 }
 
 /**
- * Main classification function that implements the tiered approach
- * Updated to support enhanced classification
+ * Main classification function that implements the blended approach
+ * Updated to support enhanced classification by default
  */
 export async function classifyPayee(
   payeeName: string, 
   config: ClassificationConfig = DEFAULT_CLASSIFICATION_CONFIG,
-  useEnhanced: boolean = false
+  useEnhanced: boolean = true // Now defaulting to enhanced
 ): Promise<ClassificationResult> {
   // Check if name is empty or invalid
   if (!payeeName || payeeName.trim() === '') {
@@ -35,11 +35,12 @@ export async function classifyPayee(
     };
   }
 
-  // Use the enhanced classification if requested
+  // Use the enhanced classification by default now
   if (useEnhanced) {
     return await enhancedClassifyPayee(payeeName, config);
   }
 
+  // Legacy pipeline (kept for backward compatibility)
   // If we're bypassing rule-based and NLP classification, go straight to AI
   if (config.bypassRuleNLP) {
     return await applyAIClassification(payeeName);

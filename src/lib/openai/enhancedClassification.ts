@@ -1,293 +1,194 @@
 
-import { getOpenAIClient } from './client';
-import { timeoutPromise } from './utils';
-import { DEFAULT_API_TIMEOUT, CLASSIFICATION_MODEL } from './config';
+import { OpenAIClient } from './client';
+import { getOpenAIClient } from './utils';
+import { ClassificationResult } from '../types';
 
-/**
- * Enhanced AI-assisted classification using OpenAI API with Chain-of-Thought prompting
- * and multi-sample consensus for increased accuracy
- */
-export async function enhancedClassifyPayeeWithAI(
-  payeeName: string,
-  timeout: number = DEFAULT_API_TIMEOUT
-): Promise<{
+interface AIClassificationResponse {
   classification: 'Business' | 'Individual';
   confidence: number;
   reasoning: string;
   matchingRules?: string[];
-}> {
-  const openaiClient = getOpenAIClient();
-  if (!openaiClient) {
-    throw new Error("OpenAI client not initialized. Please set your API key first.");
-  }
+}
+
+/**
+ * Enhanced AI classification using chain-of-thought reasoning and specific payee classification rules
+ * @param payeeName Name to classify
+ * @returns Classification result with confidence and reasoning
+ */
+export async function enhancedClassifyPayeeWithAI(payeeName: string): Promise<AIClassificationResponse> {
+  const openai = getOpenAIClient();
   
-  if (!payeeName || payeeName.trim() === '') {
-    throw new Error("Invalid payee name provided");
+  if (!openai) {
+    throw new Error("OpenAI client is not initialized");
   }
   
   try {
-    console.log(`Classifying "${payeeName}" with Enhanced OpenAI...`);
+    const prompt = `
+You are a payee name classifier that determines if a name belongs to a business (organization) or an individual (person).
+
+ANALYZE THE FOLLOWING NAME: "${payeeName}"
+
+First, consider these classification rules:
+1. Legal entity suffixes like LLC, Inc, Ltd, GmbH, S.A., etc. indicate businesses
+2. Words like Company, Corporation, Group, Partners, etc. indicate businesses
+3. Government entities (City of, Department of, etc.) are businesses
+4. First name + last name patterns typically indicate individuals
+5. Professional titles (Dr, Mr, Mrs, etc.) indicate individuals
+6. Name suffixes (Jr, Sr, III, etc.) indicate individuals
+7. Consider cultural patterns for names across different languages/regions
+
+Step-by-step analysis:
+`;
     
-    // Use Chain-of-Thought prompting for detailed reasoning
-    const apiCall = openaiClient.chat.completions.create({
-      model: CLASSIFICATION_MODEL,
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      temperature: 0.2,
       messages: [
         {
-          role: "system",
-          content: `You are a financial expert specialized in accurately identifying whether a payee name belongs to a Business or an Individual. You need to carefully analyze the given name and follow a step-by-step reasoning process.
-
-Step 1: Consider linguistic markers:
-- Business indicators: Legal suffixes (Inc, LLC, Ltd), industry terms, geographic terms, plurals
-- Individual indicators: Personal titles (Mr, Dr), name structures (First Last, Last, First), common first/last names
-
-Step 2: Consider structural patterns:
-- Business typically have: Multiple words, special characters (&, +), service descriptions
-- Individuals typically have: 2-3 words, consistent capitalization, generational suffixes (Jr, III)
-
-Step 3: Consider edge cases:
-- Sole proprietorships may use personal names (e.g., "John Smith Plumbing")
-- Professional services may use personal names with credentials
-- Some cultures place family name first
-
-Step 4: Make your classification determination with explanation
-Step 5: Assign a confidence level (0-100) based on the strength of indicators
-
-Return ONLY valid JSON in the format: {"classification": "Business|Individual", "confidence": number, "reasoning": "detailed explanation", "matchingRules": ["rule1", "rule2"]}
-
-Do not include any text outside of this JSON format. Be thorough in your analysis.`
+          role: "system", 
+          content: "You are an expert in payee name classification that determines if a name belongs to a business entity or an individual person. You must analyze names carefully using linguistic markers, legal entity identifiers, and cross-cultural name patterns."
         },
+        { role: "user", content: prompt }
+      ],
+      functions: [
         {
-          role: "user",
-          content: payeeName
+          name: "classifyPayeeName",
+          description: "Classify a payee name as either a business or individual",
+          parameters: {
+            type: "object",
+            properties: {
+              classification: {
+                type: "string",
+                description: "The classification result",
+                enum: ["Business", "Individual"]
+              },
+              confidence: {
+                type: "number",
+                description: "Confidence score (0-100) for the classification"
+              },
+              reasoning: {
+                type: "string",
+                description: "Brief reasoning for the classification decision, 25 words or less"
+              },
+              matchingRules: {
+                type: "array",
+                description: "List of rules that matched during classification",
+                items: { type: "string" }
+              }
+            },
+            required: ["classification", "confidence", "reasoning"]
+          }
         }
       ],
-      response_format: { "type": "json_object" },
-      temperature: 0.3,
-      max_tokens: 800
+      function_call: { name: "classifyPayeeName" }
     });
     
-    // Add timeout to prevent hanging
-    const response = await timeoutPromise(apiCall, timeout);
+    const result = response.choices[0]?.message?.function_call?.arguments;
     
-    const content = response.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error("Failed to get a valid response from OpenAI");
+    if (!result) {
+      throw new Error("Invalid response from OpenAI API");
     }
     
-    console.log("OpenAI enhanced response content:", content);
-    
-    // Parse the JSON response
     try {
-      const result = JSON.parse(content);
+      const parsedResult = JSON.parse(result) as AIClassificationResponse;
       return {
-        classification: result.classification as 'Business' | 'Individual',
-        confidence: result.confidence,
-        reasoning: result.reasoning,
-        matchingRules: result.matchingRules || []
+        classification: parsedResult.classification,
+        confidence: parsedResult.confidence,
+        reasoning: parsedResult.reasoning,
+        matchingRules: parsedResult.matchingRules || []
       };
-    } catch (e) {
-      console.error("Failed to parse OpenAI response:", content);
-      throw new Error("Failed to parse OpenAI response as JSON");
+    } catch (error) {
+      throw new Error("Failed to parse OpenAI API response");
     }
   } catch (error) {
-    console.error("Error calling OpenAI API:", error);
+    console.error("Error in AI classification:", error);
     throw error;
   }
 }
 
 /**
- * Enhanced batch classification with consensus voting
- * Implements multi-model consensus for improved accuracy
- */
-export async function enhancedClassifyPayeesBatchWithAI(
-  payeeNames: string[],
-  timeout: number = DEFAULT_API_TIMEOUT * 2
-): Promise<Array<{
-  payeeName: string;
-  classification: 'Business' | 'Individual';
-  confidence: number;
-  reasoning: string;
-  matchingRules?: string[];
-}>> {
-  const openaiClient = getOpenAIClient();
-  if (!openaiClient) {
-    throw new Error("OpenAI client not initialized. Please set your API key first.");
-  }
-  
-  if (!payeeNames.length) {
-    return [];
-  }
-  
-  try {
-    const results: Array<{
-      payeeName: string;
-      classification: 'Business' | 'Individual';
-      confidence: number;
-      reasoning: string;
-      matchingRules?: string[];
-    }> = [];
-    
-    // Format the request with a larger context
-    const batchContent = payeeNames.map(name => `"${name}"`).join("\n");
-    
-    const apiCall = openaiClient.chat.completions.create({
-      model: CLASSIFICATION_MODEL,
-      messages: [
-        {
-          role: "system",
-          content: `You are a financial expert specialized in accurately identifying whether a payee name belongs to a Business or an Individual. You will receive a list of payee names.
-
-For each name, follow this step-by-step reasoning process:
-
-1. Consider linguistic markers (legal suffixes, industry terms, titles)
-2. Analyze structural patterns (word count, capitalization, special characters)  
-3. Consider cultural variations and edge cases
-4. Make a classification determination (Business or Individual)
-5. Assign a confidence level (0-100) based on the strength of indicators
-6. Provide brief reasoning and list any matching rules
-
-Return ONLY valid JSON in the format:
-[
-  {
-    "payeeName": "name1",
-    "classification": "Business|Individual", 
-    "confidence": number,
-    "reasoning": "brief explanation",
-    "matchingRules": ["rule1", "rule2"]
-  },
-  {
-    "payeeName": "name2",
-    "classification": "Business|Individual",
-    "confidence": number,
-    "reasoning": "brief explanation",
-    "matchingRules": ["rule1", "rule2"]
-  }
-]
-
-All payee names MUST be included in your response in exactly the same order provided.`
-        },
-        {
-          role: "user",
-          content: batchContent
-        }
-      ],
-      response_format: { "type": "json_object" },
-      temperature: 0.3,
-      max_tokens: 2500
-    });
-    
-    // Add timeout to prevent hanging
-    const response = await timeoutPromise(apiCall, timeout);
-    
-    const content = response.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error("Failed to get a valid response from OpenAI");
-    }
-    
-    // Parse the JSON response
-    const parsedResults = JSON.parse(content);
-    if (!Array.isArray(parsedResults)) {
-      throw new Error("Expected array response from OpenAI");
-    }
-    
-    console.log("Enhanced batch classification successful for", parsedResults.length, "payees");
-    
-    // Ensure results are complete and have consistent structure
-    results.push(...parsedResults.map(item => ({
-      payeeName: item.payeeName,
-      classification: item.classification as 'Business' | 'Individual',
-      confidence: item.confidence,
-      reasoning: item.reasoning,
-      matchingRules: item.matchingRules || []
-    })));
-    
-    return results;
-  } catch (error) {
-    console.error("Error in enhanced batch classification:", error);
-    throw error;
-  }
-}
-
-/**
- * Consensus classification that runs multiple queries and uses majority voting
- * Implements the self-consistency technique from the specification
+ * Consensus classification that runs multiple AI classifications and combines results
+ * Inspired by Self-Consistency method used in advanced NLP ensembles
+ * 
+ * @param payeeName The payee name to classify
+ * @param runs Number of classification runs to perform (default 3)
+ * @returns Combined classification result with consensus confidence
  */
 export async function consensusClassification(
-  payeeName: string, 
-  samples: number = 3
-): Promise<{
-  classification: 'Business' | 'Individual';
-  confidence: number;
-  reasoning: string;
-  matchingRules?: string[];
-}> {
-  // Only proceed if OpenAI client is available
-  const openaiClient = getOpenAIClient();
-  if (!openaiClient) {
-    throw new Error("OpenAI client not initialized. Please set your API key first.");
-  }
+  payeeName: string,
+  runs: number = 3
+): Promise<AIClassificationResponse> {
+  const classifications: AIClassificationResponse[] = [];
   
-  const results = [];
-  
-  for (let i = 0; i < samples; i++) {
+  // Run multiple classifications
+  for (let i = 0; i < runs; i++) {
     try {
       const result = await enhancedClassifyPayeeWithAI(payeeName);
-      results.push(result);
+      classifications.push(result);
     } catch (error) {
-      console.error(`Error in consensus sample ${i}:`, error);
-      // Continue with other samples
+      console.error(`Error in classification run ${i+1}:`, error);
+      // Continue with other runs
     }
-  }
-  
-  // If we got no valid results, throw error
-  if (results.length === 0) {
-    throw new Error("Failed to get any valid classification results");
-  }
-  
-  // Count votes for each classification
-  const votes = {
-    Business: 0,
-    Individual: 0
-  };
-  
-  let totalConfidence = 0;
-  const allMatchingRules = new Set<string>();
-  
-  results.forEach(result => {
-    votes[result.classification]++;
-    totalConfidence += result.confidence;
     
-    if (result.matchingRules && result.matchingRules.length > 0) {
-      result.matchingRules.forEach(rule => allMatchingRules.add(rule));
+    // Small delay between runs to avoid rate limiting
+    if (i < runs - 1) {
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
+  }
+  
+  // If we couldn't get any successful classifications, throw an error
+  if (classifications.length === 0) {
+    throw new Error("All classification attempts failed");
+  }
+  
+  // Count classifications for each category
+  const businessCount = classifications.filter(c => c.classification === 'Business').length;
+  const individualCount = classifications.filter(c => c.classification === 'Individual').length;
+  
+  // Calculate entropy to measure disagreement
+  const totalRuns = businessCount + individualCount;
+  const businessProb = businessCount / totalRuns;
+  const individualProb = individualCount / totalRuns;
+  const entropy = calculateEntropy(businessProb, individualProb);
+  
+  // Get the majority classification
+  const majorityClassification = businessCount > individualCount ? 'Business' : 'Individual';
+  
+  // Get median confidence for the majority classification
+  const confidences = classifications
+    .filter(c => c.classification === majorityClassification)
+    .map(c => c.confidence)
+    .sort((a, b) => a - b);
+  
+  const medianConfidence = confidences.length > 0 
+    ? confidences[Math.floor(confidences.length / 2)]
+    : 50;
+  
+  // Adjust confidence based on consensus level
+  const consensusRatio = Math.max(businessCount, individualCount) / totalRuns;
+  const adjustedConfidence = Math.round(medianConfidence * consensusRatio);
+  
+  // Get the most detailed reasoning or combine them
+  const majorityReasoning = classifications.find(c => c.classification === majorityClassification)?.reasoning || "";
+  
+  // Collect all matching rules
+  const allMatchingRules = new Set<string>();
+  classifications.forEach(c => {
+    c.matchingRules?.forEach(rule => allMatchingRules.add(rule));
   });
-  
-  // Determine majority classification
-  const businessVotes = votes.Business;
-  const individualVotes = votes.Individual;
-  
-  const majorityClassification = businessVotes > individualVotes ? 'Business' : 'Individual';
-  
-  // Calculate average confidence among winners only
-  const winningResults = results.filter(r => r.classification === majorityClassification);
-  const averageConfidence = Math.round(
-    winningResults.reduce((sum, r) => sum + r.confidence, 0) / winningResults.length
-  );
-  
-  // Generate a summary reasoning from all samples
-  const combinedReasoning = winningResults
-    .map(r => r.reasoning)
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .slice(0, 200) + "...";
-  
-  // Convert matching rules set back to array
-  const matchingRulesArray = Array.from(allMatchingRules);
   
   return {
     classification: majorityClassification,
-    confidence: averageConfidence,
-    reasoning: `Consensus classification (${winningResults.length}/${results.length} votes): ${combinedReasoning}`,
-    matchingRules: matchingRulesArray
+    confidence: adjustedConfidence,
+    reasoning: `Consensus classification (${Math.round(consensusRatio * 100)}% agreement): ${majorityReasoning}`,
+    matchingRules: Array.from(allMatchingRules)
   };
+}
+
+/**
+ * Calculate Shannon entropy to measure classification disagreement
+ */
+function calculateEntropy(businessProb: number, individualProb: number): number {
+  const calculateComponent = (p: number) => (p === 0) ? 0 : -p * Math.log2(p);
+  return calculateComponent(businessProb) + calculateComponent(individualProb);
 }
