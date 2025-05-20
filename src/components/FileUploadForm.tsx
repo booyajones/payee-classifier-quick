@@ -92,19 +92,23 @@ const FileUploadForm = ({ onComplete, config = DEFAULT_CLASSIFICATION_CONFIG }: 
       
       // Extract payee names from the selected column
       const payeeNames = data
-        .map(row => row[selectedColumn])
+        .map(row => {
+          // Ensure we're using the exact selected column name
+          return row[selectedColumn];
+        })
         .filter(name => name && typeof name === 'string' && name.trim() !== '');
       
       if (payeeNames.length === 0) {
         toast({
           title: "No Valid Names Found",
-          description: "The selected column doesn't contain valid payee names.",
+          description: `The selected column "${selectedColumn}" doesn't contain valid payee names.`,
           variant: "destructive",
         });
         setIsLoading(false);
         return;
       }
 
+      console.log(`Processing ${payeeNames.length} names from column "${selectedColumn}"`);
       setProcessingStatus(`Processing 0 of ${payeeNames.length} payees`);
 
       // Process the batch of payee names with enhanced processing if enabled

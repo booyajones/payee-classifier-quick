@@ -6,6 +6,7 @@ import { applyNLPClassification } from './nlpClassification';
 import { enhancedClassifyPayeeWithAI, consensusClassification } from '../openai/enhancedClassification';
 import { detectBusinessByExtendedRules, detectIndividualByExtendedRules, normalizeText } from './enhancedRules';
 import { normalizePayeeName, deduplicateNames, getCanonicalName } from './nameProcessing';
+import { BATCH_SIZE } from '../openai';
 
 // Increased concurrency for parallel processing
 const MAX_PARALLEL_PROCESSING = 15;
@@ -156,7 +157,7 @@ export async function enhancedProcessBatch(
 ): Promise<ClassificationResult[]> {
   // Filter out empty names
   const filteredNames = payeeNames.filter(name => name && name.trim() !== '');
-  const total = payeeNames.length;
+  const total = filteredNames.length; // Use filtered count for total
   
   // Initial progress update
   if (progressCallback) {
@@ -219,19 +220,12 @@ export async function enhancedProcessBatch(
   }
   
   // Map results back to original array positions
-  const results: ClassificationResult[] = new Array(total);
+  const results: ClassificationResult[] = new Array(filteredNames.length);
   
-  for (let i = 0; i < payeeNames.length; i++) {
-    const name = payeeNames[i];
-    if (!name || name.trim() === '') {
-      // Handle empty names
-      results[i] = {
-        classification: 'Individual',
-        confidence: 0,
-        reasoning: "Empty payee name",
-        processingTier: 'Rule-Based'
-      };
-    } else if (uniqueNameMapping) {
+  for (let i = 0; i < filteredNames.length; i++) {
+    const name = filteredNames[i];
+    
+    if (uniqueNameMapping) {
       // Find the canonical name for this name
       let found = false;
       for (const [canonicalName, similarNames] of uniqueNameMapping.entries()) {
