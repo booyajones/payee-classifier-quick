@@ -1,7 +1,7 @@
 
-import { OpenAIClient } from './client';
-import { getOpenAIClient } from './utils';
 import { ClassificationResult } from '../types';
+import { getOpenAIClient } from './client';
+import { timeoutPromise } from './utils';
 
 interface AIClassificationResponse {
   classification: 'Business' | 'Individual';
