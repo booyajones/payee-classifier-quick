@@ -18,12 +18,12 @@ export function getConfidenceLevel(confidence: number): 'high' | 'medium' | 'low
 
 /**
  * Main classification function that implements the blended approach
- * Updated to support enhanced classification by default
+ * Updated to use AI-only by default and disable enhanced mode
  */
 export async function classifyPayee(
   payeeName: string, 
   config: ClassificationConfig = DEFAULT_CLASSIFICATION_CONFIG,
-  useEnhanced: boolean = true // Now defaulting to enhanced
+  useEnhanced: boolean = false // Default to not using enhanced mode
 ): Promise<ClassificationResult> {
   // Check if name is empty or invalid
   if (!payeeName || payeeName.trim() === '') {
@@ -35,29 +35,12 @@ export async function classifyPayee(
     };
   }
 
-  // Use the enhanced classification by default now
+  // Use the enhanced classification if specifically requested
   if (useEnhanced) {
     return await enhancedClassifyPayee(payeeName, config);
   }
 
-  // Legacy pipeline (kept for backward compatibility)
-  // If we're bypassing rule-based and NLP classification, go straight to AI
-  if (config.bypassRuleNLP) {
-    return await applyAIClassification(payeeName);
-  }
-
-  // Tier 1: Apply rule-based classification
-  const ruleBasedResult = applyRuleBasedClassification(payeeName);
-  if (ruleBasedResult && ruleBasedResult.confidence >= config.aiThreshold) {
-    return ruleBasedResult;
-  }
-
-  // Tier 2: Apply NLP-based classification
-  const nlpResult = applyNLPClassification(payeeName);
-  if (nlpResult && nlpResult.confidence >= config.aiThreshold) {
-    return nlpResult;
-  }
-
-  // Tier 3: Apply AI-assisted classification (now asynchronous)
+  // Default to always use AI for more accurate classification
+  // This ensures business names are more accurately detected
   return await applyAIClassification(payeeName);
 }

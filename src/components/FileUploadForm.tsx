@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,7 @@ import { parseUploadedFile } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, File, Upload, RefreshCw } from "lucide-react";
+import { AlertCircle, File, Upload, RefreshCw, RotateCcw } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { processBatch, DEFAULT_CLASSIFICATION_CONFIG } from "@/lib/classificationEngine";
 import { enhancedProcessBatch } from "@/lib/classification/enhancedClassification";
@@ -20,8 +21,8 @@ interface FileUploadFormProps {
 
 const FileUploadForm = ({ onComplete, config = {
   ...DEFAULT_CLASSIFICATION_CONFIG,
-  useEnhanced: false, // Default to standard mode
-  bypassRuleNLP: true  // Always use AI classification
+  useEnhanced: false, // Always disable enhanced mode
+  bypassRuleNLP: true  // Always use AI classification for accuracy
 } }: FileUploadFormProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [columns, setColumns] = useState<string[]>([]);
@@ -283,7 +284,7 @@ const FileUploadForm = ({ onComplete, config = {
             onClick={resetForm}
             disabled={isLoading}
           >
-            <RefreshCw className="h-4 w-4 mr-2" />
+            <RotateCcw className="h-4 w-4 mr-2" />
             Start Over
           </Button>
         </div>

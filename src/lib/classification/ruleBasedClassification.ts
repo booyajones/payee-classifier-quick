@@ -5,6 +5,7 @@ import { probablepeople } from './probablepeople';
 
 /**
  * Rule-based classification using probablepeople library and custom rules
+ * Enhanced to better detect business names
  */
 export function applyRuleBasedClassification(payeeName: string): ClassificationResult | null {
   // Convert to uppercase for consistent matching
@@ -80,6 +81,34 @@ export function applyRuleBasedClassification(payeeName: string): ClassificationR
       isIndividualIndicator = true;
       break;
     }
+  }
+
+  // Improved business name detection for common patterns
+  // Look for names with industry terms that are often businesses
+  const businessTerms = [
+    "GRAPHICS", "POOLS", "TRAVEL", "EVENTS", "PLANNERS", "MAINTENANCE", 
+    "DISTRIBUTORS", "BAKERY", "CREATIVE", "ENDEAVOR", "MECHANICAL", "PRO", 
+    "HVAC", "RESOURCING", "GAS", "LOCAL", "CRUISE", "DESIGNS", "HATCHED", 
+    "HOMEBOY", "CITIZEN", "MATTER", "SURFACE", "IMAGE", "CURATED", 
+    "ENTERTAINMENT", "AIR", "ADVANCED", "ADMIRAL", "AV", "EXPERT"
+  ];
+  
+  const containsBusinessTerm = businessTerms.some(term => name.includes(term));
+  if (containsBusinessTerm) {
+    matchingRules.push("Contains common business term");
+    isBusinessIndicator = true;
+  }
+  
+  // Check for "LLC" pattern at the end (very strong business indicator)
+  if (/LLC\s*$/.test(name)) {
+    matchingRules.push("Ends with LLC");
+    isBusinessIndicator = true;
+  }
+  
+  // All caps names are often businesses
+  if (payeeName === payeeName.toUpperCase() && payeeName.length > 5 && !/[a-z]/.test(payeeName)) {
+    matchingRules.push("Name in ALL CAPS (typical of businesses)");
+    isBusinessIndicator = true;
   }
 
   // Simple name pattern detection for individuals

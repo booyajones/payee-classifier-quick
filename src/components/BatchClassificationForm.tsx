@@ -17,7 +17,7 @@ import APIKeyInput from "./APIKeyInput";
 import FileUploadForm from "./FileUploadForm";
 import { getOpenAIClient } from "@/lib/openaiService";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, RefreshCw, RotateCcw } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 interface BatchClassificationFormProps {
@@ -36,8 +36,8 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   const [processingStatus, setProcessingStatus] = useState<string>("");
   const [config, setConfig] = useState<ClassificationConfig>({
     ...DEFAULT_CLASSIFICATION_CONFIG,
-    useEnhanced: false, // Default to standard mode instead of enhanced
-    bypassRuleNLP: true, // Always use AI classification
+    useEnhanced: false, // Always disable enhanced mode
+    bypassRuleNLP: true, // Always use AI classification for accuracy
   });
   const { toast } = useToast();
 
@@ -163,19 +163,19 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
     }
   };
 
-  // Handle AI threshold change
+  // Handle AI threshold change - disabled since we're always using AI
   const handleThresholdChange = (value: number[]) => {
     setConfig(prev => ({ ...prev, aiThreshold: value[0] }));
   };
 
-  // Handle AI-only mode toggle
+  // Handle AI-only mode toggle - disabled since we're always using AI
   const handleAIOnlyToggle = (checked: boolean) => {
-    setConfig(prev => ({ ...prev, bypassRuleNLP: checked }));
+    setConfig(prev => ({ ...prev, bypassRuleNLP: true }));
   };
   
-  // Handle enhanced mode toggle
+  // Handle enhanced mode toggle - always off
   const handleEnhancedToggle = (checked: boolean) => {
-    setConfig(prev => ({ ...prev, useEnhanced: checked }));
+    setConfig(prev => ({ ...prev, useEnhanced: false }));
   };
 
   // Check if OpenAI API key is set
@@ -218,37 +218,23 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
                     step={5}
                     value={[config.aiThreshold]}
                     onValueChange={handleThresholdChange}
-                    disabled={config.bypassRuleNLP}
+                    disabled={true} // Always disabled since we're using AI-only mode
                   />
                   <p className="text-xs text-muted-foreground">
-                    {config.bypassRuleNLP 
-                      ? "AI-Only mode is active - threshold is ignored"
-                      : `AI will be used when rule-based or NLP classification confidence is below ${config.aiThreshold}%`}
+                    Using AI-Only mode for maximum accuracy
                   </p>
                 </div>
                 
                 <div className="flex items-center space-x-2">
                   <Switch
                     id="batchAiOnly"
-                    checked={config.bypassRuleNLP}
-                    onCheckedChange={handleAIOnlyToggle}
+                    checked={true}
+                    disabled={true} // Always enabled and disabled for toggling
                   />
-                  <Label htmlFor="batchAiOnly">AI-Only Mode</Label>
+                  <Label htmlFor="batchAiOnly">AI-Only Mode (Always On)</Label>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  When enabled, rule-based and NLP classification will be skipped, and all payees will be classified using AI
-                </p>
-                
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="batchEnhancedMode"
-                    checked={config.useEnhanced}
-                    onCheckedChange={handleEnhancedToggle}
-                  />
-                  <Label htmlFor="batchEnhancedMode">Enhanced Mode</Label>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  When enabled, uses advanced techniques including consensus classification and multi-cultural name recognition
+                  Using advanced AI classification for all payees to ensure maximum accuracy
                 </p>
               </div>
             </div>
@@ -296,7 +282,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
                       onClick={resetForm}
                       disabled={isProcessing}
                     >
-                      <RefreshCw className="h-4 w-4 mr-2" />
+                      <RotateCcw className="h-4 w-4 mr-2" />
                       Start Over
                     </Button>
                   </div>
@@ -326,7 +312,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
                     disabled={isProcessing}
                     className="w-full"
                   >
-                    <RefreshCw className="h-4 w-4 mr-2" />
+                    <RotateCcw className="h-4 w-4 mr-2" />
                     Start Over
                   </Button>
                 </div>

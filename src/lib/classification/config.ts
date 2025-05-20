@@ -4,8 +4,8 @@ import { ClassificationConfig } from '../types';
 // Default classification configuration
 export const DEFAULT_CLASSIFICATION_CONFIG: ClassificationConfig = {
   aiThreshold: 75, // Default threshold - use AI when confidence is below 75%
-  bypassRuleNLP: false, // By default, don't bypass rule-based and NLP classification
-  useEnhanced: true, // Default to using enhanced classification
+  bypassRuleNLP: true, // Always bypass rule-based and NLP classification for accuracy
+  useEnhanced: false, // Default to NOT using enhanced classification
   offlineMode: false, // Default to online mode
   useFuzzyMatching: true, // Use fuzzy matching for better results
   useCacheForDuplicates: true // Deduplicate similar names
@@ -34,7 +34,7 @@ export const BUSINESS_KEYWORDS = [
   "GLOBAL", "INDUSTRIES", "COMMUNICATIONS", "RESOURCES", "DEVELOPMENT"
 ];
 
-// Industry specific identifiers - expanded
+// Industry specific identifiers - expanded with more terms
 export const INDUSTRY_IDENTIFIERS = {
   healthcare: [
     "HOSPITAL", "CLINIC", "MEDICAL CENTER", "HEALTH", "CARE", "PHARMACY",
@@ -50,14 +50,14 @@ export const INDUSTRY_IDENTIFIERS = {
     "HOTEL", "RESTAURANT", "CAFÉ", "CATERING", "RESORT", "DINER", 
     "BAKERY", "BISTRO", "PIZZERIA", "GRILL", "TAVERN", "PUB", "BAR",
     "LODGE", "INN", "MOTEL", "SUITES", "SPA", "HOSTEL", "ACCOMMODATION",
-    "VACATION", "LOUNGE", "BRASSERIE", "EATERY"
+    "VACATION", "LOUNGE", "BRASSERIE", "EATERY", "MARRIOTT"
   ],
   finance: [
     "BANK", "FINANCIAL", "INSURANCE", "CAPITAL", "WEALTH", "ADVISORS",
     "INVESTMENT", "FINANCE", "MORTGAGE", "ASSET", "CREDIT", "TRUST",
     "SAVINGS", "LOAN", "SECURITIES", "BROKERAGE", "FUND", "ADVISORY",
     "EXCHANGE", "RETIREMENT", "BANKING", "ACCOUNTING", "TAX", "AUDIT",
-    "FISCAL", "HOLDINGS", "EQUITY", "VENTURE", "MUTUAL"
+    "FISCAL", "HOLDINGS", "EQUITY", "VENTURE", "MUTUAL", "PINNACLE", "GAS"
   ],
   education: [
     "SCHOOL", "UNIVERSITY", "COLLEGE", "ACADEMY", "INSTITUTE", "EDUCATION",
@@ -69,13 +69,18 @@ export const INDUSTRY_IDENTIFIERS = {
     "TECH", "SOFTWARE", "HARDWARE", "COMPUTING", "DATA", "DIGITAL",
     "IT", "INFORMATION TECHNOLOGY", "WEB", "MOBILE", "CYBER", "NETWORK",
     "ELECTRONICS", "TELECOM", "SEMICONDUCTOR", "CLOUD", "AI", "ROBOTICS",
-    "INNOVATIONS", "TECHNOLOGIES", "SYSTEMS"
+    "INNOVATIONS", "TECHNOLOGIES", "SYSTEMS", "GRAPHICS", "ADVANCED", "RESOURCING"
   ],
-  manufacturing: [
-    "MANUFACTURING", "FACTORY", "INDUSTRIAL", "INDUSTRIES", "PRODUCTION",
-    "FABRICATION", "PROCESSING", "ASSEMBLY", "WORKS", "MILLS", "PRODUCTS",
-    "MATERIALS", "PACKAGING", "ENGINEERING", "METAL", "PLASTICS", "CHEMICAL",
-    "TEXTILE", "AEROSPACE", "AUTOMOTIVE"
+  services: [
+    "MAINTENANCE", "CLEANING", "REPAIR", "INSTALLATION", "PLUMBING", "ELECTRICAL",
+    "LANDSCAPING", "GARDENING", "CONSULTING", "ADVISORY", "PROFESSIONAL", 
+    "LEGAL", "ACCOUNTING", "MARKETING", "ADVERTISING", "DESIGN", "CREATIVE",
+    "ARCHITECTURE", "ENGINEERING", "CONSTRUCTION", "REMODELING", "RENOVATION",
+    "HVAC", "ROOFING", "POOLS", "AIR", "AMERICAN", "ADMIRAL", "EXPERT", "SURFACE",
+    "GRAY", "MATTER", "MECHANICAL", "EVENTS", "PLANNERS", "CRUISE", "TRAVEL", 
+    "DISTRIBUTORS", "CURATED", "CLEAN", "DESIGNS", "AESOP", "ALLIANT", "BRUVION",
+    "CHEMSEARCH", "CLARK", "DELTA", "ENTERTAINMENT", "FAIRFIELD", "FLORAL", "FUJI",
+    "GABRIELLA", "GOOD", "CITIZEN", "HOMEBOY"
   ]
 };
 

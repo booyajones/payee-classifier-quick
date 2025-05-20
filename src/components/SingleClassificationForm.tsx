@@ -12,7 +12,7 @@ import { PayeeClassification, ClassificationConfig } from "@/lib/types";
 import { useToast } from "@/components/ui/use-toast";
 import { getOpenAIClient } from "@/lib/openaiService";
 import APIKeyInput from "./APIKeyInput";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, RefreshCw, RotateCcw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
 
@@ -27,8 +27,8 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
   const [apiKeySet, setApiKeySet] = useState<boolean>(false);
   const [config, setConfig] = useState<ClassificationConfig>({
     ...DEFAULT_CLASSIFICATION_CONFIG,
-    useEnhanced: false, // Default to standard mode instead of enhanced
-    bypassRuleNLP: true, // Always use AI classification
+    useEnhanced: false, // Always disable enhanced mode
+    bypassRuleNLP: true, // Always use AI classification for accuracy
   });
   const { toast } = useToast();
 
@@ -63,8 +63,8 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
     setIsProcessing(true);
     
     try {
-      // Classification is now async and uses the config with enhanced flag
-      const result = await classifyPayee(payeeName, config, config.useEnhanced);
+      // Classification is now async and always uses AI (with enhanced mode disabled)
+      const result = await classifyPayee(payeeName, config, false);
       const classification = createPayeeClassification(payeeName, result);
       
       setCurrentResult(classification);
@@ -99,9 +99,9 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
     setConfig(prev => ({ ...prev, bypassRuleNLP: checked }));
   };
   
-  // Handle enhanced mode toggle
+  // Handle enhanced mode toggle - disabled by default and locked
   const handleEnhancedToggle = (checked: boolean) => {
-    setConfig(prev => ({ ...prev, useEnhanced: checked }));
+    setConfig(prev => ({ ...prev, useEnhanced: false }));
   };
 
   return (
@@ -154,37 +154,23 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
                       step={5}
                       value={[config.aiThreshold]}
                       onValueChange={handleThresholdChange}
-                      disabled={config.bypassRuleNLP}
+                      disabled={true} // Always disabled since we're using AI-only mode
                     />
                     <p className="text-xs text-muted-foreground">
-                      {config.bypassRuleNLP 
-                        ? "AI-Only mode is active - threshold is ignored"
-                        : `AI will be used when rule-based or NLP classification confidence is below ${config.aiThreshold}%`}
+                      Using AI-Only mode for maximum accuracy
                     </p>
                   </div>
                   
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="aiOnly"
-                      checked={config.bypassRuleNLP}
-                      onCheckedChange={handleAIOnlyToggle}
+                      checked={true}
+                      disabled={true} // Always enabled and disabled for toggling
                     />
-                    <Label htmlFor="aiOnly">AI-Only Mode</Label>
+                    <Label htmlFor="aiOnly">AI-Only Mode (Always On)</Label>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    When enabled, rule-based and NLP classification will be skipped, and all payees will be classified using AI
-                  </p>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="enhancedMode"
-                      checked={config.useEnhanced}
-                      onCheckedChange={handleEnhancedToggle}
-                    />
-                    <Label htmlFor="enhancedMode">Enhanced Mode</Label>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    When enabled, uses advanced techniques including consensus classification and multi-cultural name recognition
+                    Using advanced AI classification for all payees to ensure maximum accuracy
                   </p>
                 </div>
               </div>
@@ -200,7 +186,7 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
                   onClick={resetForm}
                   disabled={isProcessing}
                 >
-                  <RefreshCw className="h-4 w-4 mr-2" />
+                  <RotateCcw className="h-4 w-4 mr-2" />
                   Start Over
                 </Button>
               </div>
