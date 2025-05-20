@@ -1,12 +1,16 @@
 
 // Re-export everything from the individual modules
 export * from './client';
-export * from './config';
 export * from './utils';
 export * from './singleClassification';
 export * from './batchClassification';
 export * from './enhancedClassification';
 
-// Note: MAX_BATCH_SIZE is exported from both ./config.ts and ./batchClassification.ts
-// Only export the batch-specific one and rename it to avoid ambiguity
+// Explicitly export items from config to avoid conflicts
+export {
+  DEFAULT_API_TIMEOUT,
+  CLASSIFICATION_MODEL,
+} from './config';
+
+// Export the batch-specific MAX_BATCH_SIZE with a distinctive name
 export { MAX_BATCH_SIZE as BATCH_SIZE } from './batchClassification';
