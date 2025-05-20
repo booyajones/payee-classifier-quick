@@ -8,16 +8,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, File, Upload } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { processBatch } from "@/lib/classificationEngine";
+import { processBatch, DEFAULT_CLASSIFICATION_CONFIG } from "@/lib/classificationEngine";
+import { enhancedProcessBatch } from "@/lib/classification/enhancedClassification";
 import { createPayeeClassification } from "@/lib/utils";
-import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
+import { PayeeClassification, BatchProcessingResult, ClassificationConfig } from "@/lib/types";
 import { Progress } from "@/components/ui/progress";
 
 interface FileUploadFormProps {
   onComplete: (results: PayeeClassification[], summary: BatchProcessingResult) => void;
+  config?: ClassificationConfig;
 }
 
-const FileUploadForm = ({ onComplete }: FileUploadFormProps) => {
+const FileUploadForm = ({ onComplete, config = DEFAULT_CLASSIFICATION_CONFIG }: FileUploadFormProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [columns, setColumns] = useState<string[]>([]);
   const [selectedColumn, setSelectedColumn] = useState<string>("");
@@ -105,15 +107,26 @@ const FileUploadForm = ({ onComplete }: FileUploadFormProps) => {
 
       setProcessingStatus(`Processing 0 of ${payeeNames.length} payees`);
 
-      // Process the batch of payee names
+      // Process the batch of payee names with enhanced processing if enabled
       const startTime = performance.now();
-      const results = await processBatch(
-        payeeNames,
-        (current, total, percentage) => {
-          setProgress(percentage);
-          setProcessingStatus(`Processing ${current} of ${total} payees`);
-        }
-      );
+      const results = config.useEnhanced
+        ? await enhancedProcessBatch(
+            payeeNames,
+            (current, total, percentage) => {
+              setProgress(percentage);
+              setProcessingStatus(`Processing ${current} of ${total} payees`);
+            },
+            config
+          )
+        : await processBatch(
+            payeeNames,
+            (current, total, percentage) => {
+              setProgress(percentage);
+              setProcessingStatus(`Processing ${current} of ${total} payees`);
+            },
+            config
+          );
+          
       const endTime = performance.now();
       const processingTime = endTime - startTime;
 

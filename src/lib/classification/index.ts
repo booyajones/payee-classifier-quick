@@ -8,3 +8,6 @@ export * from './nlpClassification';
 export * from './aiClassification';
 export * from './batchProcessing';
 export * from './utils';
+export * from './enhancedRules';
+export * from './enhancedClassification';
+

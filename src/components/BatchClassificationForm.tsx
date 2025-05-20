@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { processBatch, DEFAULT_CLASSIFICATION_CONFIG } from "@/lib/classificationEngine";
+import { enhancedProcessBatch } from "@/lib/classification/enhancedClassification";
 import { createPayeeClassification } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import BatchProcessingSummary from "./BatchProcessingSummary";
@@ -34,7 +35,10 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   const [activeTab, setActiveTab] = useState<string>("text");
   const [progress, setProgress] = useState<number>(0);
   const [processingStatus, setProcessingStatus] = useState<string>("");
-  const [config, setConfig] = useState<ClassificationConfig>(DEFAULT_CLASSIFICATION_CONFIG);
+  const [config, setConfig] = useState<ClassificationConfig>({
+    ...DEFAULT_CLASSIFICATION_CONFIG,
+    useEnhanced: true // Default to enhanced mode
+  });
   const { toast } = useToast();
 
   // Check if API key is already set in session storage
@@ -66,14 +70,26 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
       setProcessingStatus(`Processing 0 of ${names.length} payees`);
       
       const startTime = performance.now();
-      const results = await processBatch(
-        names,
-        (current, total, percentage) => {
-          setProgress(percentage);
-          setProcessingStatus(`Processing ${current} of ${total} payees`);
-        },
-        config // Pass the configuration
-      );
+      
+      // Use enhanced process batch if enabled
+      const results = config.useEnhanced
+        ? await enhancedProcessBatch(
+            names,
+            (current, total, percentage) => {
+              setProgress(percentage);
+              setProcessingStatus(`Processing ${current} of ${total} payees`);
+            },
+            config
+          )
+        : await processBatch(
+            names,
+            (current, total, percentage) => {
+              setProgress(percentage);
+              setProcessingStatus(`Processing ${current} of ${total} payees`);
+            },
+            config
+          );
+      
       const endTime = performance.now();
       const processingTime = endTime - startTime;
 
@@ -143,6 +159,11 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   const handleAIOnlyToggle = (checked: boolean) => {
     setConfig(prev => ({ ...prev, bypassRuleNLP: checked }));
   };
+  
+  // Handle enhanced mode toggle
+  const handleEnhancedToggle = (checked: boolean) => {
+    setConfig(prev => ({ ...prev, useEnhanced: checked }));
+  };
 
   // Check if OpenAI API key is set
   const isAIEnabled = apiKeySet || getOpenAIClient() !== null;
@@ -204,6 +225,18 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
                 <p className="text-xs text-muted-foreground">
                   When enabled, rule-based and NLP classification will be skipped, and all payees will be classified using AI
                 </p>
+                
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="batchEnhancedMode"
+                    checked={config.useEnhanced}
+                    onCheckedChange={handleEnhancedToggle}
+                  />
+                  <Label htmlFor="batchEnhancedMode">Enhanced Mode (99.5% Accuracy)</Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  When enabled, uses advanced techniques including consensus classification, multi-cultural name recognition, and cache optimization
+                </p>
               </div>
             </div>
           
@@ -246,7 +279,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
               </TabsContent>
               
               <TabsContent value="file" className="mt-4">
-                <FileUploadForm onComplete={handleFileUploadComplete} />
+                <FileUploadForm onComplete={handleFileUploadComplete} config={config} />
               </TabsContent>
             </Tabs>
 

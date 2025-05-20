@@ -1,3 +1,4 @@
+
 export interface ClassificationResult {
   classification: 'Business' | 'Individual';
   confidence: number;
@@ -44,4 +45,19 @@ export interface ParsedCorporation {
 export interface ClassificationConfig {
   aiThreshold: number;   // Confidence threshold below which AI will be used
   bypassRuleNLP: boolean; // Whether to skip rule-based and NLP classification
+  useEnhanced?: boolean;  // Whether to use the enhanced classification system
 }
+
+// Enhanced statistics for batch processing
+export interface EnhancedBatchStatistics {
+  totalProcessed: number;
+  businessCount: number;
+  individualCount: number;
+  averageConfidence: number;
+  highConfidenceCount: number;
+  mediumConfidenceCount: number;
+  lowConfidenceCount: number;
+  processingTierCounts: Record<string, number>;
+  processingTime: number;
+}
+

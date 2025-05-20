@@ -4,6 +4,7 @@ import { DEFAULT_CLASSIFICATION_CONFIG } from './config';
 import { applyRuleBasedClassification } from './ruleBasedClassification';
 import { applyNLPClassification } from './nlpClassification';
 import { applyAIClassification } from './aiClassification';
+import { enhancedClassifyPayee } from './enhancedClassification';
 
 /**
  * Get confidence level category based on numeric confidence
@@ -17,11 +18,12 @@ export function getConfidenceLevel(confidence: number): 'high' | 'medium' | 'low
 
 /**
  * Main classification function that implements the tiered approach
- * Updated to support configuration options
+ * Updated to support enhanced classification
  */
 export async function classifyPayee(
   payeeName: string, 
-  config: ClassificationConfig = DEFAULT_CLASSIFICATION_CONFIG
+  config: ClassificationConfig = DEFAULT_CLASSIFICATION_CONFIG,
+  useEnhanced: boolean = false
 ): Promise<ClassificationResult> {
   // Check if name is empty or invalid
   if (!payeeName || payeeName.trim() === '') {
@@ -31,6 +33,11 @@ export async function classifyPayee(
       reasoning: "Invalid or empty payee name",
       processingTier: 'Rule-Based'
     };
+  }
+
+  // Use the enhanced classification if requested
+  if (useEnhanced) {
+    return await enhancedClassifyPayee(payeeName, config);
   }
 
   // If we're bypassing rule-based and NLP classification, go straight to AI

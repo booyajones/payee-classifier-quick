@@ -5,3 +5,5 @@ export * from './config';
 export * from './utils';
 export * from './singleClassification';
 export * from './batchClassification';
+export * from './enhancedClassification';
+
