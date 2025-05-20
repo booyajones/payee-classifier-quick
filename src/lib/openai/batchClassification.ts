@@ -2,10 +2,14 @@
 import { getOpenAIClient } from './client';
 import { timeoutPromise } from './utils';
 import { classifyPayeeWithAI } from './singleClassification';
-import { DEFAULT_API_TIMEOUT, MAX_BATCH_SIZE, CLASSIFICATION_MODEL } from './config';
+import { DEFAULT_API_TIMEOUT, CLASSIFICATION_MODEL } from './config';
+
+// Increased batch size for better throughput
+export const MAX_BATCH_SIZE = 15; // Increased from 5 to 15
 
 /**
  * Classify multiple payee names in a batch using the OpenAI API
+ * Optimized for higher throughput with larger batch sizes
  */
 export async function classifyPayeesBatchWithAI(
   payeeNames: string[],
@@ -33,7 +37,7 @@ export async function classifyPayeesBatchWithAI(
       reasoning: string;
     }> = [];
 
-    // Process in smaller batches to prevent timeouts
+    // Process in larger batches to improve throughput
     for (let i = 0; i < payeeNames.length; i += MAX_BATCH_SIZE) {
       const batchNames = payeeNames.slice(i, i + MAX_BATCH_SIZE);
       console.log(`Classifying batch of ${batchNames.length} payees with OpenAI (batch ${Math.floor(i/MAX_BATCH_SIZE) + 1})...`);
@@ -70,7 +74,7 @@ export async function classifyPayeesBatchWithAI(
         ],
         response_format: { "type": "json_object" },
         temperature: 0.2,
-        max_tokens: 1500
+        max_tokens: 2500 // Increased for larger batches
       });
       
       try {
@@ -99,24 +103,27 @@ export async function classifyPayeesBatchWithAI(
         // Fall back to individual processing for this batch
         console.log("Falling back to individual processing for this batch");
         
-        for (const name of batchNames) {
-          try {
-            const result = await classifyPayeeWithAI(name, timeout);
-            results.push({
+        const individualPromises = batchNames.map(name => 
+          classifyPayeeWithAI(name, timeout)
+            .then(result => ({
               payeeName: name,
               ...result
-            });
-          } catch (innerError) {
-            console.error(`Failed to classify ${name} individually:`, innerError);
-            // Add a fallback result with low confidence
-            results.push({
-              payeeName: name,
-              classification: 'Individual', // Default fallback
-              confidence: 40,
-              reasoning: "Classification failed due to API error"
-            });
-          }
-        }
+            }))
+            .catch(innerError => {
+              console.error(`Failed to classify ${name} individually:`, innerError);
+              // Add a fallback result with low confidence
+              return {
+                payeeName: name,
+                classification: 'Individual' as const, // Default fallback
+                confidence: 40,
+                reasoning: "Classification failed due to API error"
+              };
+            })
+        );
+        
+        // Process individual requests in parallel with limited concurrency
+        const batchResults = await Promise.all(individualPromises);
+        results.push(...batchResults);
       }
     }
     

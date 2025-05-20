@@ -1,4 +1,3 @@
-
 import { ClassificationResult, ClassificationConfig } from '../types';
 import { DEFAULT_CLASSIFICATION_CONFIG } from './config';
 import { applyRuleBasedClassification } from './ruleBasedClassification';
@@ -6,12 +5,12 @@ import { applyNLPClassification } from './nlpClassification';
 import { enhancedClassifyPayeeWithAI, consensusClassification } from '../openai/enhancedClassification';
 import { detectBusinessByExtendedRules, detectIndividualByExtendedRules, normalizeText } from './enhancedRules';
 
-// Cache for storing previously classified payees to improve performance
-const classificationCache = new Map<string, ClassificationResult>();
+// Increased concurrency for parallel processing
+const MAX_PARALLEL_PROCESSING = 10; 
 
 /**
  * Enhanced classification function that implements a multi-tiered approach
- * with caching for improved performance
+ * with persistent caching for improved performance
  */
 export async function enhancedClassifyPayee(
   payeeName: string,
@@ -29,13 +28,6 @@ export async function enhancedClassifyPayee(
   // Normalize the payee name
   const normalizedName = normalizeText(payeeName);
   
-  // Check cache for previously processed identical names
-  const cachedResult = classificationCache.get(normalizedName);
-  if (cachedResult) {
-    console.log(`Using cached result for "${payeeName}"`);
-    return { ...cachedResult };
-  }
-  
   // Stage 1: Ultra-fast Rule Gate
   // Check for definitive business indicators first
   const businessCheck = detectBusinessByExtendedRules(payeeName);
@@ -47,9 +39,6 @@ export async function enhancedClassifyPayee(
       processingTier: 'Rule-Based',
       matchingRules: businessCheck.rules
     };
-    
-    // Cache the result
-    classificationCache.set(normalizedName, result);
     return result;
   }
   
@@ -63,17 +52,14 @@ export async function enhancedClassifyPayee(
       processingTier: 'Rule-Based',
       matchingRules: individualCheck.rules
     };
-    
-    // Cache the result
-    classificationCache.set(normalizedName, result);
     return result;
   }
   
   // If we're bypassing rule-based and NLP classification, go straight to AI
   if (config.bypassRuleNLP) {
     try {
-      // Use consensus classification for higher accuracy
-      const aiResult = await consensusClassification(payeeName, 3);
+      // Use consensus classification with fewer runs for better performance
+      const aiResult = await consensusClassification(payeeName, 2);
       const result: ClassificationResult = {
         classification: aiResult.classification,
         confidence: aiResult.confidence,
@@ -81,9 +67,6 @@ export async function enhancedClassifyPayee(
         processingTier: 'AI-Assisted',
         matchingRules: aiResult.matchingRules
       };
-      
-      // Cache the result
-      classificationCache.set(normalizedName, result);
       return result;
     } catch (error) {
       console.error("Error with AI classification:", error);
@@ -96,23 +79,19 @@ export async function enhancedClassifyPayee(
   // Tier 1: Apply rule-based classification
   const ruleBasedResult = applyRuleBasedClassification(payeeName);
   if (ruleBasedResult && ruleBasedResult.confidence >= config.aiThreshold) {
-    // Cache the result
-    classificationCache.set(normalizedName, ruleBasedResult);
     return ruleBasedResult;
   }
   
   // Tier 2: Apply NLP-based classification
   const nlpResult = applyNLPClassification(payeeName);
   if (nlpResult && nlpResult.confidence >= config.aiThreshold) {
-    // Cache the result
-    classificationCache.set(normalizedName, nlpResult);
     return nlpResult;
   }
   
-  // Tier 3: Apply AI-assisted classification with consensus
+  // Tier 3: Apply AI-assisted classification with optimized consensus (2 runs instead of 3)
   try {
-    // Use consensus classification for higher accuracy
-    const aiResult = await consensusClassification(payeeName, 3);
+    // Use consensus classification with fewer runs for better performance
+    const aiResult = await consensusClassification(payeeName, 2);
     const result: ClassificationResult = {
       classification: aiResult.classification,
       confidence: aiResult.confidence,
@@ -120,9 +99,6 @@ export async function enhancedClassifyPayee(
       processingTier: 'AI-Assisted',
       matchingRules: aiResult.matchingRules
     };
-    
-    // Cache the result
-    classificationCache.set(normalizedName, result);
     return result;
   } catch (error) {
     console.error("Error with consensus classification:", error);
@@ -137,9 +113,6 @@ export async function enhancedClassifyPayee(
         processingTier: 'AI-Assisted',
         matchingRules: result.matchingRules
       };
-      
-      // Cache the result
-      classificationCache.set(normalizedName, classificationResult);
       return classificationResult;
     } catch (innerError) {
       console.error("Error with enhanced AI classification:", innerError);
@@ -157,36 +130,121 @@ export async function enhancedClassifyPayee(
 
 /**
  * Process a batch of payee names with the enhanced classifier
- * Implements caching for improved performance
+ * Implements parallel processing with controlled concurrency
  */
 export async function enhancedProcessBatch(
   payeeNames: string[],
   progressCallback?: (current: number, total: number, percentage: number) => void,
   config: ClassificationConfig = DEFAULT_CLASSIFICATION_CONFIG
 ): Promise<ClassificationResult[]> {
-  const results: ClassificationResult[] = [];
+  // Filter out empty names and deduplicate to improve performance
+  const uniqueNames = new Map<string, string>();
+  payeeNames.forEach(name => {
+    if (name && name.trim() !== '') {
+      const normalized = normalizeText(name);
+      // Keep original naming but avoid duplicate processing
+      if (!uniqueNames.has(normalized)) {
+        uniqueNames.set(normalized, name);
+      }
+    }
+  });
+  
+  // Create a map from original name to index for reconstructing the order
+  const nameToIndexMap = new Map<string, number>();
+  payeeNames.forEach((name, index) => {
+    if (name && name.trim() !== '') {
+      nameToIndexMap.set(name, index);
+    }
+  });
+  
+  const deduplicatedNames = Array.from(uniqueNames.values());
+  const totalUnique = deduplicatedNames.length;
   const total = payeeNames.length;
   
-  for (let i = 0; i < total; i++) {
-    try {
-      const result = await enhancedClassifyPayee(payeeNames[i], config);
-      results.push(result);
-    } catch (error) {
-      console.error(`Error classifying "${payeeNames[i]}":`, error);
-      // Add a placeholder result for failed items
-      results.push({
-        classification: 'Individual', // Default fallback
-        confidence: 0, // Zero confidence indicates error
-        reasoning: "Classification failed: " + (error instanceof Error ? error.message : "Unknown error"),
-        processingTier: 'Rule-Based'
-      });
-    }
+  console.log(`Processing ${totalUnique} unique names out of ${total} total`);
+  
+  if (progressCallback) {
+    progressCallback(0, total, 0);
+  }
+  
+  // Results array will hold all results in the original order
+  const results: ClassificationResult[] = new Array(total);
+  
+  // Track the results for unique names
+  const uniqueResults = new Map<string, ClassificationResult>();
+  let processedCount = 0;
+  
+  // Process in batches with controlled parallelism
+  for (let i = 0; i < deduplicatedNames.length; i += MAX_PARALLEL_PROCESSING) {
+    const batch = deduplicatedNames.slice(i, i + MAX_PARALLEL_PROCESSING);
     
-    // Call progress callback if provided
+    // Process this batch in parallel
+    const promises = batch.map(name => 
+      enhancedClassifyPayee(name, config)
+        .then(result => {
+          // Track the normalized name and its result
+          uniqueResults.set(normalizeText(name), result);
+          return { name, result };
+        })
+        .catch(error => {
+          console.error(`Error classifying "${name}":`, error);
+          // Return a fallback result on error
+          const fallback: ClassificationResult = {
+            classification: 'Individual',
+            confidence: 0,
+            reasoning: "Classification failed: " + (error instanceof Error ? error.message : "Unknown error"),
+            processingTier: 'Rule-Based'
+          };
+          uniqueResults.set(normalizeText(name), fallback);
+          return { name, result: fallback };
+        })
+    );
+    
+    // Wait for all names in this batch to be processed
+    await Promise.all(promises);
+    
+    processedCount += batch.length;
+    
+    // Update progress if callback provided
     if (progressCallback) {
-      const percentage = Math.round((i + 1) / total * 100);
-      progressCallback(i + 1, total, percentage);
+      const percentage = Math.round((processedCount / totalUnique) * 100);
+      progressCallback(processedCount, total, percentage);
     }
+  }
+  
+  // Map results back to original array positions
+  for (let i = 0; i < payeeNames.length; i++) {
+    const name = payeeNames[i];
+    if (!name || name.trim() === '') {
+      // Handle empty names
+      results[i] = {
+        classification: 'Individual',
+        confidence: 0,
+        reasoning: "Empty payee name",
+        processingTier: 'Rule-Based'
+      };
+    } else {
+      // Get the result for this name (using normalized version for lookup)
+      const normalized = normalizeText(name);
+      const result = uniqueResults.get(normalized);
+      
+      if (result) {
+        results[i] = result;
+      } else {
+        // Fallback (should not happen)
+        results[i] = {
+          classification: 'Individual',
+          confidence: 0,
+          reasoning: "Classification failed: result not found",
+          processingTier: 'Rule-Based'
+        };
+      }
+    }
+  }
+  
+  // Set final progress
+  if (progressCallback) {
+    progressCallback(total, total, 100);
   }
   
   return results;

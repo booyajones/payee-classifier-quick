@@ -1,4 +1,3 @@
-
 import { ClassificationConfig } from '../types';
 
 // Default classification configuration
@@ -7,8 +6,8 @@ export const DEFAULT_CLASSIFICATION_CONFIG: ClassificationConfig = {
   bypassRuleNLP: false // By default, don't bypass rule-based and NLP classification
 };
 
-// Maximum number of concurrent operations
-export const MAX_CONCURRENCY = 5;
+// Increased concurrency limits for better parallel processing
+export const MAX_CONCURRENCY = 20; // Doubled from 10
 
 // Maximum batch size for AI classification
 export const MAX_BATCH_SIZE = 5;

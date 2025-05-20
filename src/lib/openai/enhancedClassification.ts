@@ -1,4 +1,3 @@
-
 import { ClassificationResult } from '../types';
 import { getOpenAIClient } from './client';
 import { timeoutPromise } from './utils';
@@ -10,12 +9,132 @@ interface AIClassificationResponse {
   matchingRules?: string[];
 }
 
+// Time to live for cached classifications (24 hours in milliseconds)
+const CACHE_TTL = 24 * 60 * 60 * 1000;
+
+// In-memory cache for faster access during session
+const inMemoryCache = new Map<string, {
+  result: AIClassificationResponse;
+  timestamp: number;
+}>();
+
+// Normalize payee name for consistent caching
+function normalizeCacheKey(payeeName: string): string {
+  // Normalize by: trimming whitespace, converting to lowercase,
+  // removing punctuation, and extra spaces
+  return payeeName
+    .trim()
+    .toLowerCase()
+    .replace(/[.,&\/#!$%\^*;:{}=\-_`~()]/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Save classification result to persistent storage
+ */
+function saveToCache(payeeName: string, result: AIClassificationResponse): void {
+  try {
+    const normalizedName = normalizeCacheKey(payeeName);
+    const cacheEntry = {
+      result,
+      timestamp: Date.now()
+    };
+    
+    // Save to in-memory cache
+    inMemoryCache.set(normalizedName, cacheEntry);
+    
+    // Save to localStorage (with capacity management)
+    const cachedClassifications = JSON.parse(localStorage.getItem('payeeClassifications') || '{}');
+    
+    // Remove oldest entries if we have too many (keep under 1000 entries)
+    const keys = Object.keys(cachedClassifications);
+    if (keys.length > 1000) {
+      // Sort by timestamp and remove the oldest ones
+      const oldestKeys = Object.entries(cachedClassifications)
+        .sort((a, b) => a[1].timestamp - b[1].timestamp)
+        .slice(0, keys.length - 900) // Remove oldest to keep around 900
+        .map(entry => entry[0]);
+        
+      // Remove oldest entries
+      oldestKeys.forEach(key => {
+        delete cachedClassifications[key];
+      });
+    }
+    
+    // Add new entry
+    cachedClassifications[normalizedName] = cacheEntry;
+    localStorage.setItem('payeeClassifications', JSON.stringify(cachedClassifications));
+  } catch (error) {
+    console.warn('Failed to save classification to cache:', error);
+  }
+}
+
+/**
+ * Get classification result from cache
+ */
+function getFromCache(payeeName: string): AIClassificationResponse | null {
+  try {
+    const normalizedName = normalizeCacheKey(payeeName);
+    
+    // Try in-memory cache first (fastest)
+    const memoryResult = inMemoryCache.get(normalizedName);
+    if (memoryResult && Date.now() - memoryResult.timestamp < CACHE_TTL) {
+      return memoryResult.result;
+    }
+    
+    // Try localStorage if not in memory
+    const cachedClassifications = JSON.parse(localStorage.getItem('payeeClassifications') || '{}');
+    const entry = cachedClassifications[normalizedName];
+    
+    if (entry && Date.now() - entry.timestamp < CACHE_TTL) {
+      // Update in-memory cache for faster access next time
+      inMemoryCache.set(normalizedName, entry);
+      return entry.result;
+    }
+  } catch (error) {
+    console.warn('Failed to retrieve classification from cache:', error);
+  }
+  
+  return null;
+}
+
+/**
+ * Load cache from localStorage on initialization
+ */
+function loadCacheFromStorage(): void {
+  try {
+    const cachedClassifications = JSON.parse(localStorage.getItem('payeeClassifications') || '{}');
+    
+    // Filter out expired entries while loading
+    const now = Date.now();
+    Object.entries(cachedClassifications).forEach(([key, entry]: [string, any]) => {
+      if (now - entry.timestamp < CACHE_TTL) {
+        inMemoryCache.set(key, entry);
+      }
+    });
+    
+    console.log(`Loaded ${inMemoryCache.size} cached classifications from storage`);
+  } catch (error) {
+    console.warn('Failed to load classifications from storage:', error);
+  }
+}
+
+// Load cache when module initializes
+loadCacheFromStorage();
+
 /**
  * Enhanced AI classification using chain-of-thought reasoning and specific payee classification rules
  * @param payeeName Name to classify
  * @returns Classification result with confidence and reasoning
  */
 export async function enhancedClassifyPayeeWithAI(payeeName: string): Promise<AIClassificationResponse> {
+  // Check cache first
+  const cachedResult = getFromCache(payeeName);
+  if (cachedResult) {
+    console.log(`Using cached classification for "${payeeName}"`);
+    return cachedResult;
+  }
+  
   const openai = getOpenAIClient();
   
   if (!openai) {
@@ -41,7 +160,7 @@ Step-by-step analysis:
 `;
     
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini", // Use faster model
       temperature: 0.2,
       messages: [
         {
@@ -91,6 +210,10 @@ Step-by-step analysis:
     
     try {
       const parsedResult = JSON.parse(result) as AIClassificationResponse;
+      
+      // Cache the result for future use
+      saveToCache(payeeName, parsedResult);
+      
       return {
         classification: parsedResult.classification,
         confidence: parsedResult.confidence,
@@ -108,31 +231,40 @@ Step-by-step analysis:
 
 /**
  * Consensus classification that runs multiple AI classifications and combines results
- * Inspired by Self-Consistency method used in advanced NLP ensembles
+ * Improved for better performance by reducing runs and using cached results
  * 
  * @param payeeName The payee name to classify
- * @param runs Number of classification runs to perform (default 3)
+ * @param runs Number of classification runs to perform (default: 2, reduced from 3)
  * @returns Combined classification result with consensus confidence
  */
 export async function consensusClassification(
   payeeName: string,
-  runs: number = 3
+  runs: number = 2 // Reduced from 3 to 2 for better performance
 ): Promise<AIClassificationResponse> {
+  // Check cache first for quick return
+  const cachedResult = getFromCache(payeeName);
+  if (cachedResult) {
+    console.log(`Using cached consensus classification for "${payeeName}"`);
+    return cachedResult;
+  }
+  
   const classifications: AIClassificationResponse[] = [];
   
-  // Run multiple classifications
-  for (let i = 0; i < runs; i++) {
-    try {
-      const result = await enhancedClassifyPayeeWithAI(payeeName);
+  // Run multiple classifications in parallel for better performance
+  const promises = Array(runs).fill(0).map(() => 
+    enhancedClassifyPayeeWithAI(payeeName).catch(error => {
+      console.error(`Error in classification run:`, error);
+      return null;
+    })
+  );
+  
+  // Await all classifications in parallel
+  const results = await Promise.all(promises);
+  
+  // Filter out any failed runs
+  for (const result of results) {
+    if (result) {
       classifications.push(result);
-    } catch (error) {
-      console.error(`Error in classification run ${i+1}:`, error);
-      // Continue with other runs
-    }
-    
-    // Small delay between runs to avoid rate limiting
-    if (i < runs - 1) {
-      await new Promise(resolve => setTimeout(resolve, 300));
     }
   }
   
@@ -177,12 +309,17 @@ export async function consensusClassification(
     c.matchingRules?.forEach(rule => allMatchingRules.add(rule));
   });
   
-  return {
+  const result: AIClassificationResponse = {
     classification: majorityClassification,
     confidence: adjustedConfidence,
     reasoning: `Consensus classification (${Math.round(consensusRatio * 100)}% agreement): ${majorityReasoning}`,
     matchingRules: Array.from(allMatchingRules)
   };
+  
+  // Cache the consensus result
+  saveToCache(payeeName, result);
+  
+  return result;
 }
 
 /**
