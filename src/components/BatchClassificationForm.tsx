@@ -1,23 +1,18 @@
-import { useState, useEffect } from "react";
+
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
-import { processBatch, DEFAULT_CLASSIFICATION_CONFIG } from "@/lib/classificationEngine";
-import { enhancedProcessBatch } from "@/lib/classification/enhancedClassification";
+import { processBatch } from "@/lib/classificationEngine";
 import { createPayeeClassification } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import BatchProcessingSummary from "./BatchProcessingSummary";
 import ClassificationResultTable from "./ClassificationResultTable";
 import { PayeeClassification, BatchProcessingResult, ClassificationConfig } from "@/lib/types";
-import APIKeyInput from "./APIKeyInput";
 import FileUploadForm from "./FileUploadForm";
-import { getOpenAIClient } from "@/lib/openaiService";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, RefreshCw, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 interface BatchClassificationFormProps {
@@ -30,22 +25,17 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   const [isProcessing, setIsProcessing] = useState(false);
   const [batchResults, setBatchResults] = useState<PayeeClassification[]>([]);
   const [processingSummary, setProcessingSummary] = useState<BatchProcessingResult | null>(null);
-  const [apiKeySet, setApiKeySet] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>("text");
   const [progress, setProgress] = useState<number>(0);
   const [processingStatus, setProcessingStatus] = useState<string>("");
-  const [config, setConfig] = useState<ClassificationConfig>({
-    ...DEFAULT_CLASSIFICATION_CONFIG,
-    useEnhanced: false, // Always disable enhanced mode
-    bypassRuleNLP: true, // Always use AI classification for accuracy
-  });
   const { toast } = useToast();
 
-  // Check if API key is already set in session storage
-  useEffect(() => {
-    const storedApiKey = sessionStorage.getItem("openai_api_key");
-    setApiKeySet(!!storedApiKey && getOpenAIClient() !== null);
-  }, []);
+  // Configuration for AI-only mode with built-in simulation
+  const config: ClassificationConfig = {
+    aiThreshold: 80,
+    bypassRuleNLP: true, // Always use AI simulation
+    useEnhanced: false, // Always disabled
+  };
 
   const resetForm = () => {
     setPayeeNames("");
@@ -84,24 +74,14 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
       
       const startTime = performance.now();
       
-      // Use enhanced process batch if enabled
-      const results = config.useEnhanced
-        ? await enhancedProcessBatch(
-            names,
-            (current, total, percentage) => {
-              setProgress(percentage);
-              setProcessingStatus(`Processing ${current} of ${total} payees`);
-            },
-            config
-          )
-        : await processBatch(
-            names,
-            (current, total, percentage) => {
-              setProgress(percentage);
-              setProcessingStatus(`Processing ${current} of ${total} payees`);
-            },
-            config
-          );
+      const results = await processBatch(
+        names,
+        (current, total, percentage) => {
+          setProgress(percentage);
+          setProcessingStatus(`Processing ${current} of ${total} payees`);
+        },
+        config
+      );
       
       const endTime = performance.now();
       const processingTime = endTime - startTime;
@@ -127,14 +107,13 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
       
       setProcessingSummary(summary);
       
-      // Call onComplete if provided
       if (onComplete) {
         onComplete(classifications, summary);
       }
 
       toast({
         title: "Batch Classification Complete",
-        description: `Successfully classified ${successCount} payees. ${failureCount} ${failureCount === 1 ? 'failure' : 'failures'}`,
+        description: `Successfully classified ${successCount} payees using AI simulation. ${failureCount} ${failureCount === 1 ? 'failure' : 'failures'}`,
       });
     } catch (error) {
       console.error("Batch classification error:", error);
@@ -163,165 +142,103 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
     }
   };
 
-  // Handle AI threshold change - disabled since we're always using AI
-  const handleThresholdChange = (value: number[]) => {
-    setConfig(prev => ({ ...prev, aiThreshold: value[0] }));
-  };
-
-  // Handle AI-only mode toggle - disabled since we're always using AI
-  const handleAIOnlyToggle = (checked: boolean) => {
-    setConfig(prev => ({ ...prev, bypassRuleNLP: true }));
-  };
-  
-  // Handle enhanced mode toggle - always off
-  const handleEnhancedToggle = (checked: boolean) => {
-    setConfig(prev => ({ ...prev, useEnhanced: false }));
-  };
-
-  // Check if OpenAI API key is set
-  const isAIEnabled = apiKeySet || getOpenAIClient() !== null;
-
   return (
-    <>
-      {!isAIEnabled ? (
-        <>
-          <Alert className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>OpenAI API Key Required</AlertTitle>
-            <AlertDescription>
-              To enable AI-powered classification, please set your OpenAI API key below.
-            </AlertDescription>
-          </Alert>
-          <APIKeyInput onApiKeySet={() => setApiKeySet(true)} />
-        </>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Classify Batch of Payees</CardTitle>
-            <CardDescription>
-              Enter a list of payee names or upload a file to classify them as businesses or individuals.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4 border rounded-md p-4 mb-6">
-              <h3 className="text-md font-medium">Classification Settings</h3>
-              
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <Label htmlFor="batchAiThreshold">AI Confidence Threshold: {config.aiThreshold}%</Label>
-                  </div>
-                  <Slider
-                    id="batchAiThreshold"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={[config.aiThreshold]}
-                    onValueChange={handleThresholdChange}
-                    disabled={true} // Always disabled since we're using AI-only mode
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Using AI-Only mode for maximum accuracy
-                  </p>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="batchAiOnly"
-                    checked={true}
-                    disabled={true} // Always enabled and disabled for toggling
-                  />
-                  <Label htmlFor="batchAiOnly">AI-Only Mode (Always On)</Label>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Using advanced AI classification for all payees to ensure maximum accuracy
-                </p>
-              </div>
-            </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Classify Batch of Payees</CardTitle>
+        <CardDescription>
+          Enter a list of payee names or upload a file to classify them as businesses or individuals using our built-in AI simulation.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4 border rounded-md p-4 mb-6 bg-blue-50 dark:bg-blue-900/20">
+          <h3 className="text-md font-medium text-blue-900 dark:text-blue-100">AI-Only Classification Mode</h3>
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            Using advanced built-in AI simulation for maximum accuracy. No external API key required.
+          </p>
+        </div>
+      
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mb-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="text">Text Input</TabsTrigger>
+            <TabsTrigger value="file">File Upload</TabsTrigger>
+          </TabsList>
           
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mb-6">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="text">Text Input</TabsTrigger>
-                <TabsTrigger value="file">File Upload</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="text" className="mt-4">
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid gap-4">
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="payeeNames">Payee Names (one per line)</Label>
-                      <Textarea
-                        id="payeeNames"
-                        placeholder="e.g.,&#x0a;John Smith&#x0a;Acme Corporation&#x0a;Jane Doe"
-                        value={payeeNames}
-                        onChange={(e) => setPayeeNames(e.target.value)}
-                        disabled={isProcessing}
-                        className="min-h-[150px]"
-                      />
-                    </div>
-                  </div>
-                  
-                  {isProcessing && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>{processingStatus}</span>
-                        <span>{progress}%</span>
-                      </div>
-                      <Progress value={progress} className="h-2" />
-                    </div>
-                  )}
-                  
-                  <div className="flex gap-2">
-                    <Button type="submit" className="flex-1" disabled={isProcessing}>
-                      {isProcessing ? "Classifying..." : "Classify Batch"}
-                    </Button>
-                    
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={resetForm}
-                      disabled={isProcessing}
-                    >
-                      <RotateCcw className="h-4 w-4 mr-2" />
-                      Start Over
-                    </Button>
-                  </div>
-                </form>
-              </TabsContent>
-              
-              <TabsContent value="file" className="mt-4">
-                <FileUploadForm onComplete={handleFileUploadComplete} config={config} />
-              </TabsContent>
-            </Tabs>
-
-            {processingSummary && (
-              <div className="mt-6">
-                <BatchProcessingSummary summary={processingSummary} />
-              </div>
-            )}
-
-            {batchResults.length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-lg font-medium mb-2">Classification Results</h3>
-                <ClassificationResultTable results={batchResults} />
-                
-                <div className="mt-4">
-                  <Button
-                    variant="outline"
-                    onClick={resetForm}
+          <TabsContent value="text" className="mt-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="payeeNames">Payee Names (one per line)</Label>
+                  <Textarea
+                    id="payeeNames"
+                    placeholder="e.g.,&#x0a;John Smith&#x0a;Acme Corporation&#x0a;Jane Doe"
+                    value={payeeNames}
+                    onChange={(e) => setPayeeNames(e.target.value)}
                     disabled={isProcessing}
-                    className="w-full"
-                  >
-                    <RotateCcw className="h-4 w-4 mr-2" />
-                    Start Over
-                  </Button>
+                    className="min-h-[150px]"
+                  />
                 </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-    </>
+              
+              {isProcessing && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>{processingStatus}</span>
+                    <span>{progress}%</span>
+                  </div>
+                  <Progress value={progress} className="h-2" />
+                </div>
+              )}
+              
+              <div className="flex gap-2">
+                <Button type="submit" className="flex-1" disabled={isProcessing}>
+                  {isProcessing ? "Classifying..." : "Classify Batch"}
+                </Button>
+                
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={resetForm}
+                  disabled={isProcessing}
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Start Over
+                </Button>
+              </div>
+            </form>
+          </TabsContent>
+          
+          <TabsContent value="file" className="mt-4">
+            <FileUploadForm onComplete={handleFileUploadComplete} config={config} />
+          </TabsContent>
+        </Tabs>
+
+        {processingSummary && (
+          <div className="mt-6">
+            <BatchProcessingSummary summary={processingSummary} />
+          </div>
+        )}
+
+        {batchResults.length > 0 && (
+          <div className="mt-6">
+            <h3 className="text-lg font-medium mb-2">Classification Results</h3>
+            <ClassificationResultTable results={batchResults} />
+            
+            <div className="mt-4">
+              <Button
+                variant="outline"
+                onClick={resetForm}
+                disabled={isProcessing}
+                className="w-full"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Start Over
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
