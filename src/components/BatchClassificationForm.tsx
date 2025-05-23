@@ -30,10 +30,10 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   const [processingStatus, setProcessingStatus] = useState<string>("");
   const { toast } = useToast();
 
-  // Configuration for AI-only mode with built-in simulation
+  // Configuration for AI-only mode with real OpenAI API
   const config: ClassificationConfig = {
     aiThreshold: 80,
-    bypassRuleNLP: true, // Always use AI simulation
+    bypassRuleNLP: true, // Always use AI
     useEnhanced: false, // Always disabled
   };
 
@@ -113,7 +113,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
 
       toast({
         title: "Batch Classification Complete",
-        description: `Successfully classified ${successCount} payees using AI simulation. ${failureCount} ${failureCount === 1 ? 'failure' : 'failures'}`,
+        description: `Successfully classified ${successCount} payees using OpenAI. ${failureCount} ${failureCount === 1 ? 'failure' : 'failures'}`,
       });
     } catch (error) {
       console.error("Batch classification error:", error);
@@ -147,14 +147,14 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
       <CardHeader>
         <CardTitle>Classify Batch of Payees</CardTitle>
         <CardDescription>
-          Enter a list of payee names or upload a file to classify them as businesses or individuals using our built-in AI simulation.
+          Enter a list of payee names or upload a file to classify them as businesses or individuals using OpenAI's advanced AI.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4 border rounded-md p-4 mb-6 bg-blue-50 dark:bg-blue-900/20">
-          <h3 className="text-md font-medium text-blue-900 dark:text-blue-100">AI-Only Classification Mode</h3>
-          <p className="text-sm text-blue-800 dark:text-blue-200">
-            Using advanced built-in AI simulation for maximum accuracy. No external API key required.
+        <div className="space-y-4 border rounded-md p-4 mb-6 bg-green-50 dark:bg-green-900/20">
+          <h3 className="text-md font-medium text-green-900 dark:text-green-100">AI-Powered Classification</h3>
+          <p className="text-sm text-green-800 dark:text-green-200">
+            Using OpenAI's advanced AI models for maximum accuracy and intelligent payee classification.
           </p>
         </div>
       
