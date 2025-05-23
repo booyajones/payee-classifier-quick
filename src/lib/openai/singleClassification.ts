@@ -25,7 +25,8 @@ export async function classifyPayeeWithAI(
   }
 
   try {
-    console.log(`Classifying "${payeeName}" with real OpenAI API (model: ${CLASSIFICATION_MODEL})...`);
+    console.log(`[DEBUG] Classifying "${payeeName}" with OpenAI API (model: ${CLASSIFICATION_MODEL})...`);
+    console.log(`[DEBUG] API client initialized:`, !!openaiClient);
     
     const apiCall = openaiClient.chat.completions.create({
       model: CLASSIFICATION_MODEL,
@@ -63,31 +64,44 @@ export async function classifyPayeeWithAI(
       max_tokens: 500
     });
     
+    console.log(`[DEBUG] Making API call for "${payeeName}"...`);
+    
     // Add timeout to prevent hanging
     const response = await timeoutPromise(apiCall, timeout);
+
+    console.log(`[DEBUG] Received response for "${payeeName}":`, {
+      choices: response.choices?.length,
+      hasContent: !!response.choices[0]?.message?.content
+    });
 
     const content = response.choices[0]?.message?.content;
     if (!content) {
       throw new Error("Failed to get a valid response from OpenAI");
     }
 
-    console.log(`OpenAI response for "${payeeName}":`, content);
+    console.log(`[DEBUG] Raw OpenAI response for "${payeeName}":`, content);
     
     // Parse the JSON response
     try {
       const result = JSON.parse(content);
-      console.log(`Classification result for "${payeeName}": ${result.classification} (${result.confidence}%)`);
+      console.log(`[DEBUG] Parsed classification result for "${payeeName}":`, result);
+      
+      // Validate the result structure
+      if (!result.classification || !result.confidence || !result.reasoning) {
+        throw new Error(`Invalid response structure: ${JSON.stringify(result)}`);
+      }
+      
       return {
         classification: result.classification as 'Business' | 'Individual',
         confidence: result.confidence,
         reasoning: result.reasoning
       };
     } catch (e) {
-      console.error("Failed to parse OpenAI response:", content);
+      console.error(`[DEBUG] Failed to parse OpenAI response for "${payeeName}":`, content);
       throw new Error("Failed to parse OpenAI response as JSON");
     }
   } catch (error) {
-    console.error(`Error calling OpenAI API for "${payeeName}":`, error);
+    console.error(`[DEBUG] Error calling OpenAI API for "${payeeName}":`, error);
     throw error;
   }
 }

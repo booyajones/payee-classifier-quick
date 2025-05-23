@@ -100,26 +100,33 @@ export async function classifyPayeesBatchWithAI(
       } catch (error) {
         console.error(`Error with batch classification (${i}-${i + MAX_BATCH_SIZE}):`, error);
         
-        // Fall back to individual processing for this batch
+        // If it's an authentication error, throw it immediately - don't try fallbacks
+        if (error instanceof Error && error.message.includes('401')) {
+          throw new Error(`OpenAI API authentication failed. Please check your API key: ${error.message}`);
+        }
+        
+        // For other errors, fall back to individual processing for this batch
         console.log("Falling back to individual processing for this batch");
         
-        const individualPromises = batchNames.map(name => 
-          classifyPayeeWithAI(name, timeout)
-            .then(result => ({
+        const individualPromises = batchNames.map(async (name) => {
+          try {
+            const result = await classifyPayeeWithAI(name, timeout);
+            return {
               payeeName: name,
               ...result
-            }))
-            .catch(innerError => {
-              console.error(`Failed to classify ${name} individually:`, innerError);
-              // Add a fallback result with low confidence
-              return {
-                payeeName: name,
-                classification: 'Individual' as const, // Default fallback
-                confidence: 40,
-                reasoning: "Classification failed due to API error"
-              };
-            })
-        );
+            };
+          } catch (innerError) {
+            console.error(`Failed to classify ${name} individually:`, innerError);
+            
+            // If it's an auth error, throw it
+            if (innerError instanceof Error && innerError.message.includes('401')) {
+              throw new Error(`OpenAI API authentication failed for ${name}: ${innerError.message}`);
+            }
+            
+            // For other errors, throw instead of returning fallback
+            throw new Error(`Classification failed for ${name}: ${innerError instanceof Error ? innerError.message : 'Unknown error'}`);
+          }
+        });
         
         // Process individual requests in parallel with limited concurrency
         const batchResults = await Promise.all(individualPromises);

@@ -84,7 +84,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
       );
       
       const endTime = performance.now();
-      const processingTime = endTime - startTime;
+      const processingTime = (endTime - startTime) / 1000; // Convert to seconds
 
       const successCount = results.filter(result => result.confidence > 0).length;
       const failureCount = names.length - successCount;

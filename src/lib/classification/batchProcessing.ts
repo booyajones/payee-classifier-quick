@@ -33,7 +33,13 @@ async function applyOpenAIClassificationBatch(payeeNames: string[]): Promise<Map
     console.log(`Successfully processed ${batchResults.length} payees with real OpenAI`);
   } catch (error) {
     console.error("Error processing OpenAI classification batch:", error);
-    throw error; // Don't fall back to broken default values
+    
+    // Check if it's an authentication error
+    if (error instanceof Error && error.message.includes('authentication failed')) {
+      throw new Error(`OpenAI API authentication failed. Please check your API key: ${error.message}`);
+    }
+    
+    throw error; // Re-throw other errors
   }
   
   return results;
@@ -86,7 +92,8 @@ export async function processBatch(
         if (result) {
           results[globalIndex] = result;
         } else {
-          throw new Error(`No result found for ${name} - OpenAI API failed`);
+          // This should not happen if OpenAI processing succeeded
+          throw new Error(`No result found for ${name} - this indicates a processing error`);
         }
         
         processedCount++;
@@ -108,6 +115,6 @@ export async function processBatch(
     return results;
   } catch (error) {
     console.error("Error in batch processing:", error);
-    throw error;
+    throw error; // Let the error bubble up to the UI
   }
 }
