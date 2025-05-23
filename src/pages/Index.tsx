@@ -1,26 +1,17 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import SingleClassificationForm from "@/components/SingleClassificationForm";
 import BatchClassificationForm from "@/components/BatchClassificationForm";
 import ClassificationResultTable from "@/components/ClassificationResultTable";
 import BatchProcessingSummary from "@/components/BatchProcessingSummary";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
-import { initializeOpenAI } from "@/lib/openaiService";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("single");
   const [batchResults, setBatchResults] = useState<PayeeClassification[]>([]);
   const [batchSummary, setBatchSummary] = useState<BatchProcessingResult | null>(null);
   const [allResults, setAllResults] = useState<PayeeClassification[]>([]);
-
-  // Initialize OpenAI client from session storage if available
-  useEffect(() => {
-    const apiKey = sessionStorage.getItem("openai_api_key");
-    if (apiKey) {
-      initializeOpenAI(apiKey);
-    }
-  }, []);
 
   const handleSingleClassification = (result: PayeeClassification) => {
     setAllResults(prev => [result, ...prev]);

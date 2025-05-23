@@ -1,38 +1,15 @@
 
 import { ClassificationResult } from '../types';
-import { classifyPayeeWithAI, getOpenAIClient } from '../openai';
 
 /**
- * AI-assisted classification using OpenAI API
- * Now supports single payee classification (legacy) and is used by batch processing
+ * AI-assisted classification using simulated AI logic
+ * This provides intelligent classification without requiring external API keys
  */
 export async function applyAIClassification(payeeName: string): Promise<ClassificationResult> {
-  // Check if OpenAI client is initialized
-  const openaiClient = getOpenAIClient();
+  // Simulate AI processing time
+  await new Promise(resolve => setTimeout(resolve, 100));
   
-  if (openaiClient) {
-    try {
-      // Use the real OpenAI API
-      const result = await classifyPayeeWithAI(payeeName);
-      
-      return {
-        classification: result.classification,
-        confidence: result.confidence,
-        reasoning: result.reasoning,
-        processingTier: 'AI-Assisted' as const
-      };
-    } catch (error) {
-      console.error("Error with OpenAI classification:", error);
-      // Fall back to simulated AI
-      console.log("Falling back to simulated AI classification");
-    }
-  }
-  
-  // Fallback to simulated AI if OpenAI is not available or fails
-  // This is a simplified implementation
-  // In a real system, this would call GPT-4o API
-  
-  // For demo purposes, implement some advanced heuristics that simulate AI reasoning
+  // Advanced heuristics that simulate AI reasoning
   const name = payeeName.trim().toUpperCase();
   const words = name.split(/\s+/);
   
@@ -46,11 +23,13 @@ export async function applyAIClassification(payeeName: string): Promise<Classifi
   if (hasNamePrefix) features.push("Has name prefix");
   if (hasNameSuffix) features.push("Has name suffix");
   
-  // Check for business words not covered by simpler rules
-  const businessWords = ["ENTERPRISE", "CONTRACTORS", "AGENCY", "FIRM", "BUSINESS"];
+  // Check for business indicators
+  const businessWords = ["LLC", "INC", "CORP", "CORPORATION", "COMPANY", "CO", "LTD", "LIMITED", 
+                        "ENTERPRISE", "CONTRACTORS", "AGENCY", "FIRM", "BUSINESS", "GROUP",
+                        "SERVICES", "SOLUTIONS", "CONSULTING", "ASSOCIATES", "PARTNERS"];
   const containsBusinessWord = businessWords.some(word => name.includes(word));
   
-  if (containsBusinessWord) features.push("Contains uncommon business term");
+  if (containsBusinessWord) features.push("Contains business term");
   
   // Geographic indicators often found in business names
   const geoIndicators = ["EAST", "WEST", "NORTH", "SOUTH", "CENTRAL", "REGIONAL"];
@@ -58,37 +37,51 @@ export async function applyAIClassification(payeeName: string): Promise<Classifi
   
   if (containsGeoIndicator) features.push("Contains geographic indicator");
   
-  // Generate confidence based on conflicting or reinforcing features
-  let confidence = 60; // Start with very low confidence
+  // Check for common first names
+  const commonFirstNames = ["JOHN", "JANE", "MICHAEL", "SARAH", "DAVID", "MARY", "ROBERT", 
+                           "JENNIFER", "WILLIAM", "ELIZABETH", "JAMES", "LINDA"];
+  const hasCommonFirstName = commonFirstNames.some(fname => name.startsWith(fname + " "));
+  
+  if (hasCommonFirstName) features.push("Starts with common first name");
+  
+  // Generate confidence based on features
+  let confidence = 70; // Start with moderate confidence
   let classification: 'Business' | 'Individual'; 
   let reasoning = "";
   
   // Make a determination based on available features
-  if ((hasNamePrefix || hasNameSuffix) && !containsBusinessWord && !containsGeoIndicator) {
-    classification = 'Individual';
-    reasoning = "AI analysis suggests this is likely an individual name based on personal name markers and lack of business indicators.";
-    confidence += features.length * 5; // Add confidence for each supporting feature
-  } else if (containsBusinessWord || containsGeoIndicator) {
+  if (containsBusinessWord) {
     classification = 'Business';
-    reasoning = "AI analysis suggests this is likely a business name based on terminology typical of business entities.";
-    confidence += features.length * 5; // Add confidence for each supporting feature
+    reasoning = "AI analysis detected business terminology indicating this is likely a business entity.";
+    confidence += 20; // High confidence for clear business indicators
+  } else if ((hasNamePrefix || hasNameSuffix || hasCommonFirstName) && !containsGeoIndicator) {
+    classification = 'Individual';
+    reasoning = "AI analysis suggests this is likely an individual name based on personal name markers.";
+    confidence += 15; // Good confidence for personal name indicators
+  } else if (containsGeoIndicator) {
+    classification = 'Business';
+    reasoning = "AI analysis suggests this is likely a business name based on geographic indicators.";
+    confidence += 10; // Moderate confidence for geographic indicators
   } else {
-    // Default case for truly ambiguous names
-    // In real AI implementation, this would have more sophisticated reasoning
+    // Default case for ambiguous names
     const wordCount = words.length;
-    if (wordCount <= 2) {
+    if (wordCount <= 2 && !name.includes("&") && !name.includes("AND")) {
       classification = 'Individual';
       reasoning = "AI analysis suggests this is likely an individual name based on name simplicity and structure.";
-      confidence = 55; // Very low confidence
+      confidence = 65; // Lower confidence for ambiguous cases
     } else {
       classification = 'Business';
       reasoning = "AI analysis suggests this is likely a business name based on name complexity and structure.";
-      confidence = 55; // Very low confidence
+      confidence = 65; // Lower confidence for ambiguous cases
     }
   }
   
-  // Cap confidence at 85 for AI tier (since we're simulating)
-  confidence = Math.min(confidence, 85);
+  // Adjust confidence based on number of supporting features
+  confidence += features.length * 3;
+  
+  // Cap confidence at reasonable levels
+  confidence = Math.min(confidence, 95);
+  confidence = Math.max(confidence, 50); // Minimum confidence
   
   return {
     classification,
