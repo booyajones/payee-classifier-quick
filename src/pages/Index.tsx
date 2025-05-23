@@ -1,17 +1,25 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import SingleClassificationForm from "@/components/SingleClassificationForm";
 import BatchClassificationForm from "@/components/BatchClassificationForm";
 import ClassificationResultTable from "@/components/ClassificationResultTable";
 import BatchProcessingSummary from "@/components/BatchProcessingSummary";
+import OpenAIKeySetup from "@/components/OpenAIKeySetup";
+import OpenAITestSuite from "@/components/OpenAITestSuite";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
+import { isOpenAIInitialized } from "@/lib/openai/client";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("single");
   const [batchResults, setBatchResults] = useState<PayeeClassification[]>([]);
   const [batchSummary, setBatchSummary] = useState<BatchProcessingResult | null>(null);
   const [allResults, setAllResults] = useState<PayeeClassification[]>([]);
+  const [hasApiKey, setHasApiKey] = useState(false);
+
+  useEffect(() => {
+    setHasApiKey(isOpenAIInitialized());
+  }, []);
 
   const handleSingleClassification = (result: PayeeClassification) => {
     setAllResults(prev => [result, ...prev]);
@@ -27,6 +35,31 @@ const Index = () => {
     setActiveTab("results");
   };
 
+  const handleKeySet = () => {
+    setHasApiKey(true);
+  };
+
+  if (!hasApiKey) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="bg-primary text-white py-6 mb-6">
+          <div className="container px-4">
+            <h1 className="text-2xl font-bold">Payee Classification System</h1>
+            <p className="opacity-90">
+              Automatically classify payee names as businesses or individuals with AI
+            </p>
+          </div>
+        </header>
+
+        <main className="container px-4 pb-8">
+          <div className="max-w-2xl mx-auto">
+            <OpenAIKeySetup onKeySet={handleKeySet} />
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-primary text-white py-6 mb-6">
@@ -40,10 +73,11 @@ const Index = () => {
 
       <main className="container px-4 pb-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="single">Single Classification</TabsTrigger>
             <TabsTrigger value="batch">Batch Classification</TabsTrigger>
             <TabsTrigger value="results">Results</TabsTrigger>
+            <TabsTrigger value="test">Test Suite</TabsTrigger>
           </TabsList>
           
           <TabsContent value="single" className="mt-6">
@@ -73,6 +107,10 @@ const Index = () => {
                 </div>
               )}
             </div>
+          </TabsContent>
+
+          <TabsContent value="test" className="mt-6">
+            <OpenAITestSuite />
           </TabsContent>
         </Tabs>
       </main>

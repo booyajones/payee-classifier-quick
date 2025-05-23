@@ -9,6 +9,12 @@ let openaiClient: OpenAI | null = null;
 export function initializeOpenAI(apiKey?: string, rememberKey?: boolean): OpenAI {
   if (apiKey && apiKey.trim() !== '') {
     console.log("Initializing OpenAI client with provided API key");
+    
+    // Validate API key format
+    if (!apiKey.startsWith('sk-')) {
+      throw new Error("Invalid API key format. OpenAI API keys should start with 'sk-'");
+    }
+    
     openaiClient = new OpenAI({
       apiKey: apiKey.trim(),
       dangerouslyAllowBrowser: true
@@ -16,6 +22,7 @@ export function initializeOpenAI(apiKey?: string, rememberKey?: boolean): OpenAI
     
     if (rememberKey) {
       localStorage.setItem('openai_api_key', apiKey.trim());
+      console.log("API key saved to localStorage");
     }
     
     return openaiClient;
@@ -23,8 +30,14 @@ export function initializeOpenAI(apiKey?: string, rememberKey?: boolean): OpenAI
   
   // Try to get from localStorage
   const savedKey = localStorage.getItem('openai_api_key');
-  if (savedKey) {
-    console.log("Using saved OpenAI API key");
+  if (savedKey && savedKey.trim() !== '') {
+    console.log("Using saved OpenAI API key from localStorage");
+    
+    if (!savedKey.startsWith('sk-')) {
+      localStorage.removeItem('openai_api_key');
+      throw new Error("Saved API key is invalid. Please set a new API key.");
+    }
+    
     openaiClient = new OpenAI({
       apiKey: savedKey,
       dangerouslyAllowBrowser: true
@@ -42,8 +55,13 @@ export function getOpenAIClient(): OpenAI {
   if (!openaiClient) {
     // Try to initialize from saved key
     const savedKey = localStorage.getItem('openai_api_key');
-    if (savedKey) {
-      return initializeOpenAI(savedKey);
+    if (savedKey && savedKey.trim() !== '') {
+      try {
+        return initializeOpenAI(savedKey);
+      } catch (error) {
+        console.error("Failed to initialize from saved key:", error);
+        localStorage.removeItem('openai_api_key');
+      }
     }
     throw new Error("OpenAI client not initialized. Please set your API key first.");
   }
@@ -54,14 +72,20 @@ export function getOpenAIClient(): OpenAI {
  * Check if the OpenAI client has been initialized
  */
 export function isOpenAIInitialized(): boolean {
-  return openaiClient !== null || localStorage.getItem('openai_api_key') !== null;
+  if (openaiClient !== null) {
+    return true;
+  }
+  
+  const savedKey = localStorage.getItem('openai_api_key');
+  return savedKey !== null && savedKey.trim() !== '' && savedKey.startsWith('sk-');
 }
 
 /**
  * Check if there's a saved OpenAI key
  */
 export function hasSavedOpenAIKey(): boolean {
-  return localStorage.getItem('openai_api_key') !== null;
+  const savedKey = localStorage.getItem('openai_api_key');
+  return savedKey !== null && savedKey.trim() !== '' && savedKey.startsWith('sk-');
 }
 
 /**
@@ -70,4 +94,24 @@ export function hasSavedOpenAIKey(): boolean {
 export function clearOpenAIKeys(): void {
   localStorage.removeItem('openai_api_key');
   openaiClient = null;
+  console.log("OpenAI client and saved keys cleared");
+}
+
+/**
+ * Test the current OpenAI connection
+ */
+export async function testOpenAIConnection(): Promise<boolean> {
+  try {
+    const client = getOpenAIClient();
+    // Make a simple API call to test the connection
+    await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Hello' }],
+      max_tokens: 5
+    });
+    return true;
+  } catch (error) {
+    console.error("OpenAI connection test failed:", error);
+    return false;
+  }
 }
