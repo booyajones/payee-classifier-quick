@@ -3,57 +3,71 @@ import OpenAI from 'openai';
 
 let openaiClient: OpenAI | null = null;
 
-// Updated working API key
-const WORKING_API_KEY = "sk-proj-VQOmQiDUcXRU3jTJLqCQi7vOsAXVOPR_7xOp2qJIvH9XNOKcmMnRg_9DgHaY85QK2LfVn8ZGvT3BlbkFJhgSFNOV4mRJwE_kZP3YnWxK8VqL5QnTxMbN6fR9HxT7GpU2wY4bCvM8KfL3aE6yPzT9mN1vR";
-
 /**
  * Initialize the OpenAI client with the provided API key
- * This function is backwards compatible with code that expects it
  */
 export function initializeOpenAI(apiKey?: string, rememberKey?: boolean): OpenAI {
-  console.log("initializeOpenAI called - using working OpenAI API key");
-  return getOpenAIClient();
-}
-
-/**
- * Initialize the OpenAI client with the working API key
- */
-function initializeWorkingOpenAI(): OpenAI {
-  if (!openaiClient) {
-    console.log("Initializing OpenAI client with working API key");
+  if (apiKey && apiKey.trim() !== '') {
+    console.log("Initializing OpenAI client with provided API key");
     openaiClient = new OpenAI({
-      apiKey: WORKING_API_KEY,
+      apiKey: apiKey.trim(),
       dangerouslyAllowBrowser: true
     });
-    console.log("OpenAI client initialized successfully with working key");
+    
+    if (rememberKey) {
+      localStorage.setItem('openai_api_key', apiKey.trim());
+    }
+    
+    return openaiClient;
   }
-  return openaiClient;
+  
+  // Try to get from localStorage
+  const savedKey = localStorage.getItem('openai_api_key');
+  if (savedKey) {
+    console.log("Using saved OpenAI API key");
+    openaiClient = new OpenAI({
+      apiKey: savedKey,
+      dangerouslyAllowBrowser: true
+    });
+    return openaiClient;
+  }
+  
+  throw new Error("No OpenAI API key provided. Please set your API key first.");
 }
 
 /**
- * Get the current OpenAI client, initializing automatically if needed
+ * Get the current OpenAI client
  */
 export function getOpenAIClient(): OpenAI {
-  return initializeWorkingOpenAI();
+  if (!openaiClient) {
+    // Try to initialize from saved key
+    const savedKey = localStorage.getItem('openai_api_key');
+    if (savedKey) {
+      return initializeOpenAI(savedKey);
+    }
+    throw new Error("OpenAI client not initialized. Please set your API key first.");
+  }
+  return openaiClient;
 }
 
 /**
  * Check if the OpenAI client has been initialized
  */
 export function isOpenAIInitialized(): boolean {
-  return true;
+  return openaiClient !== null || localStorage.getItem('openai_api_key') !== null;
 }
 
 /**
- * Always returns true since we have a working key
+ * Check if there's a saved OpenAI key
  */
 export function hasSavedOpenAIKey(): boolean {
-  return true;
+  return localStorage.getItem('openai_api_key') !== null;
 }
 
 /**
- * No-op function for compatibility
+ * Clear saved OpenAI keys
  */
 export function clearOpenAIKeys(): void {
-  // No-op since we're using working keys
+  localStorage.removeItem('openai_api_key');
+  openaiClient = null;
 }

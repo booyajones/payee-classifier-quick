@@ -25,83 +25,81 @@ export async function classifyPayeeWithAI(
   }
 
   try {
-    console.log(`[DEBUG] Classifying "${payeeName}" with OpenAI API (model: ${CLASSIFICATION_MODEL})...`);
-    console.log(`[DEBUG] API client initialized:`, !!openaiClient);
+    console.log(`[DEBUG] Classifying "${payeeName}" with OpenAI API...`);
     
     const apiCall = openaiClient.chat.completions.create({
       model: CLASSIFICATION_MODEL,
       messages: [
         {
           role: "system",
-          content: `You are a financial data specialist focused on classifying payee names as either "Business" or "Individual".
-          
-          Instructions:
-          1. Analyze the provided payee name.
-          2. Classify it as either "Business" or "Individual".
-          3. Provide confidence level as a percentage between 0-100.
-          4. Give detailed reasoning for your classification.
-          5. Return ONLY valid JSON in the exact format: {"classification": "Business|Individual", "confidence": number, "reasoning": "your detailed explanation"}
-          
-          Consider factors like:
-          - Business indicators: LLC, Inc, Corp, Company, legal suffixes, industry terms
-          - Individual indicators: personal names, titles (Dr., Mr., Mrs.), name patterns
-          - Ambiguous cases: sole proprietorships may use personal names
-          
-          IMPORTANT: Names that contain business terms like "Pools", "Maintenance", "Travel", "Graphics", "Creative", 
-          "Planners", "Events", "Distributors", etc. are almost always businesses. Names with ALL CAPS frequently indicate 
-          businesses. Multi-word proper nouns with industry terms are typically businesses. 
-          Most business payees include industry descriptions or terms in their names.
+          content: `You are a financial data specialist that classifies payee names as either "Business" or "Individual".
 
-          Be precise and objective in your analysis.`
+          Instructions:
+          1. Analyze the provided payee name carefully
+          2. Classify it as either "Business" or "Individual"
+          3. Provide confidence level as a percentage (0-100)
+          4. Give brief reasoning for your classification
+          5. Return ONLY valid JSON in this exact format: {"classification": "Business|Individual", "confidence": number, "reasoning": "explanation"}
+          
+          Business indicators: LLC, Inc, Corp, Company, legal suffixes, industry terms, ALL CAPS formatting
+          Individual indicators: personal names, titles (Dr., Mr., Mrs.), name patterns
+          
+          Be precise and return only the JSON response.`
         },
         {
           role: "user",
-          content: payeeName
+          content: `Classify this payee name: "${payeeName}"`
         }
       ],
       response_format: { "type": "json_object" },
-      temperature: 0.2,
-      max_tokens: 500
+      temperature: 0.1,
+      max_tokens: 300
     });
     
     console.log(`[DEBUG] Making API call for "${payeeName}"...`);
     
-    // Add timeout to prevent hanging
     const response = await timeoutPromise(apiCall, timeout);
-
-    console.log(`[DEBUG] Received response for "${payeeName}":`, {
-      choices: response.choices?.length,
-      hasContent: !!response.choices[0]?.message?.content
-    });
 
     const content = response.choices[0]?.message?.content;
     if (!content) {
-      throw new Error("Failed to get a valid response from OpenAI");
+      throw new Error("No response content from OpenAI API");
     }
 
     console.log(`[DEBUG] Raw OpenAI response for "${payeeName}":`, content);
     
-    // Parse the JSON response
     try {
       const result = JSON.parse(content);
-      console.log(`[DEBUG] Parsed classification result for "${payeeName}":`, result);
       
-      // Validate the result structure
-      if (!result.classification || !result.confidence || !result.reasoning) {
+      if (!result.classification || typeof result.confidence !== 'number' || !result.reasoning) {
         throw new Error(`Invalid response structure: ${JSON.stringify(result)}`);
       }
       
+      console.log(`[DEBUG] Successfully classified "${payeeName}": ${result.classification} (${result.confidence}%)`);
+      
       return {
         classification: result.classification as 'Business' | 'Individual',
-        confidence: result.confidence,
+        confidence: Math.min(100, Math.max(0, result.confidence)),
         reasoning: result.reasoning
       };
-    } catch (e) {
-      console.error(`[DEBUG] Failed to parse OpenAI response for "${payeeName}":`, content);
+    } catch (parseError) {
+      console.error(`[DEBUG] Failed to parse response for "${payeeName}":`, content);
       throw new Error("Failed to parse OpenAI response as JSON");
     }
   } catch (error) {
     console.error(`[DEBUG] Error calling OpenAI API for "${payeeName}":`, error);
+    
+    if (error instanceof Error) {
+      if (error.message.includes('401') || error.message.includes('authentication')) {
+        throw new Error("Invalid OpenAI API key. Please check your API key and try again.");
+      }
+      if (error.message.includes('429')) {
+        throw new Error("OpenAI API rate limit exceeded. Please wait a moment and try again.");
+      }
+      if (error.message.includes('timeout')) {
+        throw new Error("OpenAI API request timed out. Please try again.");
+      }
+    }
+    
     throw error;
   }
 }
