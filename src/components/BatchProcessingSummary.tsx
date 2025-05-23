@@ -6,43 +6,12 @@ interface BatchProcessingSummaryProps {
   summary: BatchProcessingResult;
 }
 
-const formatProcessingTime = (seconds: number): string => {
-  // Handle edge cases
-  if (!seconds || seconds <= 0) {
-    return "< 1s";
-  }
-  
-  if (seconds < 1) {
-    return `${Math.round(seconds * 1000)}ms`;
-  }
-  
-  if (seconds < 60) {
-    return `${seconds.toFixed(1)}s`;
-  }
-  
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = Math.round(seconds % 60);
-  
-  if (minutes < 60) {
-    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
-  }
-  
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  
-  if (remainingMinutes > 0) {
-    return `${hours}h ${remainingMinutes}m`;
-  }
-  
-  return `${hours}h`;
-};
-
 const BatchProcessingSummary = ({ summary }: BatchProcessingSummaryProps) => {
-  const { successCount, failureCount, processingTime } = summary;
+  const { successCount, failureCount } = summary;
   const totalProcessed = successCount + failureCount;
   
-  // Calculate processing rate
-  const itemsPerSecond = processingTime > 0 ? (totalProcessed / processingTime).toFixed(1) : '0';
+  // Calculate success rate
+  const successRate = totalProcessed > 0 ? Math.round((successCount / totalProcessed) * 100) : 0;
   
   // Calculate classification distribution with null checks
   const businessCount = summary.results.filter(
@@ -86,9 +55,9 @@ const BatchProcessingSummary = ({ summary }: BatchProcessingSummaryProps) => {
           </div>
           
           <div className="p-4 bg-background border rounded-lg">
-            <div className="text-sm text-muted-foreground">Processing Time</div>
-            <div className="text-2xl font-bold">{formatProcessingTime(processingTime)}</div>
-            <div className="text-xs text-muted-foreground">{itemsPerSecond} items/sec</div>
+            <div className="text-sm text-muted-foreground">Success Rate</div>
+            <div className="text-2xl font-bold">{successRate}%</div>
+            <div className="text-xs text-muted-foreground">{successCount} successful, {failureCount} failed</div>
           </div>
           
           <div className="p-4 bg-background border rounded-lg">
@@ -122,11 +91,6 @@ const BatchProcessingSummary = ({ summary }: BatchProcessingSummaryProps) => {
               );
             })}
           </div>
-        </div>
-        
-        {/* Debug info */}
-        <div className="mt-4 p-2 bg-muted rounded text-xs text-muted-foreground">
-          Raw processing time: {processingTime?.toFixed(3)}s | Success: {successCount} | Failures: {failureCount}
         </div>
       </CardContent>
     </Card>
