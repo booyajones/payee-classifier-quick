@@ -7,8 +7,17 @@ interface BatchProcessingSummaryProps {
 }
 
 const formatProcessingTime = (seconds: number): string => {
+  // Handle edge cases
+  if (!seconds || seconds <= 0) {
+    return "< 1s";
+  }
+  
+  if (seconds < 1) {
+    return `${Math.round(seconds * 1000)}ms`;
+  }
+  
   if (seconds < 60) {
-    return `${Math.round(seconds)}s`;
+    return `${seconds.toFixed(1)}s`;
   }
   
   const minutes = Math.floor(seconds / 60);
@@ -31,6 +40,9 @@ const formatProcessingTime = (seconds: number): string => {
 const BatchProcessingSummary = ({ summary }: BatchProcessingSummaryProps) => {
   const { successCount, failureCount, processingTime } = summary;
   const totalProcessed = successCount + failureCount;
+  
+  // Calculate processing rate
+  const itemsPerSecond = processingTime > 0 ? (totalProcessed / processingTime).toFixed(1) : '0';
   
   // Calculate classification distribution with null checks
   const businessCount = summary.results.filter(
@@ -76,6 +88,7 @@ const BatchProcessingSummary = ({ summary }: BatchProcessingSummaryProps) => {
           <div className="p-4 bg-background border rounded-lg">
             <div className="text-sm text-muted-foreground">Processing Time</div>
             <div className="text-2xl font-bold">{formatProcessingTime(processingTime)}</div>
+            <div className="text-xs text-muted-foreground">{itemsPerSecond} items/sec</div>
           </div>
           
           <div className="p-4 bg-background border rounded-lg">
@@ -109,6 +122,11 @@ const BatchProcessingSummary = ({ summary }: BatchProcessingSummaryProps) => {
               );
             })}
           </div>
+        </div>
+        
+        {/* Debug info */}
+        <div className="mt-4 p-2 bg-muted rounded text-xs text-muted-foreground">
+          Raw processing time: {processingTime?.toFixed(3)}s | Success: {successCount} | Failures: {failureCount}
         </div>
       </CardContent>
     </Card>
