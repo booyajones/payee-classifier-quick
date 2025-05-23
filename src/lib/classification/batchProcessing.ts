@@ -1,44 +1,49 @@
 
 import { ClassificationResult, ClassificationConfig } from '../types';
 import { MAX_CONCURRENCY, DEFAULT_CLASSIFICATION_CONFIG } from './config';
-import { applyAIClassification } from './aiClassification';
+import { classifyPayeesBatchWithAI } from '../openai/batchClassification';
+import { classifyPayeeWithAI } from '../openai/singleClassification';
 import { normalizeText } from './enhancedRules';
 
-const PROCESS_BATCH_SIZE = 20;
+const PROCESS_BATCH_SIZE = 15;
 
 /**
- * Apply AI classification to a batch of payees using built-in simulation
+ * Apply real OpenAI classification to a batch of payees
  */
-async function applyAIClassificationBatch(payeeNames: string[]): Promise<Map<string, ClassificationResult>> {
+async function applyOpenAIClassificationBatch(payeeNames: string[]): Promise<Map<string, ClassificationResult>> {
   const results = new Map<string, ClassificationResult>();
   
   try {
-    // Process in batches for better performance
+    // Process in batches using real OpenAI API
     for (let i = 0; i < payeeNames.length; i += PROCESS_BATCH_SIZE) {
       const batchNames = payeeNames.slice(i, i + PROCESS_BATCH_SIZE);
       
-      console.log(`Processing AI simulation batch ${Math.floor(i/PROCESS_BATCH_SIZE) + 1} of ${Math.ceil(payeeNames.length/PROCESS_BATCH_SIZE)}`);
+      console.log(`Processing OpenAI batch ${Math.floor(i/PROCESS_BATCH_SIZE) + 1} of ${Math.ceil(payeeNames.length/PROCESS_BATCH_SIZE)}`);
       
-      // Process batch in parallel using built-in AI simulation
-      const batchPromises = batchNames.map(async (name) => {
-        const result = await applyAIClassification(name);
-        return { name, result };
-      });
-      
-      const batchResults = await Promise.all(batchPromises);
+      // Use real OpenAI batch classification
+      const batchResults = await classifyPayeesBatchWithAI(batchNames);
       
       // Map results back to the results map
-      batchResults.forEach(({ name, result }) => {
-        results.set(normalizeText(name), result);
+      batchResults.forEach((result) => {
+        const classificationResult: ClassificationResult = {
+          classification: result.classification,
+          confidence: result.confidence,
+          reasoning: result.reasoning,
+          processingTier: 'AI-Powered'
+        };
+        results.set(normalizeText(result.payeeName), classificationResult);
       });
     }
   } catch (error) {
-    console.error("Error processing AI classification batch:", error);
+    console.error("Error processing OpenAI classification batch:", error);
     
     // Fall back to individual processing
     const fallbackPromises = payeeNames.map(name => 
-      applyAIClassification(name)
-        .then(result => ({ name, result }))
+      classifyPayeeWithAI(name)
+        .then(result => ({ name, result: {
+          ...result,
+          processingTier: 'AI-Powered' as const
+        }}))
         .catch(innerError => {
           console.error(`Error classifying ${name}:`, innerError);
           return { 
@@ -47,7 +52,7 @@ async function applyAIClassificationBatch(payeeNames: string[]): Promise<Map<str
               classification: 'Individual' as const,
               confidence: 40,
               reasoning: "Classification failed due to an error",
-              processingTier: 'AI-Assisted' as const
+              processingTier: 'AI-Powered' as const
             }
           };
         })
@@ -63,7 +68,7 @@ async function applyAIClassificationBatch(payeeNames: string[]): Promise<Map<str
 }
 
 /**
- * Process a batch of payee names using built-in AI simulation
+ * Process a batch of payee names using real OpenAI API
  */
 export async function processBatch(
   payeeNames: string[], 
@@ -74,7 +79,7 @@ export async function processBatch(
   const validPayeeNames = payeeNames.filter(name => name && name.trim() !== '');
   const total = validPayeeNames.length;
   
-  console.log(`Processing ${total} payee names using built-in AI simulation`);
+  console.log(`Processing ${total} payee names using real OpenAI API`);
   
   if (total === 0) {
     return [];
@@ -88,17 +93,17 @@ export async function processBatch(
   }
   
   try {
-    // Process all names with AI simulation
-    console.time('AI simulation classification');
+    // Process all names with real OpenAI API
+    console.time('OpenAI API classification');
     
-    const AI_PROGRESS_BATCH_SIZE = 10;
+    const PROGRESS_BATCH_SIZE = 10;
     let processedCount = 0;
     
-    for (let i = 0; i < validPayeeNames.length; i += AI_PROGRESS_BATCH_SIZE) {
-      const currentBatch = validPayeeNames.slice(i, i + AI_PROGRESS_BATCH_SIZE);
+    for (let i = 0; i < validPayeeNames.length; i += PROGRESS_BATCH_SIZE) {
+      const currentBatch = validPayeeNames.slice(i, i + PROGRESS_BATCH_SIZE);
       
-      // Process this batch
-      const batchResults = await applyAIClassificationBatch(currentBatch);
+      // Process this batch with real OpenAI
+      const batchResults = await applyOpenAIClassificationBatch(currentBatch);
       
       // Map results to the correct indices
       currentBatch.forEach((name, batchIndex) => {
@@ -114,7 +119,7 @@ export async function processBatch(
             classification: 'Individual',
             confidence: 40,
             reasoning: "Classification could not be determined",
-            processingTier: 'AI-Assisted'
+            processingTier: 'AI-Powered'
           };
         }
         
@@ -128,7 +133,7 @@ export async function processBatch(
       }
     }
     
-    console.timeEnd('AI simulation classification');
+    console.timeEnd('OpenAI API classification');
     
     // Ensure all results are filled
     for (let i = 0; i < total; i++) {
@@ -139,7 +144,7 @@ export async function processBatch(
           classification: 'Individual',
           confidence: 40,
           reasoning: "Classification could not be determined with high confidence",
-          processingTier: 'AI-Assisted'
+          processingTier: 'AI-Powered'
         };
       }
     }
@@ -162,15 +167,18 @@ export async function processBatch(
       const name = validPayeeNames[i];
       
       try {
-        const result = await applyAIClassification(name);
-        fallbackResults.push(result);
+        const result = await classifyPayeeWithAI(name);
+        fallbackResults.push({
+          ...result,
+          processingTier: 'AI-Powered'
+        });
       } catch (error) {
         console.error(`Error classifying ${name}:`, error);
         fallbackResults.push({
           classification: 'Individual',
           confidence: 40,
           reasoning: "Classification failed due to an error",
-          processingTier: 'AI-Assisted'
+          processingTier: 'AI-Powered'
         });
       }
       

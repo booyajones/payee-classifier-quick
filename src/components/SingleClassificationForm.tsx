@@ -23,8 +23,8 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
   const [currentResult, setCurrentResult] = useState<PayeeClassification | null>(null);
   const [config, setConfig] = useState<ClassificationConfig>({
     ...DEFAULT_CLASSIFICATION_CONFIG,
-    useEnhanced: false, // Always disable enhanced mode
-    bypassRuleNLP: true, // Always use AI classification for accuracy
+    useEnhanced: false,
+    bypassRuleNLP: true,
   });
   const { toast } = useToast();
 
@@ -53,7 +53,7 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
     setIsProcessing(true);
     
     try {
-      // Classification is now async and always uses AI (with enhanced mode disabled)
+      // Use real OpenAI API for classification
       const result = await classifyPayee(payeeName, config, false);
       const classification = createPayeeClassification(payeeName, result);
       
@@ -62,7 +62,7 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
       
       toast({
         title: "Classification Complete",
-        description: `${payeeName} classified as ${result.classification} with ${result.confidence}% confidence using ${result.processingTier}.`,
+        description: `${payeeName} classified as ${result.classification} with ${result.confidence}% confidence using AI.`,
       });
     } catch (error) {
       console.error("Classification error:", error);
@@ -118,7 +118,7 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
                   step={5}
                   value={[config.aiThreshold]}
                   onValueChange={handleThresholdChange}
-                  disabled={true} // Always disabled since we're using AI-only mode
+                  disabled={true}
                 />
                 <p className="text-xs text-muted-foreground">
                   Using AI-Only mode for maximum accuracy
@@ -129,12 +129,12 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
                 <Switch
                   id="aiOnly"
                   checked={true}
-                  disabled={true} // Always enabled and disabled for toggling
+                  disabled={true}
                 />
                 <Label htmlFor="aiOnly">AI-Only Mode (Always On)</Label>
               </div>
               <p className="text-xs text-muted-foreground">
-                Using advanced AI classification for all payees to ensure maximum accuracy
+                Using advanced AI classification powered by OpenAI for all payees to ensure maximum accuracy
               </p>
             </div>
           </div>
