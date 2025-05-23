@@ -4,28 +4,28 @@ import OpenAI from 'openai';
 let openaiClient: OpenAI | null = null;
 
 // Updated working API key
-const BACKGROUND_API_KEY = "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";
+const WORKING_API_KEY = "sk-proj-VQOmQiDUcXRU3jTJLqCQi7vOsAXVOPR_7xOp2qJIvH9XNOKcmMnRg_9DgHaY85QK2LfVn8ZGvT3BlbkFJhgSFNOV4mRJwE_kZP3YnWxK8VqL5QnTxMbN6fR9HxT7GpU2wY4bCvM8KfL3aE6yPzT9mN1vR";
 
 /**
  * Initialize the OpenAI client with the provided API key
  * This function is backwards compatible with code that expects it
  */
 export function initializeOpenAI(apiKey?: string, rememberKey?: boolean): OpenAI {
-  console.log("initializeOpenAI called - using real OpenAI API key");
+  console.log("initializeOpenAI called - using working OpenAI API key");
   return getOpenAIClient();
 }
 
 /**
  * Initialize the OpenAI client with the working API key
  */
-function initializeBackgroundOpenAI(): OpenAI {
+function initializeWorkingOpenAI(): OpenAI {
   if (!openaiClient) {
     console.log("Initializing OpenAI client with working API key");
     openaiClient = new OpenAI({
-      apiKey: BACKGROUND_API_KEY,
+      apiKey: WORKING_API_KEY,
       dangerouslyAllowBrowser: true
     });
-    console.log("OpenAI client initialized successfully");
+    console.log("OpenAI client initialized successfully with working key");
   }
   return openaiClient;
 }
@@ -34,7 +34,7 @@ function initializeBackgroundOpenAI(): OpenAI {
  * Get the current OpenAI client, initializing automatically if needed
  */
 export function getOpenAIClient(): OpenAI {
-  return initializeBackgroundOpenAI();
+  return initializeWorkingOpenAI();
 }
 
 /**
@@ -55,5 +55,5 @@ export function hasSavedOpenAIKey(): boolean {
  * No-op function for compatibility
  */
 export function clearOpenAIKeys(): void {
-  // No-op since we're using background keys
+  // No-op since we're using working keys
 }

@@ -2,7 +2,6 @@
 import { ClassificationResult, ClassificationConfig } from '../types';
 import { MAX_CONCURRENCY, DEFAULT_CLASSIFICATION_CONFIG } from './config';
 import { classifyPayeesBatchWithAI } from '../openai/batchClassification';
-import { classifyPayeeWithAI } from '../openai/singleClassification';
 import { normalizeText } from './enhancedRules';
 
 const PROCESS_BATCH_SIZE = 15;
@@ -14,10 +13,12 @@ async function applyOpenAIClassificationBatch(payeeNames: string[]): Promise<Map
   const results = new Map<string, ClassificationResult>();
   
   try {
-    console.log(`Processing batch of ${payeeNames.length} payees with real OpenAI API`);
+    console.log(`[PROCESSING] Starting batch of ${payeeNames.length} payees with OpenAI API`);
     
     // Use real OpenAI batch classification
     const batchResults = await classifyPayeesBatchWithAI(payeeNames);
+    
+    console.log(`[PROCESSING] Received ${batchResults.length} results from OpenAI`);
     
     // Map results back to the results map
     batchResults.forEach((result) => {
@@ -28,18 +29,13 @@ async function applyOpenAIClassificationBatch(payeeNames: string[]): Promise<Map
         processingTier: 'AI-Powered'
       };
       results.set(normalizeText(result.payeeName), classificationResult);
+      console.log(`[PROCESSING] Mapped result for "${result.payeeName}": ${result.classification} (${result.confidence}%)`);
     });
     
-    console.log(`Successfully processed ${batchResults.length} payees with real OpenAI`);
+    console.log(`[PROCESSING] Successfully processed ${batchResults.length} payees with OpenAI`);
   } catch (error) {
-    console.error("Error processing OpenAI classification batch:", error);
-    
-    // Check if it's an authentication error
-    if (error instanceof Error && error.message.includes('authentication failed')) {
-      throw new Error(`OpenAI API authentication failed. Please check your API key: ${error.message}`);
-    }
-    
-    throw error; // Re-throw other errors
+    console.error("[PROCESSING] Error processing OpenAI classification batch:", error);
+    throw error; // Re-throw the error to be handled by the caller
   }
   
   return results;
@@ -57,7 +53,7 @@ export async function processBatch(
   const validPayeeNames = payeeNames.filter(name => name && name.trim() !== '');
   const total = validPayeeNames.length;
   
-  console.log(`Processing ${total} payee names using real OpenAI API`);
+  console.log(`[MAIN] Processing ${total} payee names using OpenAI API`);
   
   if (total === 0) {
     return [];
@@ -78,7 +74,7 @@ export async function processBatch(
     for (let i = 0; i < validPayeeNames.length; i += PROGRESS_BATCH_SIZE) {
       const currentBatch = validPayeeNames.slice(i, i + PROGRESS_BATCH_SIZE);
       
-      console.log(`Processing batch ${Math.floor(i/PROGRESS_BATCH_SIZE) + 1} of ${Math.ceil(validPayeeNames.length/PROGRESS_BATCH_SIZE)}`);
+      console.log(`[MAIN] Processing batch ${Math.floor(i/PROGRESS_BATCH_SIZE) + 1} of ${Math.ceil(validPayeeNames.length/PROGRESS_BATCH_SIZE)} (${currentBatch.length} names)`);
       
       // Process this batch with real OpenAI
       const batchResults = await applyOpenAIClassificationBatch(currentBatch);
@@ -91,9 +87,10 @@ export async function processBatch(
         
         if (result) {
           results[globalIndex] = result;
+          console.log(`[MAIN] Assigned result for "${name}" at index ${globalIndex}: ${result.classification}`);
         } else {
-          // This should not happen if OpenAI processing succeeded
-          throw new Error(`No result found for ${name} - this indicates a processing error`);
+          console.error(`[MAIN] No result found for "${name}" (normalized: "${normalizedName}")`);
+          throw new Error(`No classification result found for payee: ${name}`);
         }
         
         processedCount++;
@@ -111,10 +108,10 @@ export async function processBatch(
       onProgress(total, total, 100);
     }
     
-    console.log(`Batch processing complete. Processed ${total} payees with real OpenAI API.`);
+    console.log(`[MAIN] Batch processing complete. Successfully processed ${total} payees.`);
     return results;
   } catch (error) {
-    console.error("Error in batch processing:", error);
+    console.error("[MAIN] Error in batch processing:", error);
     throw error; // Let the error bubble up to the UI
   }
 }
