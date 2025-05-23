@@ -14,30 +14,28 @@ async function applyOpenAIClassificationBatch(payeeNames: string[]): Promise<Map
   const results = new Map<string, ClassificationResult>();
   
   try {
-    // Process in batches using real OpenAI API
-    for (let i = 0; i < payeeNames.length; i += PROCESS_BATCH_SIZE) {
-      const batchNames = payeeNames.slice(i, i + PROCESS_BATCH_SIZE);
-      
-      console.log(`Processing OpenAI batch ${Math.floor(i/PROCESS_BATCH_SIZE) + 1} of ${Math.ceil(payeeNames.length/PROCESS_BATCH_SIZE)}`);
-      
-      // Use real OpenAI batch classification
-      const batchResults = await classifyPayeesBatchWithAI(batchNames);
-      
-      // Map results back to the results map
-      batchResults.forEach((result) => {
-        const classificationResult: ClassificationResult = {
-          classification: result.classification,
-          confidence: result.confidence,
-          reasoning: result.reasoning,
-          processingTier: 'AI-Powered'
-        };
-        results.set(normalizeText(result.payeeName), classificationResult);
-      });
-    }
+    console.log(`Processing batch of ${payeeNames.length} payees with real OpenAI API`);
+    
+    // Use real OpenAI batch classification
+    const batchResults = await classifyPayeesBatchWithAI(payeeNames);
+    
+    // Map results back to the results map
+    batchResults.forEach((result) => {
+      const classificationResult: ClassificationResult = {
+        classification: result.classification,
+        confidence: result.confidence,
+        reasoning: result.reasoning,
+        processingTier: 'AI-Powered'
+      };
+      results.set(normalizeText(result.payeeName), classificationResult);
+    });
+    
+    console.log(`Successfully processed ${batchResults.length} payees with OpenAI`);
   } catch (error) {
     console.error("Error processing OpenAI classification batch:", error);
     
-    // Fall back to individual processing
+    // Fall back to individual processing with real OpenAI
+    console.log("Falling back to individual OpenAI processing");
     const fallbackPromises = payeeNames.map(name => 
       classifyPayeeWithAI(name)
         .then(result => ({ name, result: {
@@ -93,14 +91,14 @@ export async function processBatch(
   }
   
   try {
-    // Process all names with real OpenAI API
-    console.time('OpenAI API classification');
-    
+    // Process all names with real OpenAI API in batches
     const PROGRESS_BATCH_SIZE = 10;
     let processedCount = 0;
     
     for (let i = 0; i < validPayeeNames.length; i += PROGRESS_BATCH_SIZE) {
       const currentBatch = validPayeeNames.slice(i, i + PROGRESS_BATCH_SIZE);
+      
+      console.log(`Processing batch ${Math.floor(i/PROGRESS_BATCH_SIZE) + 1} of ${Math.ceil(validPayeeNames.length/PROGRESS_BATCH_SIZE)}`);
       
       // Process this batch with real OpenAI
       const batchResults = await applyOpenAIClassificationBatch(currentBatch);
@@ -114,6 +112,7 @@ export async function processBatch(
         if (result) {
           results[globalIndex] = result;
         } else {
+          console.warn(`No result found for ${name}, using fallback`);
           // Fallback result
           results[globalIndex] = {
             classification: 'Individual',
@@ -132,8 +131,6 @@ export async function processBatch(
         onProgress(processedCount, total, percentage);
       }
     }
-    
-    console.timeEnd('OpenAI API classification');
     
     // Ensure all results are filled
     for (let i = 0; i < total; i++) {
@@ -154,41 +151,10 @@ export async function processBatch(
       onProgress(total, total, 100);
     }
     
+    console.log(`Batch processing complete. Processed ${total} payees.`);
     return results;
   } catch (error) {
     console.error("Error in batch processing:", error);
-    
-    // Fall back to simple sequential processing
-    console.log("Falling back to sequential processing");
-    
-    const fallbackResults: ClassificationResult[] = [];
-    
-    for (let i = 0; i < validPayeeNames.length; i++) {
-      const name = validPayeeNames[i];
-      
-      try {
-        const result = await classifyPayeeWithAI(name);
-        fallbackResults.push({
-          ...result,
-          processingTier: 'AI-Powered'
-        });
-      } catch (error) {
-        console.error(`Error classifying ${name}:`, error);
-        fallbackResults.push({
-          classification: 'Individual',
-          confidence: 40,
-          reasoning: "Classification failed due to an error",
-          processingTier: 'AI-Powered'
-        });
-      }
-      
-      // Update progress
-      if (onProgress) {
-        const percentage = Math.round(((i + 1) / total) * 100);
-        onProgress(i + 1, total, percentage);
-      }
-    }
-    
-    return fallbackResults;
+    throw error;
   }
 }

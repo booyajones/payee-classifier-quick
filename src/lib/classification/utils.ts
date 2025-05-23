@@ -1,46 +1,52 @@
 
 import { ClassificationResult, ClassificationConfig } from '../types';
-import { DEFAULT_CLASSIFICATION_CONFIG } from './config';
-import { applyRuleBasedClassification } from './ruleBasedClassification';
-import { applyNLPClassification } from './nlpClassification';
-import { applyAIClassification } from './aiClassification';
-import { enhancedClassifyPayee } from './enhancedClassification';
+import { classifyPayeeWithAI } from '../openai/singleClassification';
+import { enhancedClassifyPayeeWithAI } from '../openai/enhancedClassification';
 
 /**
- * Get confidence level category based on numeric confidence
+ * Classify a single payee using the real OpenAI API
  */
-export function getConfidenceLevel(confidence: number): 'high' | 'medium' | 'low' | 'verylow' {
-  if (confidence >= 90) return 'high';
-  if (confidence >= 75) return 'medium';
-  if (confidence >= 60) return 'low';
-  return 'verylow';
+export async function classifyPayee(
+  payeeName: string,
+  config: ClassificationConfig,
+  useEnhanced: boolean = false
+): Promise<ClassificationResult> {
+  console.log(`Classifying "${payeeName}" with real OpenAI API (enhanced: ${useEnhanced})`);
+  
+  try {
+    if (useEnhanced) {
+      // Use enhanced classification with caching and consensus
+      const result = await enhancedClassifyPayeeWithAI(payeeName);
+      return {
+        classification: result.classification,
+        confidence: result.confidence,
+        reasoning: result.reasoning,
+        processingTier: 'AI-Powered',
+        matchingRules: result.matchingRules
+      };
+    } else {
+      // Use standard OpenAI classification
+      const result = await classifyPayeeWithAI(payeeName);
+      return {
+        classification: result.classification,
+        confidence: result.confidence,
+        reasoning: result.reasoning,
+        processingTier: 'AI-Powered'
+      };
+    }
+  } catch (error) {
+    console.error(`Error classifying ${payeeName}:`, error);
+    throw error;
+  }
 }
 
 /**
- * Main classification function that implements the blended approach
- * Updated to use AI-only by default and disable enhanced mode
+ * Get confidence level description
  */
-export async function classifyPayee(
-  payeeName: string, 
-  config: ClassificationConfig = DEFAULT_CLASSIFICATION_CONFIG,
-  useEnhanced: boolean = false // Default to not using enhanced mode
-): Promise<ClassificationResult> {
-  // Check if name is empty or invalid
-  if (!payeeName || payeeName.trim() === '') {
-    return {
-      classification: 'Individual', // Default
-      confidence: 0,
-      reasoning: "Invalid or empty payee name",
-      processingTier: 'Rule-Based'
-    };
-  }
-
-  // Use the enhanced classification if specifically requested
-  if (useEnhanced) {
-    return await enhancedClassifyPayee(payeeName, config);
-  }
-
-  // Default to always use AI for more accurate classification
-  // This ensures business names are more accurately detected
-  return await applyAIClassification(payeeName);
+export function getConfidenceLevel(confidence: number): string {
+  if (confidence >= 90) return 'Very High';
+  if (confidence >= 80) return 'High';
+  if (confidence >= 70) return 'Medium';
+  if (confidence >= 60) return 'Low';
+  return 'Very Low';
 }

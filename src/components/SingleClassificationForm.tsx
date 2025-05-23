@@ -53,16 +53,20 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
     setIsProcessing(true);
     
     try {
-      // Use real OpenAI API for classification
-      const result = await classifyPayee(payeeName, config, false);
+      console.log(`Starting real OpenAI classification for: ${payeeName}`);
+      
+      // Use real OpenAI API for classification - force enhanced mode off to use standard API
+      const result = await classifyPayee(payeeName, { ...config, useEnhanced: false }, false);
       const classification = createPayeeClassification(payeeName, result);
+      
+      console.log(`Classification result:`, result);
       
       setCurrentResult(classification);
       onClassify(classification);
       
       toast({
         title: "Classification Complete",
-        description: `${payeeName} classified as ${result.classification} with ${result.confidence}% confidence using AI.`,
+        description: `${payeeName} classified as ${result.classification} with ${result.confidence}% confidence using real OpenAI.`,
       });
     } catch (error) {
       console.error("Classification error:", error);
@@ -86,7 +90,7 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
       <CardHeader>
         <CardTitle>Classify Single Payee</CardTitle>
         <CardDescription>
-          Enter a payee name to classify it as a business or individual using our AI-powered system.
+          Enter a payee name to classify it as a business or individual using real OpenAI API.
         </CardDescription>
       </CardHeader>
       <CardContent>
