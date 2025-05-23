@@ -30,36 +30,10 @@ async function applyOpenAIClassificationBatch(payeeNames: string[]): Promise<Map
       results.set(normalizeText(result.payeeName), classificationResult);
     });
     
-    console.log(`Successfully processed ${batchResults.length} payees with OpenAI`);
+    console.log(`Successfully processed ${batchResults.length} payees with real OpenAI`);
   } catch (error) {
     console.error("Error processing OpenAI classification batch:", error);
-    
-    // Fall back to individual processing with real OpenAI
-    console.log("Falling back to individual OpenAI processing");
-    const fallbackPromises = payeeNames.map(name => 
-      classifyPayeeWithAI(name)
-        .then(result => ({ name, result: {
-          ...result,
-          processingTier: 'AI-Powered' as const
-        }}))
-        .catch(innerError => {
-          console.error(`Error classifying ${name}:`, innerError);
-          return { 
-            name, 
-            result: {
-              classification: 'Individual' as const,
-              confidence: 40,
-              reasoning: "Classification failed due to an error",
-              processingTier: 'AI-Powered' as const
-            }
-          };
-        })
-    );
-    
-    const fallbackResults = await Promise.all(fallbackPromises);
-    fallbackResults.forEach(({ name, result }) => {
-      results.set(normalizeText(name), result);
-    });
+    throw error; // Don't fall back to broken default values
   }
   
   return results;
@@ -112,14 +86,7 @@ export async function processBatch(
         if (result) {
           results[globalIndex] = result;
         } else {
-          console.warn(`No result found for ${name}, using fallback`);
-          // Fallback result
-          results[globalIndex] = {
-            classification: 'Individual',
-            confidence: 40,
-            reasoning: "Classification could not be determined",
-            processingTier: 'AI-Powered'
-          };
+          throw new Error(`No result found for ${name} - OpenAI API failed`);
         }
         
         processedCount++;
@@ -132,26 +99,12 @@ export async function processBatch(
       }
     }
     
-    // Ensure all results are filled
-    for (let i = 0; i < total; i++) {
-      if (!results[i]) {
-        const name = validPayeeNames[i];
-        console.warn(`No classification result for: ${name}, using fallback`);
-        results[i] = {
-          classification: 'Individual',
-          confidence: 40,
-          reasoning: "Classification could not be determined with high confidence",
-          processingTier: 'AI-Powered'
-        };
-      }
-    }
-    
     // Set final progress
     if (onProgress) {
       onProgress(total, total, 100);
     }
     
-    console.log(`Batch processing complete. Processed ${total} payees.`);
+    console.log(`Batch processing complete. Processed ${total} payees with real OpenAI API.`);
     return results;
   } catch (error) {
     console.error("Error in batch processing:", error);

@@ -25,10 +25,10 @@ export async function classifyPayeeWithAI(
   }
 
   try {
-    console.log(`Classifying "${payeeName}" with OpenAI (model: ${CLASSIFICATION_MODEL})...`);
+    console.log(`Classifying "${payeeName}" with real OpenAI API (model: ${CLASSIFICATION_MODEL})...`);
     
     const apiCall = openaiClient.chat.completions.create({
-      model: CLASSIFICATION_MODEL, // Using most accurate model configured in config.ts
+      model: CLASSIFICATION_MODEL,
       messages: [
         {
           role: "system",
@@ -71,11 +71,12 @@ export async function classifyPayeeWithAI(
       throw new Error("Failed to get a valid response from OpenAI");
     }
 
-    console.log("OpenAI response content:", content);
+    console.log(`OpenAI response for "${payeeName}":`, content);
     
     // Parse the JSON response
     try {
       const result = JSON.parse(content);
+      console.log(`Classification result for "${payeeName}": ${result.classification} (${result.confidence}%)`);
       return {
         classification: result.classification as 'Business' | 'Individual',
         confidence: result.confidence,
@@ -86,7 +87,7 @@ export async function classifyPayeeWithAI(
       throw new Error("Failed to parse OpenAI response as JSON");
     }
   } catch (error) {
-    console.error("Error calling OpenAI API:", error);
+    console.error(`Error calling OpenAI API for "${payeeName}":`, error);
     throw error;
   }
 }
