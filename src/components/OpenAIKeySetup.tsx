@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Key, Eye, EyeOff } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { initializeOpenAI, isOpenAIInitialized } from "@/lib/openai/client";
 
 interface OpenAIKeySetupProps {
@@ -35,12 +35,14 @@ const OpenAIKeySetup = ({ onKeySet }: OpenAIKeySetupProps) => {
     setIsValidating(true);
     
     try {
-      // Initialize the OpenAI client
+      // Initialize the OpenAI client with secure storage
       initializeOpenAI(apiKey.trim(), rememberKey);
       
       toast({
         title: "API Key Set Successfully",
-        description: "OpenAI integration is now ready for use.",
+        description: rememberKey 
+          ? "OpenAI integration is ready and your key has been securely saved." 
+          : "OpenAI integration is ready for this session.",
       });
       
       onKeySet();
@@ -75,7 +77,7 @@ const OpenAIKeySetup = ({ onKeySet }: OpenAIKeySetupProps) => {
       <CardContent>
         <Alert className="mb-4">
           <AlertDescription>
-            Your API key will be stored securely in your browser's local storage. 
+            Your API key will be stored securely using encrypted browser storage. 
             Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline">OpenAI Platform</a>.
           </AlertDescription>
         </Alert>
@@ -114,7 +116,7 @@ const OpenAIKeySetup = ({ onKeySet }: OpenAIKeySetupProps) => {
               className="rounded border-gray-300"
             />
             <Label htmlFor="rememberKey" className="text-sm">
-              Remember this API key
+              Securely save this API key
             </Label>
           </div>
           

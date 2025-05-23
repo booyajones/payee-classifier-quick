@@ -1,7 +1,9 @@
 
 import OpenAI from 'openai';
+import { storeApiKey, getApiKey, hasSavedApiKey, deleteApiKey } from '@/lib/backend/apiKeyService';
 
 let openaiClient: OpenAI | null = null;
+let currentToken: string | null = null;
 
 /**
  * Initialize the OpenAI client with the provided API key
@@ -21,28 +23,42 @@ export function initializeOpenAI(apiKey?: string, rememberKey?: boolean): OpenAI
     });
     
     if (rememberKey) {
-      localStorage.setItem('openai_api_key', apiKey.trim());
-      console.log("API key saved to localStorage");
+      try {
+        currentToken = storeApiKey(apiKey.trim());
+        console.log("API key saved to secure storage");
+      } catch (error) {
+        console.error("Failed to save API key:", error);
+        // Continue without saving if storage fails
+      }
     }
     
     return openaiClient;
   }
   
-  // Try to get from localStorage
-  const savedKey = localStorage.getItem('openai_api_key');
-  if (savedKey && savedKey.trim() !== '') {
-    console.log("Using saved OpenAI API key from localStorage");
+  // Try to get from secure storage
+  if (hasSavedApiKey()) {
+    console.log("Attempting to load saved OpenAI API key");
     
-    if (!savedKey.startsWith('sk-')) {
-      localStorage.removeItem('openai_api_key');
-      throw new Error("Saved API key is invalid. Please set a new API key.");
+    // Get all stored keys and try to find a valid one
+    const metadata = JSON.parse(localStorage.getItem('secure_api_key_token_map') || '{}');
+    for (const token of Object.keys(metadata)) {
+      try {
+        const savedKey = getApiKey(token);
+        if (savedKey && savedKey.startsWith('sk-')) {
+          console.log("Using saved OpenAI API key from secure storage");
+          currentToken = token;
+          
+          openaiClient = new OpenAI({
+            apiKey: savedKey,
+            dangerouslyAllowBrowser: true
+          });
+          return openaiClient;
+        }
+      } catch (error) {
+        console.error("Failed to retrieve API key with token:", token, error);
+        // Try next token
+      }
     }
-    
-    openaiClient = new OpenAI({
-      apiKey: savedKey,
-      dangerouslyAllowBrowser: true
-    });
-    return openaiClient;
   }
   
   throw new Error("No OpenAI API key provided. Please set your API key first.");
@@ -54,16 +70,12 @@ export function initializeOpenAI(apiKey?: string, rememberKey?: boolean): OpenAI
 export function getOpenAIClient(): OpenAI {
   if (!openaiClient) {
     // Try to initialize from saved key
-    const savedKey = localStorage.getItem('openai_api_key');
-    if (savedKey && savedKey.trim() !== '') {
-      try {
-        return initializeOpenAI(savedKey);
-      } catch (error) {
-        console.error("Failed to initialize from saved key:", error);
-        localStorage.removeItem('openai_api_key');
-      }
+    try {
+      return initializeOpenAI();
+    } catch (error) {
+      console.error("Failed to initialize from saved key:", error);
+      throw new Error("OpenAI client not initialized. Please set your API key first.");
     }
-    throw new Error("OpenAI client not initialized. Please set your API key first.");
   }
   return openaiClient;
 }
@@ -76,23 +88,28 @@ export function isOpenAIInitialized(): boolean {
     return true;
   }
   
-  const savedKey = localStorage.getItem('openai_api_key');
-  return savedKey !== null && savedKey.trim() !== '' && savedKey.startsWith('sk-');
+  return hasSavedApiKey();
 }
 
 /**
  * Check if there's a saved OpenAI key
  */
 export function hasSavedOpenAIKey(): boolean {
-  const savedKey = localStorage.getItem('openai_api_key');
-  return savedKey !== null && savedKey.trim() !== '' && savedKey.startsWith('sk-');
+  return hasSavedApiKey();
 }
 
 /**
  * Clear saved OpenAI keys
  */
 export function clearOpenAIKeys(): void {
+  if (currentToken) {
+    deleteApiKey(currentToken);
+    currentToken = null;
+  }
+  
+  // Clear any remaining keys from the old localStorage system
   localStorage.removeItem('openai_api_key');
+  
   openaiClient = null;
   console.log("OpenAI client and saved keys cleared");
 }
