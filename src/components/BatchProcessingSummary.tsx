@@ -6,6 +6,28 @@ interface BatchProcessingSummaryProps {
   summary: BatchProcessingResult;
 }
 
+const formatProcessingTime = (seconds: number): string => {
+  if (seconds < 60) {
+    return `${Math.round(seconds)}s`;
+  }
+  
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.round(seconds % 60);
+  
+  if (minutes < 60) {
+    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+  }
+  
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  
+  if (remainingMinutes > 0) {
+    return `${hours}h ${remainingMinutes}m`;
+  }
+  
+  return `${hours}h`;
+};
+
 const BatchProcessingSummary = ({ summary }: BatchProcessingSummaryProps) => {
   const { successCount, failureCount, processingTime } = summary;
   const totalProcessed = successCount + failureCount;
@@ -53,7 +75,7 @@ const BatchProcessingSummary = ({ summary }: BatchProcessingSummaryProps) => {
           
           <div className="p-4 bg-background border rounded-lg">
             <div className="text-sm text-muted-foreground">Processing Time</div>
-            <div className="text-2xl font-bold">{processingTime}s</div>
+            <div className="text-2xl font-bold">{formatProcessingTime(processingTime)}</div>
           </div>
           
           <div className="p-4 bg-background border rounded-lg">
