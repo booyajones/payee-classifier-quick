@@ -7,6 +7,15 @@ let openaiClient: OpenAI | null = null;
 const BACKGROUND_API_KEY = "sk-your-api-key-here"; // Replace with your actual API key
 
 /**
+ * Initialize the OpenAI client with the provided API key
+ * This function is backwards compatible with code that expects it
+ */
+export function initializeOpenAI(apiKey?: string, rememberKey?: boolean): OpenAI {
+  console.log("initializeOpenAI called - using background API key instead");
+  return getOpenAIClient();
+}
+
+/**
  * Initialize the OpenAI client with the background API key
  */
 function initializeBackgroundOpenAI(): OpenAI {
