@@ -1,4 +1,3 @@
-
 export interface ClassificationResult {
   classification: 'Business' | 'Individual';
   confidence: number;
@@ -18,7 +17,7 @@ export interface BatchProcessingResult {
   results: PayeeClassification[];
   successCount: number;
   failureCount: number;
-  processingTime: number;
+  processingTime?: number; // Made optional since we removed processing time tracking
 }
 
 export interface ParsedPerson {
