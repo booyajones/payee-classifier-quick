@@ -72,8 +72,6 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
       const names = payeeNames.split("\n").map(name => name.trim()).filter(name => name !== "");
       setProcessingStatus(`Processing 0 of ${names.length} payees`);
       
-      const startTime = performance.now();
-      
       const results = await processBatch(
         names,
         (current, total, percentage) => {
@@ -82,9 +80,6 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
         },
         config
       );
-      
-      const endTime = performance.now();
-      const processingTime = (endTime - startTime) / 1000; // Convert to seconds
 
       const successCount = results.filter(result => result.confidence > 0).length;
       const failureCount = names.length - successCount;
@@ -101,8 +96,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
       const summary: BatchProcessingResult = {
         results: classifications,
         successCount,
-        failureCount,
-        processingTime
+        failureCount
       };
       
       setProcessingSummary(summary);
