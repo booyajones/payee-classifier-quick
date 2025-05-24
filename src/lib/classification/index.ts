@@ -9,5 +9,6 @@ export * from './aiClassification';
 export * from './batchProcessing';
 export * from './utils';
 export * from './enhancedRules';
-export * from './enhancedClassification';
 
+// Export specific functions from enhancedClassification but exclude enhancedProcessBatch to avoid conflict
+export { enhancedClassifyPayee } from './enhancedClassification';
