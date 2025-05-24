@@ -4,14 +4,14 @@ import { timeoutPromise } from './utils';
 import { classifyPayeeWithAI } from './singleClassification';
 import { DEFAULT_API_TIMEOUT, CLASSIFICATION_MODEL } from './config';
 
-export const MAX_BATCH_SIZE = 10; // Reduced for better reliability
+export const MAX_BATCH_SIZE = 5; // Reduced for better reliability
 
 /**
  * Classify multiple payee names in a batch using the OpenAI API
  */
 export async function classifyPayeesBatchWithAI(
   payeeNames: string[],
-  timeout: number = DEFAULT_API_TIMEOUT * 2
+  timeout: number = DEFAULT_API_TIMEOUT
 ): Promise<Array<{
   payeeName: string;
   classification: 'Business' | 'Individual';
@@ -36,27 +36,27 @@ export async function classifyPayeesBatchWithAI(
     reasoning: string;
   }> = [];
 
-  // Process in smaller batches for better reliability
+  // Process in smaller batches with reduced concurrency
   for (let i = 0; i < payeeNames.length; i += MAX_BATCH_SIZE) {
     const batchNames = payeeNames.slice(i, i + MAX_BATCH_SIZE);
     console.log(`[BATCH] Processing batch ${Math.floor(i/MAX_BATCH_SIZE) + 1} with ${batchNames.length} payees`);
     
     try {
-      // Use individual classification for more reliable results
-      const batchPromises = batchNames.map(async (name) => {
+      // Process names sequentially to avoid overwhelming the API
+      const batchResults = [];
+      for (const name of batchNames) {
         try {
-          const result = await classifyPayeeWithAI(name, timeout / 2);
-          return {
+          const result = await classifyPayeeWithAI(name, timeout);
+          batchResults.push({
             payeeName: name,
             ...result
-          };
+          });
         } catch (error) {
           console.error(`[INDIVIDUAL] Failed to classify ${name}:`, error);
           throw new Error(`Classification failed for ${name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
-      });
+      }
       
-      const batchResults = await Promise.all(batchPromises);
       results.push(...batchResults);
       
       console.log(`[BATCH] Successfully processed batch ${Math.floor(i/MAX_BATCH_SIZE) + 1}`);

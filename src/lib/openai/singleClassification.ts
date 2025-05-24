@@ -32,28 +32,16 @@ export async function classifyPayeeWithAI(
       messages: [
         {
           role: "system",
-          content: `You are a financial data specialist that classifies payee names as either "Business" or "Individual".
-
-          Instructions:
-          1. Analyze the provided payee name carefully
-          2. Classify it as either "Business" or "Individual"
-          3. Provide confidence level as a percentage (0-100)
-          4. Give brief reasoning for your classification
-          5. Return ONLY valid JSON in this exact format: {"classification": "Business|Individual", "confidence": number, "reasoning": "explanation"}
-          
-          Business indicators: LLC, Inc, Corp, Company, legal suffixes, industry terms, ALL CAPS formatting
-          Individual indicators: personal names, titles (Dr., Mr., Mrs.), name patterns
-          
-          Be precise and return only the JSON response.`
+          content: `Classify payee names as "Business" or "Individual". Return JSON: {"classification": "Business|Individual", "confidence": number, "reasoning": "brief explanation"}`
         },
         {
           role: "user",
-          content: `Classify this payee name: "${payeeName}"`
+          content: `Classify: "${payeeName}"`
         }
       ],
       response_format: { "type": "json_object" },
       temperature: 0.1,
-      max_tokens: 300
+      max_tokens: 150 // Reduced for faster response
     });
     
     console.log(`[DEBUG] Making API call for "${payeeName}"...`);

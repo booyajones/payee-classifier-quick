@@ -4,7 +4,7 @@ import { MAX_CONCURRENCY, DEFAULT_CLASSIFICATION_CONFIG } from './config';
 import { classifyPayeesBatchWithAI } from '../openai/batchClassification';
 import { normalizeText } from './enhancedRules';
 
-const PROCESS_BATCH_SIZE = 15;
+const PROCESS_BATCH_SIZE = 5; // Reduced batch size
 
 /**
  * Apply real OpenAI classification to a batch of payees
@@ -70,8 +70,8 @@ export async function processBatch(
   }
   
   try {
-    // Process all names with real OpenAI API in batches
-    const PROGRESS_BATCH_SIZE = 10;
+    // Process all names with real OpenAI API in smaller batches
+    const PROGRESS_BATCH_SIZE = 5; // Reduced for better reliability
     let processedCount = 0;
     
     for (let i = 0; i < validPayeeNames.length; i += PROGRESS_BATCH_SIZE) {
