@@ -70,23 +70,39 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
 
     try {
       const names = payeeNames.split("\n").map(name => name.trim()).filter(name => name !== "");
+      console.log(`[BATCH FORM] Processing ${names.length} names:`, names);
+      
       setProcessingStatus(`Processing 0 of ${names.length} payees`);
       
       const results = await processBatch(
         names,
-        (current, total, percentage) => {
+        (current, total, percentage, stats) => {
           setProgress(percentage);
           setProcessingStatus(`Processing ${current} of ${total} payees`);
+          console.log(`[BATCH FORM] Progress: ${current}/${total} (${percentage}%)`, stats);
         },
         config
       );
+
+      console.log(`[BATCH FORM] Received ${results.length} results:`, results);
 
       const successCount = results.filter(result => result.confidence > 0).length;
       const failureCount = names.length - successCount;
 
       const classifications = names.map((name, index) => {
-        return createPayeeClassification(name, results[index]);
+        const result = results[index];
+        if (!result) {
+          console.warn(`[BATCH FORM] Missing result for index ${index}, name: ${name}`);
+        }
+        return createPayeeClassification(name, result || {
+          classification: 'Individual',
+          confidence: 0,
+          reasoning: 'No result found',
+          processingTier: 'Rule-Based'
+        });
       });
+
+      console.log(`[BATCH FORM] Created ${classifications.length} classifications`);
 
       setBatchResults(classifications);
       if (onBatchClassify) {
