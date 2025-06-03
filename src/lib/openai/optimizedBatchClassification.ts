@@ -22,6 +22,10 @@ const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
  * Normalize name for caching (remove extra spaces, standardize case)
  */
 function normalizeForCache(name: string): string {
+  if (!name || typeof name !== 'string') {
+    console.warn('[CACHE] Invalid name for caching:', name);
+    return '';
+  }
   return name.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
@@ -29,6 +33,9 @@ function normalizeForCache(name: string): string {
  * Check if cached result is still valid
  */
 function isCacheValid(result: CachedResult): boolean {
+  if (!result || typeof result.timestamp !== 'number') {
+    return false;
+  }
   return Date.now() - result.timestamp < CACHE_TTL;
 }
 
@@ -36,7 +43,15 @@ function isCacheValid(result: CachedResult): boolean {
  * Get cached result if available and valid
  */
 function getCachedResult(name: string): CachedResult | null {
+  if (!name || typeof name !== 'string') {
+    return null;
+  }
+  
   const normalized = normalizeForCache(name);
+  if (!normalized) {
+    return null;
+  }
+  
   const cached = classificationCache.get(normalized);
   
   if (cached && isCacheValid(cached)) {
@@ -56,7 +71,16 @@ function getCachedResult(name: string): CachedResult | null {
  * Cache a classification result
  */
 function setCachedResult(name: string, result: CachedResult): void {
+  if (!name || typeof name !== 'string' || !result) {
+    console.warn('[CACHE] Invalid data for caching:', { name, result });
+    return;
+  }
+  
   const normalized = normalizeForCache(name);
+  if (!normalized) {
+    return;
+  }
+  
   classificationCache.set(normalized, {
     ...result,
     timestamp: Date.now()
@@ -116,11 +140,19 @@ export async function optimizedBatchClassification(
     throw new Error("OpenAI client not initialized. Please check your API key.");
   }
 
-  if (!payeeNames.length) {
+  if (!Array.isArray(payeeNames) || !payeeNames.length) {
+    console.warn('[OPTIMIZED] Invalid or empty payeeNames array:', payeeNames);
     return [];
   }
 
-  console.log(`[OPTIMIZED] Starting classification of ${payeeNames.length} payees`);
+  // Filter out invalid names
+  const validNames = payeeNames.filter(name => name && typeof name === 'string' && name.trim());
+  if (validNames.length === 0) {
+    console.warn('[OPTIMIZED] No valid names after filtering:', payeeNames);
+    return [];
+  }
+
+  console.log(`[OPTIMIZED] Starting classification of ${validNames.length} payees`);
 
   // Step 1: Check cache for existing results
   const results: Array<{
@@ -133,17 +165,22 @@ export async function optimizedBatchClassification(
 
   const uncachedNames: string[] = [];
 
-  for (const name of payeeNames) {
-    const cached = getCachedResult(name);
-    if (cached) {
-      results.push({
-        payeeName: name,
-        classification: cached.classification,
-        confidence: cached.confidence,
-        reasoning: cached.reasoning,
-        source: 'cache'
-      });
-    } else {
+  for (const name of validNames) {
+    try {
+      const cached = getCachedResult(name);
+      if (cached) {
+        results.push({
+          payeeName: name,
+          classification: cached.classification,
+          confidence: cached.confidence,
+          reasoning: cached.reasoning,
+          source: 'cache'
+        });
+      } else {
+        uncachedNames.push(name);
+      }
+    } catch (error) {
+      console.error(`[OPTIMIZED] Error checking cache for "${name}":`, error);
       uncachedNames.push(name);
     }
   }
@@ -190,7 +227,7 @@ ${batchNames.map((name, idx) => `${idx + 1}. "${name}"`).join('\n')}`;
           return await timeoutPromise(apiCall, timeout);
         });
 
-        const content = batchResults.choices[0]?.message?.content;
+        const content = batchResults?.choices?.[0]?.message?.content;
         if (!content) {
           throw new Error("No response content from OpenAI API");
         }
@@ -208,7 +245,7 @@ ${batchNames.map((name, idx) => `${idx + 1}. "${name}"`).join('\n')}`;
           } catch {
             // If that fails, try to parse as object and extract array
             const parsed = JSON.parse(cleanContent);
-            classifications = parsed.results || parsed.payees || parsed.classifications || parsed;
+            classifications = parsed?.results || parsed?.payees || parsed?.classifications || parsed;
           }
           
           if (!Array.isArray(classifications)) {
@@ -216,7 +253,7 @@ ${batchNames.map((name, idx) => `${idx + 1}. "${name}"`).join('\n')}`;
             throw new Error("Expected array of classifications");
           }
 
-          // Process each result
+          // Process each result with better validation
           classifications.forEach((result: any, index: number) => {
             if (index >= batchNames.length) {
               console.warn(`[OPTIMIZED] Extra result ignored for batch position ${index}`);
@@ -224,30 +261,54 @@ ${batchNames.map((name, idx) => `${idx + 1}. "${name}"`).join('\n')}`;
             }
             
             const originalName = batchNames[index];
-            if (result && result.classification && typeof result.confidence === 'number') {
-              const classificationResult = {
-                payeeName: originalName,
-                classification: result.classification as 'Business' | 'Individual',
-                confidence: Math.min(100, Math.max(0, result.confidence)),
-                reasoning: result.reasoning || 'Batch classification',
-                source: 'api' as const
-              };
-              
-              results.push(classificationResult);
-              
-              // Cache the result
+            if (!originalName) {
+              console.warn(`[OPTIMIZED] No original name found for index ${index}`);
+              return;
+            }
+            
+            // Validate result structure
+            if (!result || typeof result !== 'object') {
+              console.error(`[OPTIMIZED] Invalid result structure for "${originalName}":`, result);
+              throw new Error(`Invalid classification result for ${originalName}`);
+            }
+            
+            const classification = result.classification;
+            const confidence = result.confidence;
+            const reasoning = result.reasoning;
+            
+            if (!classification || (classification !== 'Business' && classification !== 'Individual')) {
+              console.error(`[OPTIMIZED] Invalid classification for "${originalName}":`, classification);
+              throw new Error(`Invalid classification result for ${originalName}`);
+            }
+            
+            if (typeof confidence !== 'number' || confidence < 0 || confidence > 100) {
+              console.error(`[OPTIMIZED] Invalid confidence for "${originalName}":`, confidence);
+              throw new Error(`Invalid confidence result for ${originalName}`);
+            }
+            
+            const classificationResult = {
+              payeeName: originalName,
+              classification: classification as 'Business' | 'Individual',
+              confidence: Math.min(100, Math.max(0, confidence)),
+              reasoning: reasoning || 'Batch classification',
+              source: 'api' as const
+            };
+            
+            results.push(classificationResult);
+            
+            // Cache the result
+            try {
               setCachedResult(originalName, {
                 classification: classificationResult.classification,
                 confidence: classificationResult.confidence,
                 reasoning: classificationResult.reasoning,
                 timestamp: Date.now()
               });
-              
-              console.log(`[OPTIMIZED] Successfully classified "${originalName}": ${result.classification} (${result.confidence}%)`);
-            } else {
-              console.error(`[OPTIMIZED] Invalid result structure for "${originalName}":`, result);
-              throw new Error(`Invalid classification result for ${originalName}`);
+            } catch (cacheError) {
+              console.warn(`[OPTIMIZED] Failed to cache result for "${originalName}":`, cacheError);
             }
+            
+            console.log(`[OPTIMIZED] Successfully classified "${originalName}": ${classification} (${confidence}%)`);
           });
           
           // Handle case where we got fewer results than expected
@@ -256,13 +317,15 @@ ${batchNames.map((name, idx) => `${idx + 1}. "${name}"`).join('\n')}`;
             // Create fallback results for missing names
             for (let j = classifications.length; j < batchNames.length; j++) {
               const originalName = batchNames[j];
-              results.push({
-                payeeName: originalName,
-                classification: 'Individual',
-                confidence: 50,
-                reasoning: 'Fallback - insufficient API response',
-                source: 'api'
-              });
+              if (originalName) {
+                results.push({
+                  payeeName: originalName,
+                  classification: 'Individual',
+                  confidence: 50,
+                  reasoning: 'Fallback - insufficient API response',
+                  source: 'api'
+                });
+              }
             }
           }
           
@@ -276,16 +339,37 @@ ${batchNames.map((name, idx) => `${idx + 1}. "${name}"`).join('\n')}`;
         
       } catch (error) {
         console.error(`[OPTIMIZED] Error with batch ${Math.floor(i/OPTIMIZED_BATCH_SIZE) + 1}:`, error);
-        throw error;
+        
+        // Create fallback results for this batch
+        batchNames.forEach(name => {
+          if (name) {
+            results.push({
+              payeeName: name,
+              classification: 'Individual',
+              confidence: 0,
+              reasoning: `Classification failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              source: 'api'
+            });
+          }
+        });
+        
+        console.log(`[OPTIMIZED] Created fallback results for batch ${Math.floor(i/OPTIMIZED_BATCH_SIZE) + 1}`);
       }
     }
   }
   
-  // Step 3: Ensure results are in the same order as input
-  const orderedResults = payeeNames.map(name => {
+  // Step 3: Ensure results are in the same order as input and handle missing results
+  const orderedResults = validNames.map(name => {
     const result = results.find(r => r.payeeName === name);
     if (!result) {
-      throw new Error(`No classification result found for payee: ${name}`);
+      console.warn(`[OPTIMIZED] No classification result found for payee: ${name}, creating fallback`);
+      return {
+        payeeName: name,
+        classification: 'Individual' as const,
+        confidence: 0,
+        reasoning: 'No classification result found - using fallback',
+        source: 'api' as const
+      };
     }
     return result;
   });
