@@ -158,8 +158,12 @@ export async function optimizedBatchClassification(
       
       try {
         const batchResults = await withRetry(async () => {
-          // Create optimized prompt for batch processing
-          const prompt = `Classify each payee name as "Business" or "Individual". Return a JSON array with objects containing: {"name": "payee_name", "classification": "Business|Individual", "confidence": number, "reasoning": "brief explanation"}
+          // Create optimized prompt for batch processing - simplified format
+          const prompt = `Classify each payee name as "Business" or "Individual". Return only a JSON array of objects with this exact format:
+[
+  {"name": "payee_name", "classification": "Business", "confidence": 95, "reasoning": "brief explanation"},
+  {"name": "next_payee", "classification": "Individual", "confidence": 90, "reasoning": "brief explanation"}
+]
 
 Business indicators: LLC, Inc, Corp, Ltd, Company names, Organizations, Government entities
 Individual indicators: Personal names (First Last), Professional titles (Dr, Mr, Mrs), Common name patterns
@@ -172,16 +176,15 @@ ${batchNames.map((name, idx) => `${idx + 1}. "${name}"`).join('\n')}`;
             messages: [
               {
                 role: "system",
-                content: "You are a expert at classifying payee names. Return valid JSON array only."
+                content: "You are an expert at classifying payee names. Return only valid JSON array, no other text or formatting."
               },
               {
                 role: "user",
                 content: prompt
               }
             ],
-            response_format: { "type": "json_object" },
             temperature: 0.1,
-            max_tokens: 800 // Increased for batch processing
+            max_tokens: 1000
           });
           
           return await timeoutPromise(apiCall, timeout);
@@ -195,15 +198,31 @@ ${batchNames.map((name, idx) => `${idx + 1}. "${name}"`).join('\n')}`;
         console.log(`[OPTIMIZED] Raw batch response:`, content);
         
         try {
-          const parsed = JSON.parse(content);
-          const classifications = parsed.results || parsed;
+          // Clean the response - remove any markdown formatting
+          const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          let classifications: any[];
+          
+          try {
+            // Try to parse as direct array first
+            classifications = JSON.parse(cleanContent);
+          } catch {
+            // If that fails, try to parse as object and extract array
+            const parsed = JSON.parse(cleanContent);
+            classifications = parsed.results || parsed.payees || parsed.classifications || parsed;
+          }
           
           if (!Array.isArray(classifications)) {
+            console.error(`[OPTIMIZED] Expected array, got:`, typeof classifications, classifications);
             throw new Error("Expected array of classifications");
           }
 
           // Process each result
           classifications.forEach((result: any, index: number) => {
+            if (index >= batchNames.length) {
+              console.warn(`[OPTIMIZED] Extra result ignored for batch position ${index}`);
+              return;
+            }
+            
             const originalName = batchNames[index];
             if (result && result.classification && typeof result.confidence === 'number') {
               const classificationResult = {
@@ -231,8 +250,25 @@ ${batchNames.map((name, idx) => `${idx + 1}. "${name}"`).join('\n')}`;
             }
           });
           
+          // Handle case where we got fewer results than expected
+          if (classifications.length < batchNames.length) {
+            console.warn(`[OPTIMIZED] Got ${classifications.length} results but expected ${batchNames.length}`);
+            // Create fallback results for missing names
+            for (let j = classifications.length; j < batchNames.length; j++) {
+              const originalName = batchNames[j];
+              results.push({
+                payeeName: originalName,
+                classification: 'Individual',
+                confidence: 50,
+                reasoning: 'Fallback - insufficient API response',
+                source: 'api'
+              });
+            }
+          }
+          
         } catch (parseError) {
           console.error(`[OPTIMIZED] Failed to parse batch response:`, content);
+          console.error(`[OPTIMIZED] Parse error:`, parseError);
           throw new Error("Failed to parse OpenAI batch response as JSON");
         }
         
