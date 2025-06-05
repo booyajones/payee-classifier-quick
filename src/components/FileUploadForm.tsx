@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, File, Upload, RefreshCw, RotateCcw } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { processBatch, DEFAULT_CLASSIFICATION_CONFIG } from "@/lib/classificationEngine";
-import { enhancedProcessBatch } from "@/lib/classification/enhancedClassification";
+import { enhancedProcessBatch } from "@/lib/classification/enhancedBatchProcessor";
 import { createPayeeClassification } from "@/lib/utils";
 import { PayeeClassification, BatchProcessingResult, ClassificationConfig } from "@/lib/types";
 import { Progress } from "@/components/ui/progress";
