@@ -156,15 +156,17 @@ export async function enhancedProcessBatchV3(
       } catch (error) {
         console.error(`[V3 Batch] Retry failed for "${item.name}":`, error);
         
-        // ABSOLUTE FALLBACK - Create a basic classification
+        // ABSOLUTE FALLBACK - Create a basic classification with proper typing
+        const classification = item.name.split(/\s+/).length <= 2 ? 'Individual' as const : 'Business' as const;
+        
         return {
           id: `payee-${item.originalIndex}`,
           payeeName: item.name,
           result: {
-            classification: item.name.split(/\s+/).length <= 2 ? 'Individual' : 'Business',
+            classification,
             confidence: 51,
             reasoning: `Basic fallback classification due to system errors`,
-            processingTier: 'Rule-Based',
+            processingTier: 'Rule-Based' as const,
             processingMethod: 'Emergency basic fallback'
           },
           timestamp: new Date(),
@@ -259,12 +261,12 @@ export function exportResultsWithOriginalDataV3(
     const result = batchResult.results.find(r => r.rowIndex === index);
     
     if (!result) {
-      // This shouldn't happen in V3, but just in case
+      // This shouldn't happen in V3, but just in case with proper typing
       return {
         ...originalRow,
-        'Classification': 'Individual',
+        'Classification': 'Individual' as const,
         'Confidence_%': 50,
-        'Processing_Tier': 'Emergency_Fallback',
+        'Processing_Tier': 'Rule-Based' as const,
         'Reasoning': 'Result not found - emergency fallback',
         'Processing_Method': 'Emergency fallback'
       };
