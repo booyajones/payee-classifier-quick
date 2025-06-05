@@ -266,7 +266,7 @@ export async function getBatchJobResults(
  * Cancel a batch job
  */
 export async function cancelBatchJob(batchId: string): Promise<BatchJob> {
-  const client = getOpenAI Client();
+  const client = getOpenAIClient();
   
   const batch = await client.batches.cancel(batchId);
   
