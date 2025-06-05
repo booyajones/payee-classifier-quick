@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,16 +12,19 @@ import { createPayeeClassification } from "@/lib/utils";
 import { PayeeClassification, BatchProcessingResult, ClassificationConfig, ClassificationResult } from "@/lib/types";
 import { Progress } from "@/components/ui/progress";
 import { processWithHybridBatch } from "@/lib/openai/hybridBatchProcessor";
+import { BatchJob } from "@/lib/openai/trueBatchAPI";
 import { DEFAULT_CLASSIFICATION_CONFIG } from "@/lib/classification/config";
 
 interface FileUploadFormProps {
   onComplete: (results: PayeeClassification[], summary: BatchProcessingResult) => void;
+  onBatchJobCreated?: (batchJob: BatchJob, payeeNames: string[]) => void;
   config?: ClassificationConfig;
   processingMode?: 'realtime' | 'batch';
 }
 
 const FileUploadForm = ({ 
   onComplete, 
+  onBatchJobCreated,
   config = {
     ...DEFAULT_CLASSIFICATION_CONFIG,
     useEnhanced: false,
@@ -131,7 +135,7 @@ const FileUploadForm = ({
         return;
       }
 
-      console.log(`Processing ${payeeNames.length} names from column "${selectedColumn}" in ${processingMode} mode`);
+      console.log(`[FILE UPLOAD] Processing ${payeeNames.length} names from column "${selectedColumn}" in ${processingMode} mode`);
       setProcessingStatus(`Starting ${processingMode} processing for ${payeeNames.length} payees`);
 
       const startTime = performance.now();
@@ -150,6 +154,13 @@ const FileUploadForm = ({
       const processingTime = endTime - startTime;
 
       if (processingMode === 'batch' && result.batchJob) {
+        console.log(`[FILE UPLOAD] Batch job created:`, result.batchJob);
+        
+        // Call the batch job callback if provided
+        if (onBatchJobCreated) {
+          onBatchJobCreated(result.batchJob, payeeNames);
+        }
+        
         toast({
           title: "Batch Job Submitted",
           description: `Your file with ${payeeNames.length} payees has been submitted for batch processing. Check the "Batch Jobs" tab to track progress.`,

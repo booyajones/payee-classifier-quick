@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -94,18 +95,19 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
       console.log(`[BATCH FORM] Process result:`, result);
 
       if (processingMode === 'batch' && result.batchJob) {
-        console.log(`[BATCH FORM] Adding batch job to state:`, result.batchJob);
+        console.log(`[BATCH FORM] BATCH MODE: Adding batch job to state:`, result.batchJob);
         
-        // Store batch job for tracking
+        // Store batch job for tracking - CRITICAL FIX: Use functional update
         setBatchJobs(prev => {
           const newJobs = [...prev, result.batchJob!];
-          console.log(`[BATCH FORM] Updated batch jobs:`, newJobs);
+          console.log(`[BATCH FORM] UPDATED batch jobs state from ${prev.length} to ${newJobs.length}:`, newJobs);
           return newJobs;
         });
         
+        // Store payee names mapping - CRITICAL FIX: Use functional update
         setPayeeNamesMap(prev => {
           const newMap = { ...prev, [result.batchJob!.id]: names };
-          console.log(`[BATCH FORM] Updated payee names map:`, newMap);
+          console.log(`[BATCH FORM] UPDATED payee names map:`, newMap);
           return newMap;
         });
         
@@ -119,7 +121,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
         setActiveTab("jobs");
       } else {
         // Real-time processing completed
-        console.log(`[BATCH FORM] Received ${result.results.length} results:`, result.results);
+        console.log(`[BATCH FORM] REALTIME MODE: Received ${result.results.length} results:`, result.results);
 
         const successCount = result.results.filter(r => r.confidence > 0).length;
         const failureCount = names.length - successCount;
@@ -183,6 +185,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   };
 
   const handleFileUploadComplete = (results: PayeeClassification[], summary: BatchProcessingResult) => {
+    console.log(`[BATCH FORM] File upload complete with ${results.length} results`);
     setBatchResults(results);
     setProcessingSummary(summary);
     
@@ -196,6 +199,26 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
 
     // Switch to results tab
     setActiveTab("results");
+  };
+
+  const handleFileUploadBatchJob = (batchJob: BatchJob, payeeNames: string[]) => {
+    console.log(`[BATCH FORM] File upload batch job created:`, batchJob);
+    
+    // Add batch job from file upload
+    setBatchJobs(prev => {
+      const newJobs = [...prev, batchJob];
+      console.log(`[BATCH FORM] UPDATED batch jobs from file upload:`, newJobs);
+      return newJobs;
+    });
+    
+    setPayeeNamesMap(prev => {
+      const newMap = { ...prev, [batchJob.id]: payeeNames };
+      console.log(`[BATCH FORM] UPDATED payee names map from file upload:`, newMap);
+      return newMap;
+    });
+    
+    // Switch to jobs tab
+    setActiveTab("jobs");
   };
 
   const handleJobUpdate = (updatedJob: BatchJob) => {
@@ -241,7 +264,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
 
   const payeeCount = payeeNames.split("\n").filter(name => name.trim() !== "").length;
 
-  console.log(`[BATCH FORM] Current state - Active tab: ${activeTab}, Batch jobs: ${batchJobs.length}, Results: ${batchResults.length}`);
+  console.log(`[BATCH FORM] RENDER - Active tab: ${activeTab}, Batch jobs: ${batchJobs.length}, Results: ${batchResults.length}`);
 
   return (
     <Card>
@@ -319,19 +342,28 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
           <TabsContent value="file" className="mt-4">
             <FileUploadForm 
               onComplete={handleFileUploadComplete} 
+              onBatchJobCreated={handleFileUploadBatchJob}
               config={config}
               processingMode={processingMode}
             />
           </TabsContent>
 
           <TabsContent value="jobs" className="mt-4">
-            <BatchJobManager
-              jobs={batchJobs}
-              payeeNamesMap={payeeNamesMap}
-              onJobUpdate={handleJobUpdate}
-              onJobComplete={handleJobComplete}
-              onJobDelete={handleJobDelete}
-            />
+            {batchJobs.length === 0 ? (
+              <div className="text-center py-8 border rounded-md">
+                <p className="text-muted-foreground">
+                  No batch jobs yet. Submit a batch for processing to see jobs here.
+                </p>
+              </div>
+            ) : (
+              <BatchJobManager
+                jobs={batchJobs}
+                payeeNamesMap={payeeNamesMap}
+                onJobUpdate={handleJobUpdate}
+                onJobComplete={handleJobComplete}
+                onJobDelete={handleJobDelete}
+              />
+            )}
           </TabsContent>
           
           <TabsContent value="results" className="mt-4">
