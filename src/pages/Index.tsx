@@ -1,6 +1,6 @@
+
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import SingleClassificationForm from "@/components/SingleClassificationForm";
 import BatchClassificationForm from "@/components/BatchClassificationForm";
 import ClassificationResultTable from "@/components/ClassificationResultTable";
 import BatchProcessingSummary from "@/components/BatchProcessingSummary";
@@ -28,11 +28,6 @@ const Index = () => {
   useEffect(() => {
     logMemoryUsage(`Tab change to ${activeTab}`);
   }, [activeTab]);
-
-  const handleSingleClassification = (result: PayeeClassification) => {
-    setAllResults(prev => [result, ...prev]);
-    logMemoryUsage('Single classification complete');
-  };
 
   const handleBatchComplete = (
     results: PayeeClassification[],
@@ -86,20 +81,11 @@ const Index = () => {
 
         <main className="container px-4 pb-8">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="single">Single Classification</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="batch">Batch Processing</TabsTrigger>
               <TabsTrigger value="keywords">Keyword Management</TabsTrigger>
               <TabsTrigger value="results">Results</TabsTrigger>
             </TabsList>
-            
-            <TabsContent value="single" className="mt-6">
-              <ClassificationErrorBoundary context="Single Classification">
-                <div className="grid grid-cols-1 gap-6">
-                  <SingleClassificationForm onClassify={handleSingleClassification} />
-                </div>
-              </ClassificationErrorBoundary>
-            </TabsContent>
             
             <TabsContent value="batch" className="mt-6">
               <ClassificationErrorBoundary context="Batch Processing">
