@@ -6,10 +6,13 @@ import { parseUploadedFile } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, File, Upload, RotateCcw } from "lucide-react";
+import { AlertCircle, File, Upload, RotateCcw, CheckCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { ClassificationConfig } from "@/lib/types";
 import { createBatchJob, BatchJob } from "@/lib/openai/trueBatchAPI";
+import { validateFile, validatePayeeData, cleanPayeeNames } from "@/lib/fileValidation";
+import { handleError, showErrorToast, showRetryableErrorToast } from "@/lib/errorHandler";
+import { useRetry } from "@/hooks/useRetry";
 
 interface FileUploadFormProps {
   onBatchJobCreated: (batchJob: BatchJob, payeeNames: string[]) => void;
@@ -32,13 +35,24 @@ const FileUploadForm = ({
   const [selectedColumn, setSelectedColumn] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [validationStatus, setValidationStatus] = useState<'none' | 'validating' | 'valid' | 'error'>('none');
+  const [fileInfo, setFileInfo] = useState<{ rowCount?: number; payeeCount?: number } | null>(null);
   const { toast } = useToast();
+
+  // Retry mechanism for batch job creation
+  const {
+    execute: createBatchJobWithRetry,
+    isRetrying,
+    retryCount
+  } = useRetry(createBatchJob, { maxRetries: 3, baseDelay: 2000 });
 
   const resetForm = () => {
     setFile(null);
     setColumns([]);
     setSelectedColumn("");
     setFileError(null);
+    setValidationStatus('none');
+    setFileInfo(null);
     
     // Reset the file input
     const fileInput = document.getElementById('file-upload') as HTMLInputElement;
@@ -54,23 +68,33 @@ const FileUploadForm = ({
     setFileError(null);
     setColumns([]);
     setSelectedColumn("");
+    setValidationStatus('none');
+    setFileInfo(null);
     
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
-    // Check file type
-    const fileType = selectedFile.name.split('.').pop()?.toLowerCase();
-    if (fileType !== 'xlsx' && fileType !== 'xls' && fileType !== 'csv') {
-      setFileError("Please upload an Excel (.xlsx, .xls) or CSV file");
-      setFile(null);
-      return;
-    }
+    setValidationStatus('validating');
 
-    setFile(selectedFile);
-    
     try {
+      // Validate file first
+      const fileValidation = validateFile(selectedFile);
+      if (!fileValidation.isValid) {
+        setFileError(fileValidation.error!.message);
+        setValidationStatus('error');
+        setFile(null);
+        showErrorToast(fileValidation.error!, 'File Validation');
+        return;
+      }
+
+      setFile(selectedFile);
+      
       // Parse headers only to get column names
       const headers = await parseUploadedFile(selectedFile, true);
+      if (!headers || headers.length === 0) {
+        throw new Error('No columns found in the file');
+      }
+
       setColumns(headers);
       
       // Auto-select column if it contains "payee" or "name"
@@ -81,15 +105,59 @@ const FileUploadForm = ({
       if (payeeColumn) {
         setSelectedColumn(payeeColumn);
       }
+
+      setValidationStatus('valid');
       
       toast({
-        title: "File Uploaded",
-        description: `Found ${headers.length} columns. Please select the payee name column.`,
+        title: "File Uploaded Successfully",
+        description: `Found ${headers.length} columns. ${payeeColumn ? `Auto-selected "${payeeColumn}" column.` : 'Please select the payee name column.'}`,
       });
     } catch (error) {
+      const appError = handleError(error, 'File Upload');
       console.error("Error parsing file:", error);
-      setFileError("Error parsing file. Please make sure it's a valid Excel or CSV file.");
+      setFileError(appError.message);
+      setValidationStatus('error');
       setFile(null);
+      showErrorToast(appError, 'File Parsing');
+    }
+  };
+
+  const validateSelectedData = async () => {
+    if (!file || !selectedColumn) return null;
+
+    try {
+      setValidationStatus('validating');
+      
+      // Parse the full file
+      const data = await parseUploadedFile(file);
+      
+      // Validate payee data
+      const dataValidation = validatePayeeData(data, selectedColumn);
+      if (!dataValidation.isValid) {
+        setValidationStatus('error');
+        showErrorToast(dataValidation.error!, 'Data Validation');
+        return null;
+      }
+
+      // Extract and clean payee names
+      const rawPayeeNames = data
+        .map(row => row[selectedColumn])
+        .filter(name => name && typeof name === 'string' && name.trim() !== '');
+      
+      const cleanedPayeeNames = cleanPayeeNames(rawPayeeNames);
+      
+      setFileInfo({
+        rowCount: data.length,
+        payeeCount: cleanedPayeeNames.length
+      });
+
+      setValidationStatus('valid');
+      return cleanedPayeeNames;
+    } catch (error) {
+      const appError = handleError(error, 'Data Validation');
+      setValidationStatus('error');
+      showErrorToast(appError, 'Data Validation');
+      return null;
     }
   };
 
@@ -106,46 +174,55 @@ const FileUploadForm = ({
     setIsLoading(true);
     
     try {
-      // Parse the full file
-      const data = await parseUploadedFile(file);
-      
-      // Extract payee names from the selected column
-      const payeeNames = data
-        .map(row => row[selectedColumn])
-        .filter(name => name && typeof name === 'string' && name.trim() !== '');
-      
-      if (payeeNames.length === 0) {
-        toast({
-          title: "No Valid Names Found",
-          description: `The selected column "${selectedColumn}" doesn't contain valid payee names.`,
-          variant: "destructive",
-        });
+      const payeeNames = await validateSelectedData();
+      if (!payeeNames) {
         setIsLoading(false);
         return;
       }
 
       console.log(`[FILE UPLOAD] Creating batch job for ${payeeNames.length} names from column "${selectedColumn}"`);
 
-      const batchJob = await createBatchJob(payeeNames, `File upload batch: ${file.name}, ${payeeNames.length} payees`);
+      const batchJob = await createBatchJobWithRetry(
+        payeeNames, 
+        `File upload batch: ${file.name}, ${payeeNames.length} payees`
+      );
+      
       console.log(`[FILE UPLOAD] Batch job created:`, batchJob);
 
       onBatchJobCreated(batchJob, payeeNames);
       
       toast({
-        title: "Batch Job Created",
-        description: `Successfully submitted ${payeeNames.length} payees from ${file.name} for processing. Job ID: ${batchJob.id.slice(-8)}`,
+        title: "Batch Job Created Successfully",
+        description: `Submitted ${payeeNames.length} payees from ${file.name} for processing. Job ID: ${batchJob.id.slice(-8)}`,
       });
     } catch (error) {
+      const appError = handleError(error, 'Batch Job Creation');
       console.error("Error creating batch job from file:", error);
-      toast({
-        title: "Batch Job Creation Error",
-        description: "An error occurred while creating the batch job from the uploaded file.",
-        variant: "destructive",
-      });
+      
+      showRetryableErrorToast(
+        appError, 
+        () => handleProcess(),
+        'Batch Job Creation'
+      );
     } finally {
       setIsLoading(false);
     }
   };
+
+  const getValidationIcon = () => {
+    switch (validationStatus) {
+      case 'validating':
+        return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+      case 'valid':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'error':
+        return <AlertCircle className="h-4 w-4 text-red-500" />;
+      default:
+        return null;
+    }
+  };
+
+  const isProcessButtonDisabled = !file || !selectedColumn || isLoading || validationStatus === 'validating' || validationStatus === 'error';
 
   return (
     <Card>
@@ -171,6 +248,7 @@ const FileUploadForm = ({
               variant="outline" 
               className="w-full"
               onClick={() => document.getElementById('file-upload')?.click()}
+              disabled={validationStatus === 'validating'}
             >
               <Upload className="h-4 w-4 mr-2" />
               {file ? 'Change File' : 'Select File'}
@@ -178,7 +256,8 @@ const FileUploadForm = ({
             {file && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <File className="h-4 w-4" />
-                {file.name}
+                <span>{file.name}</span>
+                {getValidationIcon()}
               </div>
             )}
           </div>
@@ -190,7 +269,7 @@ const FileUploadForm = ({
             onChange={handleFileChange}
           />
           <p className="text-xs text-muted-foreground">
-            Accepted formats: Excel (.xlsx, .xls) or CSV files
+            Accepted formats: Excel (.xlsx, .xls) or CSV files (max 10MB, 10,000 rows)
           </p>
         </div>
         
@@ -209,6 +288,11 @@ const FileUploadForm = ({
                 ))}
               </SelectContent>
             </Select>
+            {fileInfo && selectedColumn && (
+              <p className="text-xs text-muted-foreground">
+                Found {fileInfo.rowCount} rows, {fileInfo.payeeCount} unique payee names
+              </p>
+            )}
           </div>
         )}
         
@@ -216,10 +300,17 @@ const FileUploadForm = ({
           <Button 
             type="button" 
             className="flex-1" 
-            disabled={!file || !selectedColumn || isLoading}
+            disabled={isProcessButtonDisabled}
             onClick={handleProcess}
           >
-            {isLoading ? "Creating Job..." : "Submit File for Processing"}
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {isRetrying ? `Retrying (${retryCount + 1})...` : "Creating Job..."}
+              </>
+            ) : (
+              "Submit File for Processing"
+            )}
           </Button>
           
           <Button
