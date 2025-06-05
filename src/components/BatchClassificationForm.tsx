@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
@@ -7,19 +7,25 @@ import { PayeeClassification, BatchProcessingResult, ClassificationConfig } from
 import FileUploadForm from "./FileUploadForm";
 import BatchJobManager from "./BatchJobManager";
 import BatchResultsDisplay from "./BatchResultsDisplay";
-import { BatchJob } from "@/lib/openai/trueBatchAPI";
+import { BatchJob, checkBatchJobStatus } from "@/lib/openai/trueBatchAPI";
 
 interface BatchClassificationFormProps {
   onBatchClassify?: (results: PayeeClassification[]) => void;
   onComplete?: (results: PayeeClassification[], summary: BatchProcessingResult) => void;
 }
 
+const STORAGE_KEYS = {
+  BATCH_JOBS: 'batch_classification_jobs',
+  PAYEE_NAMES_MAP: 'batch_classification_payee_names'
+};
+
 const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassificationFormProps) => {
   const [batchResults, setBatchResults] = useState<PayeeClassification[]>([]);
   const [processingSummary, setProcessingSummary] = useState<BatchProcessingResult | null>(null);
-  const [activeTab, setActiveTab] = useState<string>("jobs");
+  const [activeTab, setActiveTab] = useState<string>("file");
   const [batchJobs, setBatchJobs] = useState<BatchJob[]>([]);
   const [payeeNamesMap, setPayeeNamesMap] = useState<Record<string, string[]>>({});
+  const [isLoadingJobs, setIsLoadingJobs] = useState(true);
   const { toast } = useToast();
 
   const config: ClassificationConfig = {
@@ -31,9 +37,99 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
     similarityThreshold: 85
   };
 
+  // Save state to localStorage
+  const saveToStorage = (jobs: BatchJob[], payeeMap: Record<string, string[]>) => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.BATCH_JOBS, JSON.stringify(jobs));
+      localStorage.setItem(STORAGE_KEYS.PAYEE_NAMES_MAP, JSON.stringify(payeeMap));
+      console.log(`[BATCH FORM] Saved ${jobs.length} jobs to localStorage`);
+    } catch (error) {
+      console.error('[BATCH FORM] Error saving to localStorage:', error);
+    }
+  };
+
+  // Load and recover jobs from localStorage
+  const loadFromStorage = async () => {
+    try {
+      const savedJobs = localStorage.getItem(STORAGE_KEYS.BATCH_JOBS);
+      const savedPayeeMap = localStorage.getItem(STORAGE_KEYS.PAYEE_NAMES_MAP);
+
+      if (!savedJobs || !savedPayeeMap) {
+        console.log('[BATCH FORM] No saved jobs found');
+        setIsLoadingJobs(false);
+        return;
+      }
+
+      const jobs: BatchJob[] = JSON.parse(savedJobs);
+      const payeeMap: Record<string, string[]> = JSON.parse(savedPayeeMap);
+
+      console.log(`[BATCH FORM] Found ${jobs.length} saved jobs, checking status...`);
+
+      // Check status of each saved job
+      const updatedJobs: BatchJob[] = [];
+      const validPayeeMap: Record<string, string[]> = {};
+
+      for (const job of jobs) {
+        try {
+          console.log(`[BATCH FORM] Checking status of job ${job.id}`);
+          const updatedJob = await checkBatchJobStatus(job.id);
+          updatedJobs.push(updatedJob);
+          validPayeeMap[job.id] = payeeMap[job.id] || [];
+          
+          if (updatedJob.status !== job.status) {
+            console.log(`[BATCH FORM] Job ${job.id} status changed: ${job.status} -> ${updatedJob.status}`);
+          }
+        } catch (error) {
+          console.error(`[BATCH FORM] Job ${job.id} no longer valid, removing:`, error);
+          // Job is invalid/expired, don't include it
+        }
+      }
+
+      setBatchJobs(updatedJobs);
+      setPayeeNamesMap(validPayeeMap);
+
+      // Save the cleaned up state
+      saveToStorage(updatedJobs, validPayeeMap);
+
+      if (updatedJobs.length > 0) {
+        setActiveTab("jobs");
+        toast({
+          title: "Jobs Recovered",
+          description: `Restored ${updatedJobs.length} batch job(s) from previous session.`,
+        });
+      }
+
+    } catch (error) {
+      console.error('[BATCH FORM] Error loading from localStorage:', error);
+      // Clear corrupted data
+      localStorage.removeItem(STORAGE_KEYS.BATCH_JOBS);
+      localStorage.removeItem(STORAGE_KEYS.PAYEE_NAMES_MAP);
+    } finally {
+      setIsLoadingJobs(false);
+    }
+  };
+
+  // Load jobs on component mount
+  useEffect(() => {
+    loadFromStorage();
+  }, []);
+
+  // Save jobs whenever they change
+  useEffect(() => {
+    if (!isLoadingJobs && batchJobs.length > 0) {
+      saveToStorage(batchJobs, payeeNamesMap);
+    }
+  }, [batchJobs, payeeNamesMap, isLoadingJobs]);
+
   const resetForm = () => {
     setBatchResults([]);
     setProcessingSummary(null);
+    setBatchJobs([]);
+    setPayeeNamesMap({});
+    
+    // Clear localStorage
+    localStorage.removeItem(STORAGE_KEYS.BATCH_JOBS);
+    localStorage.removeItem(STORAGE_KEYS.PAYEE_NAMES_MAP);
     
     toast({
       title: "Form Reset",
@@ -99,7 +195,26 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
     });
   };
 
-  console.log(`[BATCH FORM] RENDER - Active tab: ${activeTab}, Batch jobs: ${batchJobs.length}, Results: ${batchResults.length}`);
+  console.log(`[BATCH FORM] RENDER - Active tab: ${activeTab}, Batch jobs: ${batchJobs.length}, Results: ${batchResults.length}, Loading: ${isLoadingJobs}`);
+
+  if (isLoadingJobs) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Batch Payee Classification</CardTitle>
+          <CardDescription>
+            Loading previous batch jobs...
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="py-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground mt-2">Checking for previous batch jobs...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
