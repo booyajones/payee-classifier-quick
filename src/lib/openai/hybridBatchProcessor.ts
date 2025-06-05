@@ -1,7 +1,7 @@
 
 import { ClassificationConfig } from '@/lib/types';
 import { createBatchJob, BatchJob, getBatchJobResults, TrueBatchClassificationResult } from './trueBatchAPI';
-import { classifyPayees } from './optimizedBatchClassification';
+import { optimizedBatchClassification } from './optimizedBatchClassification';
 import { checkKeywordExclusion } from '@/lib/classification/keywordExclusion';
 
 export interface HybridBatchResult {
@@ -114,16 +114,9 @@ export async function processWithHybridBatch(
     stats.phase = 'Processing with AI (real-time)';
     
     try {
-      const aiResults = await classifyPayees(
+      const aiResults = await optimizedBatchClassification(
         aiNames,
-        (current, total) => {
-          const totalProgress = stats.keywordExcluded + current;
-          const percentage = (totalProgress / payeeNames.length) * 100;
-          stats.phase = `AI processing: ${current}/${total}`;
-          stats.aiProcessed = current;
-          onProgress?.(totalProgress, payeeNames.length, percentage, stats);
-        },
-        config
+        30000 // timeout
       );
 
       console.log(`[HYBRID BATCH] AI processing complete. Results:`, aiResults);
@@ -138,6 +131,15 @@ export async function processWithHybridBatch(
           processingTier: 'AI-Powered' as const
         };
       });
+
+      // Update progress callback
+      const processingCallback = (current: number, total: number) => {
+        const totalProgress = stats.keywordExcluded + current;
+        const percentage = (totalProgress / payeeNames.length) * 100;
+        stats.phase = `AI processing: ${current}/${total}`;
+        stats.aiProcessed = current;
+        onProgress?.(totalProgress, payeeNames.length, percentage, stats);
+      };
 
       stats.phase = 'Complete';
       stats.aiProcessed = aiNames.length;
@@ -200,7 +202,7 @@ export async function completeBatchJob(
         classification: batchResult?.classification || 'Individual',
         confidence: batchResult?.confidence || 0,
         reasoning: batchResult?.reasoning || 'Batch processing failed',
-        processingTier: (batchResult?.status === 'success' ? 'AI-Powered' : 'Failed') as const
+        processingTier: batchResult?.status === 'success' ? 'AI-Powered' as const : 'Failed' as const
       };
     });
 
