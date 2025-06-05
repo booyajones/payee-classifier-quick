@@ -1,4 +1,5 @@
 
+
 import { ClassificationConfig } from '@/lib/types';
 import { createBatchJob, BatchJob, getBatchJobResults, TrueBatchClassificationResult } from './trueBatchAPI';
 import { optimizedBatchClassification } from './optimizedBatchClassification';
@@ -57,7 +58,12 @@ export async function processWithHybridBatch(
   
   // Separate excluded vs. needs AI processing
   const needsAI: { name: string; index: number }[] = [];
-  const finalResults = payeeNames.map((name, index) => {
+  const finalResults: Array<{
+    classification: 'Business' | 'Individual';
+    confidence: number;
+    reasoning: string;
+    processingTier: 'Rule-Based' | 'AI-Powered' | 'Failed' | 'NLP-Based' | 'AI-Assisted' | 'Excluded';
+  } | null> = payeeNames.map((name, index) => {
     const exclusionResult = exclusionResults[index];
     if (exclusionResult.isExcluded) {
       stats.keywordExcluded++;
@@ -168,7 +174,12 @@ export async function completeBatchJob(
   // Re-apply keyword exclusions to get the same filtering
   const exclusionResults = originalPayeeNames.map(name => checkKeywordExclusion(name));
   const needsAI: { name: string; index: number }[] = [];
-  const finalResults = originalPayeeNames.map((name, index) => {
+  const finalResults: Array<{
+    classification: 'Business' | 'Individual';
+    confidence: number;
+    reasoning: string;
+    processingTier: 'Rule-Based' | 'AI-Powered' | 'Failed' | 'NLP-Based' | 'AI-Assisted' | 'Excluded';
+  } | null> = originalPayeeNames.map((name, index) => {
     const exclusionResult = exclusionResults[index];
     if (exclusionResult.isExcluded) {
       return {
@@ -221,3 +232,4 @@ export async function completeBatchJob(
     throw new Error(`Failed to complete batch job: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
+
