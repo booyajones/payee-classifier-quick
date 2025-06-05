@@ -6,6 +6,7 @@ import BatchClassificationForm from "@/components/BatchClassificationForm";
 import ClassificationResultTable from "@/components/ClassificationResultTable";
 import BatchProcessingSummary from "@/components/BatchProcessingSummary";
 import OpenAIKeySetup from "@/components/OpenAIKeySetup";
+import KeywordExclusionManager from "@/components/KeywordExclusionManager";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import { isOpenAIInitialized } from "@/lib/openai/client";
 
@@ -72,9 +73,10 @@ const Index = () => {
 
       <main className="container px-4 pb-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="single">Single Classification</TabsTrigger>
             <TabsTrigger value="batch">Batch Classification</TabsTrigger>
+            <TabsTrigger value="keywords">Keyword Management</TabsTrigger>
             <TabsTrigger value="results">Results</TabsTrigger>
           </TabsList>
           
@@ -86,6 +88,10 @@ const Index = () => {
           
           <TabsContent value="batch" className="mt-6">
             <BatchClassificationForm onComplete={handleBatchComplete} />
+          </TabsContent>
+          
+          <TabsContent value="keywords" className="mt-6">
+            <KeywordExclusionManager />
           </TabsContent>
           
           <TabsContent value="results" className="mt-6">
