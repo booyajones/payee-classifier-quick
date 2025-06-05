@@ -43,3 +43,9 @@ export {
 
 // Export name processing
 export * from './nameProcessing';
+
+// Export new batch utility modules
+export * from './batchStatistics';
+export * from './batchDeduplication';
+export * from './batchRetryHandler';
+export * from './batchExporter';
