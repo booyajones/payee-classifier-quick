@@ -13,3 +13,7 @@ export { processBatch } from './classification/batchProcessing';
 // Export new functionality
 export * from './classification/keywordExclusion';
 export * from './openai/batchAPI';
+
+// Export new true batch API functionality
+export * from './openai/trueBatchAPI';
+export * from './openai/hybridBatchProcessor';

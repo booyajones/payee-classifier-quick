@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,24 +5,29 @@ import { parseUploadedFile } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, File, Upload, RefreshCw, RotateCcw } from "lucide-react";
+import { AlertCircle, File, Upload, RotateCcw } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { processBatch, DEFAULT_CLASSIFICATION_CONFIG } from "@/lib/classificationEngine";
-import { enhancedProcessBatch } from "@/lib/classification/enhancedBatchProcessor";
 import { createPayeeClassification } from "@/lib/utils";
 import { PayeeClassification, BatchProcessingResult, ClassificationConfig } from "@/lib/types";
 import { Progress } from "@/components/ui/progress";
+import { processWithHybridBatch } from "@/lib/openai/hybridBatchProcessor";
+import { DEFAULT_CLASSIFICATION_CONFIG } from "@/lib/classification/config";
 
 interface FileUploadFormProps {
   onComplete: (results: PayeeClassification[], summary: BatchProcessingResult) => void;
   config?: ClassificationConfig;
+  processingMode?: 'realtime' | 'batch';
 }
 
-const FileUploadForm = ({ onComplete, config = {
-  ...DEFAULT_CLASSIFICATION_CONFIG,
-  useEnhanced: false, // Always disable enhanced mode
-  bypassRuleNLP: true  // Always use AI classification for accuracy
-} }: FileUploadFormProps) => {
+const FileUploadForm = ({ 
+  onComplete, 
+  config = {
+    ...DEFAULT_CLASSIFICATION_CONFIG,
+    useEnhanced: false,
+    bypassRuleNLP: true
+  },
+  processingMode = 'realtime'
+}: FileUploadFormProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [columns, setColumns] = useState<string[]>([]);
   const [selectedColumn, setSelectedColumn] = useState<string>("");
@@ -114,10 +118,7 @@ const FileUploadForm = ({ onComplete, config = {
       
       // Extract payee names from the selected column
       const payeeNames = data
-        .map(row => {
-          // Ensure we're using the exact selected column name
-          return row[selectedColumn];
-        })
+        .map(row => row[selectedColumn])
         .filter(name => name && typeof name === 'string' && name.trim() !== '');
       
       if (payeeNames.length === 0) {
@@ -130,38 +131,41 @@ const FileUploadForm = ({ onComplete, config = {
         return;
       }
 
-      console.log(`Processing ${payeeNames.length} names from column "${selectedColumn}"`);
-      setProcessingStatus(`Processing 0 of ${payeeNames.length} payees`);
+      console.log(`Processing ${payeeNames.length} names from column "${selectedColumn}" in ${processingMode} mode`);
+      setProcessingStatus(`Starting ${processingMode} processing for ${payeeNames.length} payees`);
 
-      // Process the batch of payee names with enhanced processing if enabled
       const startTime = performance.now();
-      const results = config.useEnhanced
-        ? await enhancedProcessBatch(
-            payeeNames,
-            (current, total, percentage) => {
-              setProgress(percentage);
-              setProcessingStatus(`Processing ${current} of ${total} payees`);
-            },
-            config
-          )
-        : await processBatch(
-            payeeNames,
-            (current, total, percentage) => {
-              setProgress(percentage);
-              setProcessingStatus(`Processing ${current} of ${total} payees`);
-            },
-            config
-          );
+      const result = await processWithHybridBatch(
+        payeeNames,
+        processingMode,
+        (current, total, percentage, stats) => {
+          setProgress(percentage);
+          const statusText = stats?.phase || `Processing ${current} of ${total} payees`;
+          setProcessingStatus(statusText);
+        },
+        config
+      );
           
       const endTime = performance.now();
       const processingTime = endTime - startTime;
 
-      // Map to PayeeClassification objects
+      if (processingMode === 'batch' && result.batchJob) {
+        toast({
+          title: "Batch Job Submitted",
+          description: `Your file with ${payeeNames.length} payees has been submitted for batch processing. Check the "Batch Jobs" tab to track progress.`,
+        });
+        
+        // For batch mode, we don't call onComplete immediately
+        // The batch job will be tracked separately
+        return;
+      }
+
+      // Map to PayeeClassification objects (for real-time mode)
       const classifications = payeeNames.map((name, index) => {
-        return createPayeeClassification(name, results[index]);
+        return createPayeeClassification(name, result.results[index]);
       });
 
-      const successCount = results.filter(result => result.confidence > 0).length;
+      const successCount = result.results.filter(r => r.confidence > 0).length;
       const failureCount = payeeNames.length - successCount;
       
       // Create summary
