@@ -8,7 +8,22 @@ export * from './nlpClassification';
 export * from './aiClassification';
 export * from './batchProcessing';
 export * from './utils';
-export * from './enhancedRules';
+
+// Export specific functions from enhancedRules to avoid conflicts
+export { 
+  detectBusinessByExtendedRules, 
+  detectIndividualByExtendedRules 
+} from './enhancedRules';
+
+// Export specific functions from stringMatching to avoid conflicts
+export { 
+  levenshteinDistance,
+  jaroWinklerSimilarity,
+  diceCoefficient,
+  tokenSortRatio,
+  calculateCombinedSimilarity,
+  advancedNormalization
+} from './stringMatching';
 
 // Export specific functions from enhancedClassification but exclude enhancedProcessBatch to avoid conflict
 export { enhancedClassifyPayee } from './enhancedClassification';
@@ -17,7 +32,11 @@ export { enhancedClassifyPayee } from './enhancedClassification';
 export { enhancedClassifyPayeeV2 } from './enhancedClassificationV2';
 export { enhancedProcessBatchV2, exportResultsWithOriginalData } from './enhancedBatchProcessorV2';
 
-// Export new string matching and keyword exclusion
-export * from './stringMatching';
-export * from './enhancedKeywordExclusion';
+// Export new enhanced keyword exclusion (avoid conflict with old one)
+export { 
+  checkKeywordExclusion as checkEnhancedKeywordExclusion,
+  bulkKeywordExclusion 
+} from './enhancedKeywordExclusion';
+
+// Export name processing
 export * from './nameProcessing';
