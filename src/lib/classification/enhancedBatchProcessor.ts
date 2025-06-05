@@ -61,7 +61,9 @@ export async function enhancedProcessBatch(
   try {
     // Phase 1: Apply keyword exclusion filtering
     console.log(`[ENHANCED] Phase 1: Keyword exclusion filtering`);
-    onProgress?.('Filtering excluded keywords...', 5);
+    if (onProgress) {
+      onProgress(0, total, 5, { phase: 'Filtering excluded keywords...' });
+    }
     
     const { validNames, excludedNames } = filterPayeeNames(validPayeeNames);
     stats.excludedCount = excludedNames.length;
@@ -105,11 +107,13 @@ export async function enhancedProcessBatch(
             const baseProgress = (stats.excludedCount / total) * 100;
             const adjustedProgress = baseProgress + ((progress / 100) * batchProgressWeight * (validNames.length / total));
             
-            onProgress?.(stats.processedCount, total, Math.round(adjustedProgress), {
-              phase: status,
-              excludedCount: stats.excludedCount,
-              batchProgress: progress
-            });
+            if (onProgress) {
+              onProgress(stats.processedCount, total, Math.round(adjustedProgress), {
+                phase: status,
+                excludedCount: stats.excludedCount,
+                batchProgress: progress
+              });
+            }
           }
         });
 
