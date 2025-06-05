@@ -3,12 +3,9 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
-import BatchProcessingSummary from "./BatchProcessingSummary";
-import ClassificationResultTable from "./ClassificationResultTable";
 import { PayeeClassification, BatchProcessingResult, ClassificationConfig } from "@/lib/types";
 import FileUploadForm from "./FileUploadForm";
 import BatchJobManager from "./BatchJobManager";
-import BatchProcessingModeSelector from "./BatchProcessingModeSelector";
 import BatchTextInput from "./BatchTextInput";
 import BatchResultsDisplay from "./BatchResultsDisplay";
 import { BatchJob } from "@/lib/openai/trueBatchAPI";
@@ -22,8 +19,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   const [payeeNames, setPayeeNames] = useState("");
   const [batchResults, setBatchResults] = useState<PayeeClassification[]>([]);
   const [processingSummary, setProcessingSummary] = useState<BatchProcessingResult | null>(null);
-  const [activeTab, setActiveTab] = useState<string>("text");
-  const [processingMode, setProcessingMode] = useState<'realtime' | 'batch'>('realtime');
+  const [activeTab, setActiveTab] = useState<string>("jobs");
   const [batchJobs, setBatchJobs] = useState<BatchJob[]>([]);
   const [payeeNamesMap, setPayeeNamesMap] = useState<Record<string, string[]>>({});
   const { toast } = useToast();
@@ -48,49 +44,36 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
     });
   };
 
-  const handleTextInputComplete = (results: PayeeClassification[], summary: BatchProcessingResult) => {
-    setBatchResults(results);
-    setProcessingSummary(summary);
-    
-    if (onBatchClassify) {
-      onBatchClassify(results);
-    }
-    
-    if (onComplete) {
-      onComplete(results, summary);
-    }
-
-    setActiveTab("results");
-  };
-
-  const handleFileUploadComplete = (results: PayeeClassification[], summary: BatchProcessingResult) => {
-    console.log(`[BATCH FORM V3] File upload complete with ${results.length} results`);
-    setBatchResults(results);
-    setProcessingSummary(summary);
-    
-    if (onBatchClassify) {
-      onBatchClassify(results);
-    }
-    
-    if (onComplete) {
-      onComplete(results, summary);
-    }
-
-    setActiveTab("results");
-  };
-
-  const handleFileUploadBatchJob = (batchJob: BatchJob, payeeNames: string[]) => {
-    console.log(`[BATCH FORM V3] File upload batch job created:`, batchJob);
+  const handleTextInputBatchJob = (batchJob: BatchJob, payeeNames: string[]) => {
+    console.log(`[BATCH FORM] Text input batch job created:`, batchJob);
     
     setBatchJobs(prev => {
       const newJobs = [...prev, batchJob];
-      console.log(`[BATCH FORM V3] UPDATED batch jobs from file upload:`, newJobs);
+      console.log(`[BATCH FORM] Updated batch jobs from text input:`, newJobs);
       return newJobs;
     });
     
     setPayeeNamesMap(prev => {
       const newMap = { ...prev, [batchJob.id]: payeeNames };
-      console.log(`[BATCH FORM V3] UPDATED payee names map from file upload:`, newMap);
+      console.log(`[BATCH FORM] Updated payee names map from text input:`, newMap);
+      return newMap;
+    });
+    
+    setActiveTab("jobs");
+  };
+
+  const handleFileUploadBatchJob = (batchJob: BatchJob, payeeNames: string[]) => {
+    console.log(`[BATCH FORM] File upload batch job created:`, batchJob);
+    
+    setBatchJobs(prev => {
+      const newJobs = [...prev, batchJob];
+      console.log(`[BATCH FORM] Updated batch jobs from file upload:`, newJobs);
+      return newJobs;
+    });
+    
+    setPayeeNamesMap(prev => {
+      const newMap = { ...prev, [batchJob.id]: payeeNames };
+      console.log(`[BATCH FORM] Updated payee names map from file upload:`, newMap);
       return newMap;
     });
     
@@ -98,16 +81,16 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   };
 
   const handleJobUpdate = (updatedJob: BatchJob) => {
-    console.log(`[BATCH FORM V3] Updating job:`, updatedJob);
+    console.log(`[BATCH FORM] Updating job:`, updatedJob);
     setBatchJobs(prev => {
       const newJobs = prev.map(job => job.id === updatedJob.id ? updatedJob : job);
-      console.log(`[BATCH FORM V3] Updated batch jobs after update:`, newJobs);
+      console.log(`[BATCH FORM] Updated batch jobs after update:`, newJobs);
       return newJobs;
     });
   };
 
   const handleJobComplete = (results: PayeeClassification[], summary: BatchProcessingResult, jobId: string) => {
-    console.log(`[BATCH FORM V3] Job ${jobId} completed with ${results.length} results`);
+    console.log(`[BATCH FORM] Job ${jobId} completed with ${results.length} results`);
     setBatchResults(results);
     setProcessingSummary(summary);
     
@@ -123,39 +106,31 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   };
 
   const handleJobDelete = (jobId: string) => {
-    console.log(`[BATCH FORM V3] Deleting job: ${jobId}`);
+    console.log(`[BATCH FORM] Deleting job: ${jobId}`);
     setBatchJobs(prev => {
       const newJobs = prev.filter(job => job.id !== jobId);
-      console.log(`[BATCH FORM V3] Batch jobs after deletion:`, newJobs);
+      console.log(`[BATCH FORM] Batch jobs after deletion:`, newJobs);
       return newJobs;
     });
     setPayeeNamesMap(prev => {
       const newMap = { ...prev };
       delete newMap[jobId];
-      console.log(`[BATCH FORM V3] Payee names map after deletion:`, newMap);
+      console.log(`[BATCH FORM] Payee names map after deletion:`, newMap);
       return newMap;
     });
   };
 
-  const payeeCount = payeeNames.split("\n").filter(name => name.trim() !== "").length;
-
-  console.log(`[BATCH FORM V3] RENDER - Active tab: ${activeTab}, Batch jobs: ${batchJobs.length}, Results: ${batchResults.length}`);
+  console.log(`[BATCH FORM] RENDER - Active tab: ${activeTab}, Batch jobs: ${batchJobs.length}, Results: ${batchResults.length}`);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Classify Batch of Payees (V3)</CardTitle>
+        <CardTitle>Batch Payee Classification</CardTitle>
         <CardDescription>
-          Enter a list of payee names or upload a file to classify them as businesses or individuals using the advanced V3 system with guaranteed success.
+          Submit payee names for batch processing using OpenAI's Batch API. All processing is asynchronous with 50% cost savings and results delivered within 24 hours.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <BatchProcessingModeSelector
-          mode={processingMode}
-          onModeChange={setProcessingMode}
-          payeeCount={payeeCount}
-        />
-      
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="text">Text Input</TabsTrigger>
@@ -170,7 +145,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
             <BatchTextInput
               payeeNames={payeeNames}
               setPayeeNames={setPayeeNames}
-              onComplete={handleTextInputComplete}
+              onBatchJobCreated={handleTextInputBatchJob}
               onReset={resetForm}
               config={config}
             />
@@ -178,10 +153,8 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
           
           <TabsContent value="file" className="mt-4">
             <FileUploadForm 
-              onComplete={handleFileUploadComplete} 
               onBatchJobCreated={handleFileUploadBatchJob}
               config={config}
-              processingMode={processingMode}
             />
           </TabsContent>
 
@@ -189,7 +162,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
             {batchJobs.length === 0 ? (
               <div className="text-center py-8 border rounded-md">
                 <p className="text-muted-foreground">
-                  No batch jobs yet. Submit a batch for processing to see jobs here.
+                  No batch jobs yet. Submit payees for batch processing to see jobs here.
                 </p>
               </div>
             ) : (

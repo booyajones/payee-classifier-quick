@@ -8,21 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, File, Upload, RotateCcw } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { createPayeeClassification } from "@/lib/utils";
-import { PayeeClassification, BatchProcessingResult, ClassificationConfig } from "@/lib/types";
-import { Progress } from "@/components/ui/progress";
-import { enhancedProcessBatchV3 } from "@/lib/classification/enhancedBatchProcessorV3";
-import { BatchJob } from "@/lib/openai/trueBatchAPI";
+import { ClassificationConfig } from "@/lib/types";
+import { createBatchJob, BatchJob } from "@/lib/openai/trueBatchAPI";
 
 interface FileUploadFormProps {
-  onComplete: (results: PayeeClassification[], summary: BatchProcessingResult) => void;
-  onBatchJobCreated?: (batchJob: BatchJob, payeeNames: string[]) => void;
+  onBatchJobCreated: (batchJob: BatchJob, payeeNames: string[]) => void;
   config?: ClassificationConfig;
-  processingMode?: 'realtime' | 'batch';
 }
 
 const FileUploadForm = ({ 
-  onComplete, 
   onBatchJobCreated,
   config = {
     aiThreshold: 80,
@@ -31,16 +25,13 @@ const FileUploadForm = ({
     offlineMode: false,
     useFuzzyMatching: true,
     similarityThreshold: 85
-  },
-  processingMode = 'realtime'
+  }
 }: FileUploadFormProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [columns, setColumns] = useState<string[]>([]);
   const [selectedColumn, setSelectedColumn] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [progress, setProgress] = useState<number>(0);
-  const [processingStatus, setProcessingStatus] = useState<string>("");
   const { toast } = useToast();
 
   const resetForm = () => {
@@ -48,8 +39,6 @@ const FileUploadForm = ({
     setColumns([]);
     setSelectedColumn("");
     setFileError(null);
-    setProgress(0);
-    setProcessingStatus("");
     
     // Reset the file input
     const fileInput = document.getElementById('file-upload') as HTMLInputElement;
@@ -115,8 +104,6 @@ const FileUploadForm = ({
     }
 
     setIsLoading(true);
-    setProgress(0);
-    setProcessingStatus("");
     
     try {
       // Parse the full file
@@ -137,58 +124,35 @@ const FileUploadForm = ({
         return;
       }
 
-      console.log(`[FILE UPLOAD V3] Processing ${payeeNames.length} names from column "${selectedColumn}"`);
-      setProcessingStatus(`Starting V3 processing for ${payeeNames.length} payees`);
+      console.log(`[FILE UPLOAD] Creating batch job for ${payeeNames.length} names from column "${selectedColumn}"`);
 
-      // Simulate progress updates
-      const progressInterval = setInterval(() => {
-        setProgress(prev => Math.min(prev + 3, 90));
-      }, 300);
+      const batchJob = await createBatchJob(payeeNames, `File upload batch: ${file.name}, ${payeeNames.length} payees`);
+      console.log(`[FILE UPLOAD] Batch job created:`, batchJob);
 
-      const startTime = performance.now();
-      const result = await enhancedProcessBatchV3(payeeNames, config, data);
-      const endTime = performance.now();
-      const processingTime = endTime - startTime;
-
-      clearInterval(progressInterval);
-      setProgress(100);
-
-      console.log(`[FILE UPLOAD V3] Processing complete:`, result);
-
-      // Create enhanced summary with original file data
-      const enhancedSummary: BatchProcessingResult = {
-        ...result,
-        originalFileData: data,
-        processingTime
-      };
-      
-      // Call the onComplete callback
-      onComplete(result.results, enhancedSummary);
+      onBatchJobCreated(batchJob, payeeNames);
       
       toast({
-        title: "V3 Processing Complete",
-        description: `Successfully processed ${result.results.length} payees from the uploaded file with 100% success rate.`,
+        title: "Batch Job Created",
+        description: `Successfully submitted ${payeeNames.length} payees from ${file.name} for batch processing. Job ID: ${batchJob.id.slice(-8)}`,
       });
     } catch (error) {
-      console.error("Error processing file with V3:", error);
+      console.error("Error creating batch job from file:", error);
       toast({
-        title: "Processing Error",
-        description: "An error occurred while processing the file with V3 system.",
+        title: "Batch Job Creation Error",
+        description: "An error occurred while creating the batch job from the uploaded file.",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
-      setProgress(0);
-      setProcessingStatus("");
     }
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Upload File for V3 Classification</CardTitle>
+        <CardTitle>Upload File for Batch Classification</CardTitle>
         <CardDescription>
-          Upload an Excel or CSV file containing payee names for bulk classification using the advanced V3 system
+          Upload an Excel or CSV file containing payee names for batch processing using OpenAI's Batch API
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -248,15 +212,15 @@ const FileUploadForm = ({
           </div>
         )}
         
-        {isLoading && (
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>{processingStatus}</span>
-              <span>{progress}%</span>
-            </div>
-            <Progress value={progress} className="h-2" />
-          </div>
-        )}
+        <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-md">
+          <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Batch Processing Benefits</h4>
+          <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+            <li>• 50% cost savings compared to real-time processing</li>
+            <li>• Handles large files efficiently</li>
+            <li>• Results delivered within 24 hours</li>
+            <li>• Monitor progress in the Batch Jobs tab</li>
+          </ul>
+        </div>
         
         <div className="flex gap-2">
           <Button 
@@ -265,7 +229,7 @@ const FileUploadForm = ({
             disabled={!file || !selectedColumn || isLoading}
             onClick={handleProcess}
           >
-            {isLoading ? "Processing with V3..." : "Process File with V3"}
+            {isLoading ? "Creating Batch Job..." : "Submit File for Batch Processing"}
           </Button>
           
           <Button
@@ -275,7 +239,7 @@ const FileUploadForm = ({
             disabled={isLoading}
           >
             <RotateCcw className="h-4 w-4 mr-2" />
-            Start Over
+            Clear
           </Button>
         </div>
       </CardContent>

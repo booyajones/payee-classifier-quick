@@ -13,7 +13,7 @@ import { isOpenAIInitialized } from "@/lib/openai/client";
 import { logMemoryUsage } from "@/lib/openai/apiUtils";
 
 const Index = () => {
-  const [activeTab, setActiveTab] = useState("single");
+  const [activeTab, setActiveTab] = useState("batch");
   const [batchResults, setBatchResults] = useState<PayeeClassification[]>([]);
   const [batchSummary, setBatchSummary] = useState<BatchProcessingResult | null>(null);
   const [allResults, setAllResults] = useState<PayeeClassification[]>([]);
@@ -55,9 +55,9 @@ const Index = () => {
         <div className="min-h-screen bg-background">
           <header className="bg-primary text-white py-6 mb-6">
             <div className="container px-4">
-              <h1 className="text-2xl font-bold">Payee Classification System</h1>
+              <h1 className="text-2xl font-bold">Batch Payee Classification System</h1>
               <p className="opacity-90">
-                Automatically classify payee names as businesses or individuals with AI
+                Efficient batch processing with OpenAI's Batch API - 50% cost savings
               </p>
             </div>
           </header>
@@ -77,9 +77,9 @@ const Index = () => {
       <div className="min-h-screen bg-background">
         <header className="bg-primary text-white py-6 mb-6">
           <div className="container px-4">
-            <h1 className="text-2xl font-bold">Payee Classification System V3</h1>
+            <h1 className="text-2xl font-bold">Batch Payee Classification System</h1>
             <p className="opacity-90">
-              Advanced AI classification with intelligent escalation and guaranteed success rate
+              Efficient batch processing using OpenAI's Batch API with 50% cost savings and 24-hour delivery
             </p>
           </div>
         </header>
@@ -88,7 +88,7 @@ const Index = () => {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="single">Single Classification</TabsTrigger>
-              <TabsTrigger value="batch">Batch Classification</TabsTrigger>
+              <TabsTrigger value="batch">Batch Processing</TabsTrigger>
               <TabsTrigger value="keywords">Keyword Management</TabsTrigger>
               <TabsTrigger value="results">Results</TabsTrigger>
             </TabsList>
@@ -102,7 +102,7 @@ const Index = () => {
             </TabsContent>
             
             <TabsContent value="batch" className="mt-6">
-              <ClassificationErrorBoundary context="Batch Classification">
+              <ClassificationErrorBoundary context="Batch Processing">
                 <BatchClassificationForm onComplete={handleBatchComplete} />
               </ClassificationErrorBoundary>
             </TabsContent>
@@ -126,7 +126,7 @@ const Index = () => {
                   ) : (
                     <div className="text-center py-8 border rounded-md">
                       <p className="text-muted-foreground">
-                        No classification results yet. Classify some payees to see results here.
+                        No classification results yet. Process some payees to see results here.
                       </p>
                     </div>
                   )}
@@ -138,7 +138,7 @@ const Index = () => {
 
         <footer className="bg-muted py-4 text-center text-sm text-muted-foreground">
           <div className="container">
-            <p>Payee Classification System V3 with Intelligent Escalation &copy; {new Date().getFullYear()}</p>
+            <p>Batch Payee Classification System with OpenAI Batch API &copy; {new Date().getFullYear()}</p>
           </div>
         </footer>
       </div>
