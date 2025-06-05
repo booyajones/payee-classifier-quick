@@ -1,6 +1,6 @@
 
 import { useState, useCallback } from 'react';
-import { AppError, showRetryableErrorToast } from '@/lib/errorHandler';
+import { AppError, handleError } from '@/lib/errorHandler';
 
 interface RetryState {
   isRetrying: boolean;
@@ -49,7 +49,7 @@ export const useRetry = <T extends any[], R>(
 
           return result;
         } catch (error) {
-          const appError = error instanceof Error ? error : new Error(String(error));
+          const appError = handleError(error, 'Retry operation');
           
           if (attemptNumber < maxRetries) {
             console.log(`[RETRY] Attempt ${attemptNumber + 1} failed, retrying in ${baseDelay * Math.pow(2, attemptNumber)}ms`);
@@ -65,7 +65,7 @@ export const useRetry = <T extends any[], R>(
             setRetryState({
               isRetrying: false,
               retryCount: attemptNumber,
-              lastError: appError as AppError
+              lastError: appError
             });
 
             throw appError;
@@ -78,11 +78,9 @@ export const useRetry = <T extends any[], R>(
     [asyncFunction, maxRetries, baseDelay]
   );
 
-  const retry = useCallback(() => {
-    if (retryState.lastError) {
-      return executeWithRetry();
-    }
-  }, [executeWithRetry, retryState.lastError]);
+  const retry = useCallback((...args: T) => {
+    return executeWithRetry(...args);
+  }, [executeWithRetry]);
 
   return {
     execute: executeWithRetry,

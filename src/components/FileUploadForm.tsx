@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -269,7 +268,7 @@ const FileUploadForm = ({
             onChange={handleFileChange}
           />
           <p className="text-xs text-muted-foreground">
-            Accepted formats: Excel (.xlsx, .xls) or CSV files (max 10MB, 10,000 rows)
+            Accepted formats: Excel (.xlsx, .xls) or CSV files (max 50MB, 50,000 rows)
           </p>
         </div>
         

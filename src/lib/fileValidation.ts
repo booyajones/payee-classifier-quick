@@ -13,8 +13,8 @@ export interface FileValidationResult {
   };
 }
 
-export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-export const MAX_ROWS = 10000; // Maximum payee names to process
+export const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+export const MAX_ROWS = 50000; // Maximum payee names to process
 export const SUPPORTED_EXTENSIONS = ['xlsx', 'xls', 'csv'];
 
 export const validateFile = (file: File): FileValidationResult => {

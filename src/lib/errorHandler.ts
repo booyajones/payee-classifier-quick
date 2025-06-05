@@ -1,4 +1,3 @@
-
 import { toast } from "@/hooks/use-toast";
 
 export interface AppError {
