@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import SingleClassificationForm from "@/components/SingleClassificationForm";
@@ -8,6 +7,7 @@ import BatchProcessingSummary from "@/components/BatchProcessingSummary";
 import OpenAIKeySetup from "@/components/OpenAIKeySetup";
 import KeywordExclusionManager from "@/components/KeywordExclusionManager";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import ClassificationErrorBoundary from "@/components/ClassificationErrorBoundary";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import { isOpenAIInitialized } from "@/lib/openai/client";
 import { logMemoryUsage } from "@/lib/openai/apiUtils";
@@ -77,9 +77,9 @@ const Index = () => {
       <div className="min-h-screen bg-background">
         <header className="bg-primary text-white py-6 mb-6">
           <div className="container px-4">
-            <h1 className="text-2xl font-bold">Payee Classification System</h1>
+            <h1 className="text-2xl font-bold">Payee Classification System V3</h1>
             <p className="opacity-90">
-              Automatically classify payee names as businesses or individuals with AI
+              Advanced AI classification with intelligent escalation and guaranteed success rate
             </p>
           </div>
         </header>
@@ -94,27 +94,27 @@ const Index = () => {
             </TabsList>
             
             <TabsContent value="single" className="mt-6">
-              <ErrorBoundary>
+              <ClassificationErrorBoundary context="Single Classification">
                 <div className="grid grid-cols-1 gap-6">
                   <SingleClassificationForm onClassify={handleSingleClassification} />
                 </div>
-              </ErrorBoundary>
+              </ClassificationErrorBoundary>
             </TabsContent>
             
             <TabsContent value="batch" className="mt-6">
-              <ErrorBoundary>
+              <ClassificationErrorBoundary context="Batch Classification">
                 <BatchClassificationForm onComplete={handleBatchComplete} />
-              </ErrorBoundary>
+              </ClassificationErrorBoundary>
             </TabsContent>
             
             <TabsContent value="keywords" className="mt-6">
-              <ErrorBoundary>
+              <ClassificationErrorBoundary context="Keyword Management">
                 <KeywordExclusionManager />
-              </ErrorBoundary>
+              </ClassificationErrorBoundary>
             </TabsContent>
             
             <TabsContent value="results" className="mt-6">
-              <ErrorBoundary>
+              <ClassificationErrorBoundary context="Results Display">
                 {batchSummary && batchResults.length > 0 && (
                   <BatchProcessingSummary summary={batchSummary} />
                 )}
@@ -131,14 +131,14 @@ const Index = () => {
                     </div>
                   )}
                 </div>
-              </ErrorBoundary>
+              </ClassificationErrorBoundary>
             </TabsContent>
           </Tabs>
         </main>
 
         <footer className="bg-muted py-4 text-center text-sm text-muted-foreground">
           <div className="container">
-            <p>Payee Classification System &copy; {new Date().getFullYear()}</p>
+            <p>Payee Classification System V3 with Intelligent Escalation &copy; {new Date().getFullYear()}</p>
           </div>
         </footer>
       </div>

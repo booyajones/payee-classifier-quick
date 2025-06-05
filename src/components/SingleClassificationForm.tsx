@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { classifyPayee, DEFAULT_CLASSIFICATION_CONFIG } from "@/lib/classificationEngine";
+import { enhancedClassifyPayeeV3 } from "@/lib/classification/enhancedClassificationV3";
 import { createPayeeClassification } from "@/lib/utils";
 import ClassificationResultCard from "./ClassificationResultCard";
 import { PayeeClassification, ClassificationConfig } from "@/lib/types";
@@ -22,9 +22,10 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentResult, setCurrentResult] = useState<PayeeClassification | null>(null);
   const [config, setConfig] = useState<ClassificationConfig>({
-    ...DEFAULT_CLASSIFICATION_CONFIG,
-    useEnhanced: false,
+    aiThreshold: 80,
     bypassRuleNLP: true,
+    useEnhanced: true,
+    offlineMode: false
   });
   const { toast } = useToast();
 
@@ -53,23 +54,23 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
     setIsProcessing(true);
     
     try {
-      console.log(`Starting real OpenAI classification for: ${payeeName}`);
+      console.log(`Starting V3 classification for: ${payeeName}`);
       
-      // Use real OpenAI API for classification - force enhanced mode off to use standard API
-      const result = await classifyPayee(payeeName, { ...config, useEnhanced: false }, false);
+      // Use V3 classification with intelligent escalation
+      const result = await enhancedClassifyPayeeV3(payeeName, config);
       const classification = createPayeeClassification(payeeName, result);
       
-      console.log(`Classification result:`, result);
+      console.log(`V3 Classification result:`, result);
       
       setCurrentResult(classification);
       onClassify(classification);
       
       toast({
         title: "Classification Complete",
-        description: `${payeeName} classified as ${result.classification} with ${result.confidence}% confidence using real OpenAI.`,
+        description: `${payeeName} classified as ${result.classification} with ${result.confidence}% confidence using V3 intelligent escalation.`,
       });
     } catch (error) {
-      console.error("Classification error:", error);
+      console.error("V3 Classification error:", error);
       toast({
         title: "Classification Error",
         description: error instanceof Error ? error.message : "An error occurred while processing your request.",
@@ -85,12 +86,16 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
     setConfig(prev => ({ ...prev, aiThreshold: value[0] }));
   };
 
+  const handleOfflineModeChange = (checked: boolean) => {
+    setConfig(prev => ({ ...prev, offlineMode: checked }));
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Classify Single Payee</CardTitle>
+        <CardTitle>Classify Single Payee (V3)</CardTitle>
         <CardDescription>
-          Enter a payee name to classify it as a business or individual using real OpenAI API.
+          Enter a payee name to classify it using the advanced V3 classification system with intelligent escalation.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -108,7 +113,7 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
           </div>
           
           <div className="space-y-4 border rounded-md p-4">
-            <h3 className="text-md font-medium">Classification Settings</h3>
+            <h3 className="text-md font-medium">V3 Classification Settings</h3>
             
             <div className="space-y-4">
               <div className="space-y-2">
@@ -117,35 +122,36 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
                 </div>
                 <Slider
                   id="aiThreshold"
-                  min={0}
-                  max={100}
+                  min={50}
+                  max={95}
                   step={5}
                   value={[config.aiThreshold]}
                   onValueChange={handleThresholdChange}
-                  disabled={true}
+                  disabled={isProcessing}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Using AI-Only mode for maximum accuracy
+                  Threshold for escalating to AI classification
                 </p>
               </div>
               
               <div className="flex items-center space-x-2">
                 <Switch
-                  id="aiOnly"
-                  checked={true}
-                  disabled={true}
+                  id="offlineMode"
+                  checked={config.offlineMode}
+                  onCheckedChange={handleOfflineModeChange}
+                  disabled={isProcessing}
                 />
-                <Label htmlFor="aiOnly">AI-Only Mode (Always On)</Label>
+                <Label htmlFor="offlineMode">Offline Mode (No AI/Web Search)</Label>
               </div>
               <p className="text-xs text-muted-foreground">
-                Using advanced AI classification powered by OpenAI for all payees to ensure maximum accuracy
+                V3 uses intelligent escalation: Rule-Based → Fuzzy Matching → AI → Web Search Enhanced AI
               </p>
             </div>
           </div>
           
           <div className="flex gap-2">
             <Button type="submit" className="flex-1" disabled={isProcessing}>
-              {isProcessing ? "Classifying..." : "Classify Payee"}
+              {isProcessing ? "Classifying..." : "Classify with V3"}
             </Button>
             
             <Button
@@ -162,7 +168,7 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
 
         {currentResult && (
           <div className="mt-6">
-            <h3 className="text-lg font-medium mb-2">Classification Result</h3>
+            <h3 className="text-lg font-medium mb-2">V3 Classification Result</h3>
             <ClassificationResultCard result={currentResult} />
           </div>
         )}

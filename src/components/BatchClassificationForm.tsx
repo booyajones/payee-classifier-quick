@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +16,8 @@ import { RotateCcw } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { processWithHybridBatch, completeBatchJob } from "@/lib/openai/hybridBatchProcessor";
 import { BatchJob } from "@/lib/openai/trueBatchAPI";
+import * as XLSX from 'xlsx';
+import { exportResultsWithOriginalDataV3 } from "@/lib/classification/enhancedBatchProcessorV3";
 
 interface BatchClassificationFormProps {
   onBatchClassify?: (results: PayeeClassification[]) => void;
@@ -31,16 +32,19 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   const [activeTab, setActiveTab] = useState<string>("text");
   const [progress, setProgress] = useState<number>(0);
   const [processingStatus, setProcessingStatus] = useState<string>("");
-  const [processingMode, setProcessingMode] = useState<'realtime' | 'batch'>('realtime');
+  const [processingMode, setProcessingMode<'realtime' | 'batch'>('realtime');
   const [batchJobs, setBatchJobs] = useState<BatchJob[]>([]);
   const [payeeNamesMap, setPayeeNamesMap] = useState<Record<string, string[]>>({});
   const { toast } = useToast();
 
-  // Configuration for AI-only mode with real OpenAI API
+  // V3 Configuration
   const config: ClassificationConfig = {
     aiThreshold: 80,
     bypassRuleNLP: true,
-    useEnhanced: false,
+    useEnhanced: true,
+    offlineMode: false,
+    useFuzzyMatching: true,
+    similarityThreshold: 85
   };
 
   const resetForm = () => {
@@ -260,6 +264,47 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
       console.log(`[BATCH FORM] Payee names map after deletion:`, newMap);
       return newMap;
     });
+  };
+
+  const handleExportResults = () => {
+    if (!processingSummary || batchResults.length === 0) {
+      toast({
+        title: "No Results to Export",
+        description: "Please process some payees first before exporting results.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const exportData = exportResultsWithOriginalDataV3(processingSummary, true);
+      
+      // Create workbook and worksheet
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Classification Results");
+      
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const filename = `payee_classification_v3_${timestamp}.xlsx`;
+      
+      // Save file
+      XLSX.writeFile(workbook, filename);
+      
+      toast({
+        title: "Export Complete",
+        description: `Results exported to ${filename} with all V3 enhancement data.`,
+      });
+    } catch (error) {
+      console.error("Export error:", error);
+      toast({
+        title: "Export Error",
+        description: "Failed to export results. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const payeeCount = payeeNames.split("\n").filter(name => name.trim() !== "").length;
