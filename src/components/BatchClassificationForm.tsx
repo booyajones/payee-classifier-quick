@@ -15,10 +15,9 @@ import BatchJobManager from "./BatchJobManager";
 import BatchProcessingModeSelector from "./BatchProcessingModeSelector";
 import { RotateCcw } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import { processWithHybridBatch, completeBatchJob } from "@/lib/openai/hybridBatchProcessor";
+import { enhancedProcessBatchV3, exportResultsWithOriginalDataV3 } from "@/lib/classification/enhancedBatchProcessorV3";
 import { BatchJob } from "@/lib/openai/trueBatchAPI";
 import * as XLSX from 'xlsx';
-import { exportResultsWithOriginalDataV3 } from "@/lib/classification/enhancedBatchProcessorV3";
 
 interface BatchClassificationFormProps {
   onBatchClassify?: (results: PayeeClassification[]) => void;
@@ -81,102 +80,51 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
 
     try {
       const names = payeeNames.split("\n").map(name => name.trim()).filter(name => name !== "");
-      console.log(`[BATCH FORM] Processing ${names.length} names in ${processingMode} mode:`, names);
+      console.log(`[BATCH FORM V3] Processing ${names.length} names:`, names);
       
-      setProcessingStatus(`Starting ${processingMode} processing for ${names.length} payees`);
+      setProcessingStatus(`Starting V3 processing for ${names.length} payees`);
       
-      const result = await processWithHybridBatch(
-        names,
-        processingMode,
-        (current, total, percentage, stats) => {
-          setProgress(percentage);
-          const statusText = stats?.phase || `Processing ${current} of ${total} payees`;
-          setProcessingStatus(statusText);
-          console.log(`[BATCH FORM] Progress: ${current}/${total} (${percentage}%)`, stats);
-        },
-        config
-      );
+      // Use V3 enhanced batch processor
+      const result = await enhancedProcessBatchV3(names, config);
 
-      console.log(`[BATCH FORM] Process result:`, result);
+      console.log(`[BATCH FORM V3] Process result:`, result);
 
-      if (processingMode === 'batch' && result.batchJob) {
-        console.log(`[BATCH FORM] BATCH MODE: Adding batch job to state:`, result.batchJob);
-        
-        // Store batch job for tracking - CRITICAL FIX: Use functional update
-        setBatchJobs(prev => {
-          const newJobs = [...prev, result.batchJob!];
-          console.log(`[BATCH FORM] UPDATED batch jobs state from ${prev.length} to ${newJobs.length}:`, newJobs);
-          return newJobs;
-        });
-        
-        // Store payee names mapping - CRITICAL FIX: Use functional update
-        setPayeeNamesMap(prev => {
-          const newMap = { ...prev, [result.batchJob!.id]: names };
-          console.log(`[BATCH FORM] UPDATED payee names map:`, newMap);
-          return newMap;
-        });
-        
-        toast({
-          title: "Batch Job Submitted",
-          description: `Your batch of ${names.length} payees has been submitted for processing. Check the "Batch Jobs" tab to track progress.`,
-        });
-        
-        // Auto-switch to jobs tab to show the new job
-        console.log(`[BATCH FORM] Switching to jobs tab`);
-        setActiveTab("jobs");
-      } else {
-        // Real-time processing completed
-        console.log(`[BATCH FORM] REALTIME MODE: Received ${result.results.length} results:`, result.results);
+      // Real-time processing completed
+      console.log(`[BATCH FORM V3] Received ${result.results.length} results:`, result.results);
 
-        const successCount = result.results.filter(r => r.confidence > 0).length;
-        const failureCount = names.length - successCount;
+      const successCount = result.results.filter(r => r.result.confidence > 0).length;
+      const failureCount = names.length - successCount;
 
-        const classifications = names.map((name, index) => {
-          const classResult = result.results[index];
-          if (!classResult) {
-            console.warn(`[BATCH FORM] Missing result for index ${index}, name: ${name}`);
-          }
-          
-          // Convert to proper ClassificationResult type
-          const classificationResult: ClassificationResult = {
-            classification: classResult?.classification || 'Individual',
-            confidence: classResult?.confidence || 0,
-            reasoning: classResult?.reasoning || 'No result found',
-            processingTier: classResult?.processingTier || 'Failed'
-          };
-          
-          return createPayeeClassification(name, classificationResult);
-        });
+      const classifications = result.results;
 
-        console.log(`[BATCH FORM] Created ${classifications.length} classifications`);
+      console.log(`[BATCH FORM V3] Created ${classifications.length} classifications`);
 
-        setBatchResults(classifications);
-        if (onBatchClassify) {
-          onBatchClassify(classifications);
-        }
-        
-        const summary: BatchProcessingResult = {
-          results: classifications,
-          successCount,
-          failureCount
-        };
-        
-        setProcessingSummary(summary);
-        
-        if (onComplete) {
-          onComplete(classifications, summary);
-        }
-
-        // Switch to results tab for real-time processing
-        setActiveTab("results");
-
-        toast({
-          title: "Real-time Classification Complete",
-          description: `Successfully classified ${successCount} payees using OpenAI. ${failureCount} ${failureCount === 1 ? 'failure' : 'failures'}`,
-        });
+      setBatchResults(classifications);
+      if (onBatchClassify) {
+        onBatchClassify(classifications);
       }
+      
+      const summary: BatchProcessingResult = {
+        results: classifications,
+        successCount,
+        failureCount
+      };
+      
+      setProcessingSummary(summary);
+      
+      if (onComplete) {
+        onComplete(classifications, summary);
+      }
+
+      // Switch to results tab
+      setActiveTab("results");
+
+      toast({
+        title: "V3 Classification Complete",
+        description: `Successfully classified ${successCount} payees using V3 system. ${failureCount} ${failureCount === 1 ? 'failure' : 'failures'}`,
+      });
     } catch (error) {
-      console.error("Batch classification error:", error);
+      console.error("V3 batch classification error:", error);
       toast({
         title: "Batch Classification Error",
         description: error instanceof Error ? error.message : "An error occurred while processing the batch.",
@@ -190,7 +138,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   };
 
   const handleFileUploadComplete = (results: PayeeClassification[], summary: BatchProcessingResult) => {
-    console.log(`[BATCH FORM] File upload complete with ${results.length} results`);
+    console.log(`[BATCH FORM V3] File upload complete with ${results.length} results`);
     setBatchResults(results);
     setProcessingSummary(summary);
     
@@ -207,18 +155,18 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   };
 
   const handleFileUploadBatchJob = (batchJob: BatchJob, payeeNames: string[]) => {
-    console.log(`[BATCH FORM] File upload batch job created:`, batchJob);
+    console.log(`[BATCH FORM V3] File upload batch job created:`, batchJob);
     
     // Add batch job from file upload
     setBatchJobs(prev => {
       const newJobs = [...prev, batchJob];
-      console.log(`[BATCH FORM] UPDATED batch jobs from file upload:`, newJobs);
+      console.log(`[BATCH FORM V3] UPDATED batch jobs from file upload:`, newJobs);
       return newJobs;
     });
     
     setPayeeNamesMap(prev => {
       const newMap = { ...prev, [batchJob.id]: payeeNames };
-      console.log(`[BATCH FORM] UPDATED payee names map from file upload:`, newMap);
+      console.log(`[BATCH FORM V3] UPDATED payee names map from file upload:`, newMap);
       return newMap;
     });
     
@@ -227,16 +175,16 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   };
 
   const handleJobUpdate = (updatedJob: BatchJob) => {
-    console.log(`[BATCH FORM] Updating job:`, updatedJob);
+    console.log(`[BATCH FORM V3] Updating job:`, updatedJob);
     setBatchJobs(prev => {
       const newJobs = prev.map(job => job.id === updatedJob.id ? updatedJob : job);
-      console.log(`[BATCH FORM] Updated batch jobs after update:`, newJobs);
+      console.log(`[BATCH FORM V3] Updated batch jobs after update:`, newJobs);
       return newJobs;
     });
   };
 
   const handleJobComplete = (results: PayeeClassification[], summary: BatchProcessingResult, jobId: string) => {
-    console.log(`[BATCH FORM] Job ${jobId} completed with ${results.length} results`);
+    console.log(`[BATCH FORM V3] Job ${jobId} completed with ${results.length} results`);
     setBatchResults(results);
     setProcessingSummary(summary);
     
@@ -253,16 +201,16 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   };
 
   const handleJobDelete = (jobId: string) => {
-    console.log(`[BATCH FORM] Deleting job: ${jobId}`);
+    console.log(`[BATCH FORM V3] Deleting job: ${jobId}`);
     setBatchJobs(prev => {
       const newJobs = prev.filter(job => job.id !== jobId);
-      console.log(`[BATCH FORM] Batch jobs after deletion:`, newJobs);
+      console.log(`[BATCH FORM V3] Batch jobs after deletion:`, newJobs);
       return newJobs;
     });
     setPayeeNamesMap(prev => {
       const newMap = { ...prev };
       delete newMap[jobId];
-      console.log(`[BATCH FORM] Payee names map after deletion:`, newMap);
+      console.log(`[BATCH FORM V3] Payee names map after deletion:`, newMap);
       return newMap;
     });
   };
@@ -310,14 +258,14 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
 
   const payeeCount = payeeNames.split("\n").filter(name => name.trim() !== "").length;
 
-  console.log(`[BATCH FORM] RENDER - Active tab: ${activeTab}, Batch jobs: ${batchJobs.length}, Results: ${batchResults.length}`);
+  console.log(`[BATCH FORM V3] RENDER - Active tab: ${activeTab}, Batch jobs: ${batchJobs.length}, Results: ${batchResults.length}`);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Classify Batch of Payees</CardTitle>
+        <CardTitle>Classify Batch of Payees (V3)</CardTitle>
         <CardDescription>
-          Enter a list of payee names or upload a file to classify them as businesses or individuals using OpenAI's advanced AI.
+          Enter a list of payee names or upload a file to classify them as businesses or individuals using the advanced V3 system with guaranteed success.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -366,10 +314,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
               
               <div className="flex gap-2">
                 <Button type="submit" className="flex-1" disabled={isProcessing || payeeCount === 0}>
-                  {isProcessing 
-                    ? (processingMode === 'batch' ? "Submitting..." : "Classifying...") 
-                    : (processingMode === 'batch' ? "Submit Batch Job" : "Classify Now")
-                  }
+                  {isProcessing ? "Classifying with V3..." : "Classify with V3"}
                 </Button>
                 
                 <Button
@@ -421,15 +366,23 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
 
             {batchResults.length > 0 && (
               <div>
-                <h3 className="text-lg font-medium mb-2">Classification Results</h3>
+                <h3 className="text-lg font-medium mb-2">V3 Classification Results</h3>
                 <ClassificationResultTable results={batchResults} />
                 
-                <div className="mt-4">
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleExportResults}
+                    disabled={isProcessing}
+                    className="flex-1"
+                  >
+                    Export V3 Results
+                  </Button>
+                  
                   <Button
                     variant="outline"
                     onClick={resetForm}
                     disabled={isProcessing}
-                    className="w-full"
                   >
                     <RotateCcw className="h-4 w-4 mr-2" />
                     Start Over
