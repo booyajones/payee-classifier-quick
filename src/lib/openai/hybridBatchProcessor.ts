@@ -1,190 +1,221 @@
 
-import { ClassificationResult, ClassificationConfig } from '../types';
-import { filterPayeeNames } from '../classification/keywordExclusion';
-import { createBatchJob, pollBatchJob, getBatchJobResults, BatchJob } from './trueBatchAPI';
-import { processBatchClassification } from './batchAPI';
+import { ClassificationConfig } from '@/lib/types';
+import { createBatchJob, BatchJob, getBatchJobResults, TrueBatchClassificationResult } from './trueBatchAPI';
+import { classifyPayeesParallel } from './optimizedBatchClassification';
+import { checkKeywordExclusions } from '@/lib/classification/keywordExclusion';
 
 export interface HybridBatchResult {
-  results: ClassificationResult[];
+  results: Array<{
+    classification: 'Business' | 'Individual';
+    confidence: number;
+    reasoning: string;
+    processingTier: string;
+  }>;
   batchJob?: BatchJob;
-  processingMode: 'realtime' | 'batch' | 'hybrid';
+  stats?: {
+    keywordExcluded: number;
+    aiProcessed: number;
+    phase: string;
+  };
 }
 
+export interface BatchStats {
+  keywordExcluded: number;
+  aiProcessed: number;
+  phase: string;
+}
+
+export type ProgressCallback = (
+  current: number,
+  total: number,
+  percentage: number,
+  stats?: BatchStats
+) => void;
+
 /**
- * Process a batch using either real-time or true batch API
+ * Process payees using either real-time or batch mode
  */
 export async function processWithHybridBatch(
   payeeNames: string[],
   mode: 'realtime' | 'batch',
-  onProgress?: (current: number, total: number, percentage: number, stats?: any) => void,
+  onProgress?: ProgressCallback,
   config?: ClassificationConfig
 ): Promise<HybridBatchResult> {
   console.log(`[HYBRID BATCH] Starting ${mode} processing for ${payeeNames.length} payees`);
+  
+  const stats: BatchStats = {
+    keywordExcluded: 0,
+    aiProcessed: 0,
+    phase: 'Initializing'
+  };
 
-  const total = payeeNames.length;
-  let processedCount = 0;
+  // Step 1: Apply keyword exclusions first
+  stats.phase = 'Applying keyword exclusions';
+  onProgress?.(0, payeeNames.length, 0, stats);
 
-  // Phase 1: Apply keyword exclusion filtering
-  if (onProgress) {
-    onProgress(0, total, 5, { 
-      phase: 'Filtering excluded keywords...',
-      mode 
-    });
-  }
-
-  const { validNames, excludedNames } = filterPayeeNames(payeeNames);
-  const results: ClassificationResult[] = new Array(total);
-
-  // Create exclusion results
-  excludedNames.forEach(({ name, reason }) => {
-    const originalIndex = payeeNames.indexOf(name);
-    if (originalIndex !== -1) {
-      results[originalIndex] = {
-        classification: 'Individual',
-        confidence: 0,
-        reasoning: `Excluded due to keywords: ${reason.join(', ')}`,
-        processingTier: 'Excluded'
+  const exclusionResults = payeeNames.map(name => checkKeywordExclusions(name));
+  
+  // Separate excluded vs. needs AI processing
+  const needsAI: { name: string; index: number }[] = [];
+  const finalResults = payeeNames.map((name, index) => {
+    const exclusionResult = exclusionResults[index];
+    if (exclusionResult.excluded) {
+      stats.keywordExcluded++;
+      return {
+        classification: exclusionResult.classification,
+        confidence: exclusionResult.confidence,
+        reasoning: exclusionResult.reasoning,
+        processingTier: 'Rule-Based'
       };
-      processedCount++;
+    } else {
+      needsAI.push({ name, index });
+      return null; // Placeholder
     }
   });
 
-  // Update progress after filtering
-  if (onProgress) {
-    const percentage = Math.round((processedCount / total) * 100);
-    onProgress(processedCount, total, percentage, {
-      phase: `Keyword filtering complete - ${excludedNames.length} excluded`,
-      excludedCount: excludedNames.length,
-      remainingForAI: validNames.length,
-      mode
-    });
-  }
+  console.log(`[HYBRID BATCH] Keyword exclusions: ${stats.keywordExcluded}, Need AI: ${needsAI.length}`);
 
-  if (validNames.length === 0) {
+  if (needsAI.length === 0) {
+    // All were excluded by keywords
+    stats.phase = 'Complete - All keyword excluded';
+    onProgress?.(payeeNames.length, payeeNames.length, 100, stats);
     return {
-      results,
-      processingMode: 'hybrid'
+      results: finalResults.filter(r => r !== null) as HybridBatchResult['results']
     };
   }
 
-  // Phase 2: Process remaining names based on mode
+  const aiNames = needsAI.map(item => item.name);
+
   if (mode === 'batch') {
-    // Use true OpenAI Batch API
-    if (onProgress) {
-      onProgress(processedCount, total, Math.round((processedCount / total) * 100), {
-        phase: 'Creating batch job...',
-        mode: 'batch'
-      });
+    // Submit to OpenAI Batch API
+    stats.phase = 'Submitting batch job';
+    onProgress?.(stats.keywordExcluded, payeeNames.length, (stats.keywordExcluded / payeeNames.length) * 100, stats);
+
+    try {
+      console.log(`[HYBRID BATCH] Creating batch job for ${aiNames.length} names`);
+      const batchJob = await createBatchJob(aiNames, `Hybrid classification batch - ${aiNames.length} payees`);
+      console.log(`[HYBRID BATCH] Created batch job:`, batchJob);
+      
+      stats.phase = 'Batch job submitted';
+      stats.aiProcessed = aiNames.length;
+      onProgress?.(payeeNames.length, payeeNames.length, 100, stats);
+
+      return {
+        results: [], // Results will come later via polling
+        batchJob,
+        stats
+      };
+    } catch (error) {
+      console.error('[HYBRID BATCH] Error creating batch job:', error);
+      throw new Error(`Failed to create batch job: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    const batchJob = await createBatchJob(
-      validNames,
-      `Payee classification batch - ${validNames.length} names`
-    );
-
-    if (onProgress) {
-      onProgress(processedCount, total, Math.round((processedCount / total) * 100), {
-        phase: `Batch job created: ${batchJob.id}`,
-        batchJobId: batchJob.id,
-        batchStatus: batchJob.status,
-        mode: 'batch'
-      });
-    }
-
-    // For batch mode, we return immediately with the job info
-    // The UI will handle polling and getting results later
-    return {
-      results,
-      batchJob,
-      processingMode: 'batch'
-    };
-
   } else {
-    // Use real-time processing
-    const batchResults = await processBatchClassification({
-      payeeNames: validNames,
-      onProgress: (status: string, progress: number) => {
-        // Map batch API progress to overall progress
-        const batchProgressWeight = 90; // 90% of remaining progress
-        const baseProgress = (processedCount / total) * 100;
-        const adjustedProgress = baseProgress + ((progress / 100) * batchProgressWeight * (validNames.length / total));
-        
-        if (onProgress) {
-          onProgress(
-            processedCount + Math.round((progress / 100) * validNames.length),
-            total,
-            Math.round(adjustedProgress),
-            {
-              phase: status,
-              mode: 'realtime',
-              realtimeProgress: progress
-            }
-          );
-        }
-      }
-    });
+    // Real-time processing
+    stats.phase = 'Processing with AI (real-time)';
+    
+    try {
+      const aiResults = await classifyPayeesParallel(
+        aiNames,
+        (current, total) => {
+          const totalProgress = stats.keywordExcluded + current;
+          const percentage = (totalProgress / payeeNames.length) * 100;
+          stats.phase = `AI processing: ${current}/${total}`;
+          stats.aiProcessed = current;
+          onProgress?.(totalProgress, payeeNames.length, percentage, stats);
+        },
+        config
+      );
 
-    // Map batch results back to positions
-    batchResults.forEach((batchResult, index) => {
-      const name = validNames[index];
-      if (name) {
-        const globalIndex = payeeNames.indexOf(name);
-        if (globalIndex !== -1) {
-          results[globalIndex] = {
-            classification: batchResult.classification,
-            confidence: batchResult.confidence,
-            reasoning: batchResult.reasoning,
-            processingTier: batchResult.status === 'success' ? 'AI-Powered' : 'Failed'
-          };
-          processedCount++;
-        }
-      }
-    });
+      console.log(`[HYBRID BATCH] AI processing complete. Results:`, aiResults);
 
-    // Final progress update
-    if (onProgress) {
-      onProgress(total, total, 100, {
-        phase: 'Real-time processing complete',
-        mode: 'realtime'
+      // Merge AI results back into final results
+      needsAI.forEach((item, aiIndex) => {
+        const aiResult = aiResults[aiIndex];
+        finalResults[item.index] = {
+          classification: aiResult?.classification || 'Individual',
+          confidence: aiResult?.confidence || 0,
+          reasoning: aiResult?.reasoning || 'AI classification failed',
+          processingTier: 'AI-Powered'
+        };
       });
-    }
 
-    return {
-      results,
-      processingMode: 'realtime'
-    };
+      stats.phase = 'Complete';
+      stats.aiProcessed = aiNames.length;
+      onProgress?.(payeeNames.length, payeeNames.length, 100, stats);
+
+      return {
+        results: finalResults.filter(r => r !== null) as HybridBatchResult['results'],
+        stats
+      };
+    } catch (error) {
+      console.error('[HYBRID BATCH] Error in real-time processing:', error);
+      throw new Error(`Real-time processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 }
 
 /**
- * Complete a batch job and get results
+ * Complete a batch job by retrieving and processing results
  */
 export async function completeBatchJob(
   batchJob: BatchJob,
-  payeeNames: string[],
-  onProgress?: (job: BatchJob) => void
-): Promise<ClassificationResult[]> {
-  console.log(`[HYBRID BATCH] Completing batch job: ${batchJob.id}`);
+  originalPayeeNames: string[]
+): Promise<HybridBatchResult> {
+  console.log(`[HYBRID BATCH] Completing batch job ${batchJob.id} for ${originalPayeeNames.length} payees`);
+  
+  // Re-apply keyword exclusions to get the same filtering
+  const exclusionResults = originalPayeeNames.map(name => checkKeywordExclusions(name));
+  const needsAI: { name: string; index: number }[] = [];
+  const finalResults = originalPayeeNames.map((name, index) => {
+    const exclusionResult = exclusionResults[index];
+    if (exclusionResult.excluded) {
+      return {
+        classification: exclusionResult.classification,
+        confidence: exclusionResult.confidence,
+        reasoning: exclusionResult.reasoning,
+        processingTier: 'Rule-Based'
+      };
+    } else {
+      needsAI.push({ name, index });
+      return null;
+    }
+  });
 
-  // Poll until completion
-  const completedJob = await pollBatchJob(
-    batchJob.id,
-    onProgress,
-    5000 // Poll every 5 seconds
-  );
-
-  if (completedJob.status !== 'completed') {
-    throw new Error(`Batch job failed with status: ${completedJob.status}`);
+  if (needsAI.length === 0) {
+    return {
+      results: finalResults.filter(r => r !== null) as HybridBatchResult['results']
+    };
   }
 
-  // Get and parse results
-  const batchResults = await getBatchJobResults(completedJob, payeeNames);
+  const aiNames = needsAI.map(item => item.name);
+  
+  try {
+    console.log(`[HYBRID BATCH] Retrieving batch results for ${aiNames.length} AI-processed names`);
+    const batchResults = await getBatchJobResults(batchJob, aiNames);
+    
+    // Merge batch results back into final results
+    needsAI.forEach((item, aiIndex) => {
+      const batchResult = batchResults[aiIndex];
+      finalResults[item.index] = {
+        classification: batchResult?.classification || 'Individual',
+        confidence: batchResult?.confidence || 0,
+        reasoning: batchResult?.reasoning || 'Batch processing failed',
+        processingTier: batchResult?.status === 'success' ? 'AI-Powered' : 'Failed'
+      };
+    });
 
-  // Convert to ClassificationResult format
-  return batchResults.map(result => ({
-    classification: result.classification,
-    confidence: result.confidence,
-    reasoning: result.reasoning,
-    processingTier: result.status === 'success' ? 'AI-Powered' : 'Failed'
-  }));
+    console.log(`[HYBRID BATCH] Batch job completion successful`);
+
+    return {
+      results: finalResults.filter(r => r !== null) as HybridBatchResult['results'],
+      stats: {
+        keywordExcluded: originalPayeeNames.length - needsAI.length,
+        aiProcessed: needsAI.length,
+        phase: 'Complete'
+      }
+    };
+  } catch (error) {
+    console.error('[HYBRID BATCH] Error completing batch job:', error);
+    throw new Error(`Failed to complete batch job: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }

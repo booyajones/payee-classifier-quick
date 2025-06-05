@@ -92,16 +92,31 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
         config
       );
 
+      console.log(`[BATCH FORM] Process result:`, result);
+
       if (processingMode === 'batch' && result.batchJob) {
+        console.log(`[BATCH FORM] Adding batch job to state:`, result.batchJob);
+        
         // Store batch job for tracking
-        setBatchJobs(prev => [...prev, result.batchJob!]);
-        setPayeeNamesMap(prev => ({ ...prev, [result.batchJob!.id]: names }));
+        setBatchJobs(prev => {
+          const newJobs = [...prev, result.batchJob!];
+          console.log(`[BATCH FORM] Updated batch jobs:`, newJobs);
+          return newJobs;
+        });
+        
+        setPayeeNamesMap(prev => {
+          const newMap = { ...prev, [result.batchJob!.id]: names };
+          console.log(`[BATCH FORM] Updated payee names map:`, newMap);
+          return newMap;
+        });
         
         toast({
           title: "Batch Job Submitted",
           description: `Your batch of ${names.length} payees has been submitted for processing. Check the "Batch Jobs" tab to track progress.`,
         });
         
+        // Auto-switch to jobs tab to show the new job
+        console.log(`[BATCH FORM] Switching to jobs tab`);
         setActiveTab("jobs");
       } else {
         // Real-time processing completed
@@ -142,6 +157,9 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
           onComplete(classifications, summary);
         }
 
+        // Switch to results tab for real-time processing
+        setActiveTab("results");
+
         toast({
           title: "Real-time Classification Complete",
           description: `Successfully classified ${successCount} payees using OpenAI. ${failureCount} ${failureCount === 1 ? 'failure' : 'failures'}`,
@@ -172,13 +190,22 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
     if (onComplete) {
       onComplete(results, summary);
     }
+
+    // Switch to results tab
+    setActiveTab("results");
   };
 
   const handleJobUpdate = (updatedJob: BatchJob) => {
-    setBatchJobs(prev => prev.map(job => job.id === updatedJob.id ? updatedJob : job));
+    console.log(`[BATCH FORM] Updating job:`, updatedJob);
+    setBatchJobs(prev => {
+      const newJobs = prev.map(job => job.id === updatedJob.id ? updatedJob : job);
+      console.log(`[BATCH FORM] Updated batch jobs after update:`, newJobs);
+      return newJobs;
+    });
   };
 
   const handleJobComplete = (results: PayeeClassification[], summary: BatchProcessingResult, jobId: string) => {
+    console.log(`[BATCH FORM] Job ${jobId} completed with ${results.length} results`);
     setBatchResults(results);
     setProcessingSummary(summary);
     
@@ -195,15 +222,23 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   };
 
   const handleJobDelete = (jobId: string) => {
-    setBatchJobs(prev => prev.filter(job => job.id !== jobId));
+    console.log(`[BATCH FORM] Deleting job: ${jobId}`);
+    setBatchJobs(prev => {
+      const newJobs = prev.filter(job => job.id !== jobId);
+      console.log(`[BATCH FORM] Batch jobs after deletion:`, newJobs);
+      return newJobs;
+    });
     setPayeeNamesMap(prev => {
       const newMap = { ...prev };
       delete newMap[jobId];
+      console.log(`[BATCH FORM] Payee names map after deletion:`, newMap);
       return newMap;
     });
   };
 
   const payeeCount = payeeNames.split("\n").filter(name => name.trim() !== "").length;
+
+  console.log(`[BATCH FORM] Current state - Active tab: ${activeTab}, Batch jobs: ${batchJobs.length}, Results: ${batchResults.length}`);
 
   return (
     <Card>
@@ -225,7 +260,9 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="text">Text Input</TabsTrigger>
             <TabsTrigger value="file">File Upload</TabsTrigger>
-            <TabsTrigger value="jobs">Batch Jobs {batchJobs.length > 0 && `(${batchJobs.length})`}</TabsTrigger>
+            <TabsTrigger value="jobs">
+              Batch Jobs {batchJobs.length > 0 && `(${batchJobs.length})`}
+            </TabsTrigger>
             <TabsTrigger value="results">Results</TabsTrigger>
           </TabsList>
           
