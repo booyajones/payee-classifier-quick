@@ -6,6 +6,7 @@ import ClassificationResultTable from "@/components/ClassificationResultTable";
 import BatchProcessingSummary from "@/components/BatchProcessingSummary";
 import OpenAIKeySetup from "@/components/OpenAIKeySetup";
 import KeywordExclusionManager from "@/components/KeywordExclusionManager";
+import SampleBatchExport from "@/components/SampleBatchExport";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import ClassificationErrorBoundary from "@/components/ClassificationErrorBoundary";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
@@ -81,9 +82,10 @@ const Index = () => {
 
         <main className="container px-4 pb-8">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="batch">File Processing</TabsTrigger>
               <TabsTrigger value="keywords">Keyword Management</TabsTrigger>
+              <TabsTrigger value="sample">Sample Export</TabsTrigger>
               <TabsTrigger value="results">Results</TabsTrigger>
             </TabsList>
             
@@ -96,6 +98,12 @@ const Index = () => {
             <TabsContent value="keywords" className="mt-6">
               <ClassificationErrorBoundary context="Keyword Management">
                 <KeywordExclusionManager />
+              </ClassificationErrorBoundary>
+            </TabsContent>
+
+            <TabsContent value="sample" className="mt-6">
+              <ClassificationErrorBoundary context="Sample Export">
+                <SampleBatchExport />
               </ClassificationErrorBoundary>
             </TabsContent>
             
