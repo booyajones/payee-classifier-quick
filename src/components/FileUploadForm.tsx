@@ -133,7 +133,7 @@ const FileUploadForm = ({
       
       toast({
         title: "Batch Job Created",
-        description: `Successfully submitted ${payeeNames.length} payees from ${file.name} for batch processing. Job ID: ${batchJob.id.slice(-8)}`,
+        description: `Successfully submitted ${payeeNames.length} payees from ${file.name} for processing. Job ID: ${batchJob.id.slice(-8)}`,
       });
     } catch (error) {
       console.error("Error creating batch job from file:", error);
@@ -150,9 +150,9 @@ const FileUploadForm = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Upload File for Batch Classification</CardTitle>
+        <CardTitle>Upload File for Classification</CardTitle>
         <CardDescription>
-          Upload an Excel or CSV file containing payee names for batch processing using OpenAI's Batch API
+          Upload an Excel or CSV file containing payee names for classification processing
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -212,16 +212,6 @@ const FileUploadForm = ({
           </div>
         )}
         
-        <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-md">
-          <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Batch Processing Benefits</h4>
-          <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-            <li>• 50% cost savings compared to real-time processing</li>
-            <li>• Handles large files efficiently</li>
-            <li>• Results delivered within 24 hours</li>
-            <li>• Monitor progress in the Batch Jobs tab</li>
-          </ul>
-        </div>
-        
         <div className="flex gap-2">
           <Button 
             type="button" 
@@ -229,7 +219,7 @@ const FileUploadForm = ({
             disabled={!file || !selectedColumn || isLoading}
             onClick={handleProcess}
           >
-            {isLoading ? "Creating Batch Job..." : "Submit File for Batch Processing"}
+            {isLoading ? "Creating Job..." : "Submit File for Processing"}
           </Button>
           
           <Button

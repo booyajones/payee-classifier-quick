@@ -6,7 +6,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { PayeeClassification, BatchProcessingResult, ClassificationConfig } from "@/lib/types";
 import FileUploadForm from "./FileUploadForm";
 import BatchJobManager from "./BatchJobManager";
-import BatchTextInput from "./BatchTextInput";
 import BatchResultsDisplay from "./BatchResultsDisplay";
 import { BatchJob } from "@/lib/openai/trueBatchAPI";
 
@@ -16,7 +15,6 @@ interface BatchClassificationFormProps {
 }
 
 const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassificationFormProps) => {
-  const [payeeNames, setPayeeNames] = useState("");
   const [batchResults, setBatchResults] = useState<PayeeClassification[]>([]);
   const [processingSummary, setProcessingSummary] = useState<BatchProcessingResult | null>(null);
   const [activeTab, setActiveTab] = useState<string>("jobs");
@@ -34,7 +32,6 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   };
 
   const resetForm = () => {
-    setPayeeNames("");
     setBatchResults([]);
     setProcessingSummary(null);
     
@@ -42,24 +39,6 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
       title: "Form Reset",
       description: "The batch classification form has been reset. You can now start over.",
     });
-  };
-
-  const handleTextInputBatchJob = (batchJob: BatchJob, payeeNames: string[]) => {
-    console.log(`[BATCH FORM] Text input batch job created:`, batchJob);
-    
-    setBatchJobs(prev => {
-      const newJobs = [...prev, batchJob];
-      console.log(`[BATCH FORM] Updated batch jobs from text input:`, newJobs);
-      return newJobs;
-    });
-    
-    setPayeeNamesMap(prev => {
-      const newMap = { ...prev, [batchJob.id]: payeeNames };
-      console.log(`[BATCH FORM] Updated payee names map from text input:`, newMap);
-      return newMap;
-    });
-    
-    setActiveTab("jobs");
   };
 
   const handleFileUploadBatchJob = (batchJob: BatchJob, payeeNames: string[]) => {
@@ -127,29 +106,18 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
       <CardHeader>
         <CardTitle>Batch Payee Classification</CardTitle>
         <CardDescription>
-          Submit payee names for batch processing using OpenAI's Batch API. All processing is asynchronous with 50% cost savings and results delivered within 24 hours.
+          Upload files for payee classification processing.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="text">Text Input</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="file">File Upload</TabsTrigger>
             <TabsTrigger value="jobs">
               Batch Jobs {batchJobs.length > 0 && `(${batchJobs.length})`}
             </TabsTrigger>
             <TabsTrigger value="results">Results</TabsTrigger>
           </TabsList>
-          
-          <TabsContent value="text" className="mt-4">
-            <BatchTextInput
-              payeeNames={payeeNames}
-              setPayeeNames={setPayeeNames}
-              onBatchJobCreated={handleTextInputBatchJob}
-              onReset={resetForm}
-              config={config}
-            />
-          </TabsContent>
           
           <TabsContent value="file" className="mt-4">
             <FileUploadForm 
@@ -162,7 +130,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
             {batchJobs.length === 0 ? (
               <div className="text-center py-8 border rounded-md">
                 <p className="text-muted-foreground">
-                  No batch jobs yet. Submit payees for batch processing to see jobs here.
+                  No batch jobs yet. Upload a file to see jobs here.
                 </p>
               </div>
             ) : (

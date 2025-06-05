@@ -50,9 +50,9 @@ const Index = () => {
         <div className="min-h-screen bg-background">
           <header className="bg-primary text-white py-6 mb-6">
             <div className="container px-4">
-              <h1 className="text-2xl font-bold">Batch Payee Classification System</h1>
+              <h1 className="text-2xl font-bold">Payee Classification System</h1>
               <p className="opacity-90">
-                Efficient batch processing with OpenAI's Batch API - 50% cost savings
+                Efficient file-based payee classification processing
               </p>
             </div>
           </header>
@@ -72,9 +72,9 @@ const Index = () => {
       <div className="min-h-screen bg-background">
         <header className="bg-primary text-white py-6 mb-6">
           <div className="container px-4">
-            <h1 className="text-2xl font-bold">Batch Payee Classification System</h1>
+            <h1 className="text-2xl font-bold">Payee Classification System</h1>
             <p className="opacity-90">
-              Efficient batch processing using OpenAI's Batch API with 50% cost savings and 24-hour delivery
+              File-based payee classification processing
             </p>
           </div>
         </header>
@@ -82,13 +82,13 @@ const Index = () => {
         <main className="container px-4 pb-8">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="batch">Batch Processing</TabsTrigger>
+              <TabsTrigger value="batch">File Processing</TabsTrigger>
               <TabsTrigger value="keywords">Keyword Management</TabsTrigger>
               <TabsTrigger value="results">Results</TabsTrigger>
             </TabsList>
             
             <TabsContent value="batch" className="mt-6">
-              <ClassificationErrorBoundary context="Batch Processing">
+              <ClassificationErrorBoundary context="File Processing">
                 <BatchClassificationForm onComplete={handleBatchComplete} />
               </ClassificationErrorBoundary>
             </TabsContent>
@@ -112,7 +112,7 @@ const Index = () => {
                   ) : (
                     <div className="text-center py-8 border rounded-md">
                       <p className="text-muted-foreground">
-                        No classification results yet. Process some payees to see results here.
+                        No classification results yet. Upload a file to see results here.
                       </p>
                     </div>
                   )}
@@ -124,7 +124,7 @@ const Index = () => {
 
         <footer className="bg-muted py-4 text-center text-sm text-muted-foreground">
           <div className="container">
-            <p>Batch Payee Classification System with OpenAI Batch API &copy; {new Date().getFullYear()}</p>
+            <p>Payee Classification System &copy; {new Date().getFullYear()}</p>
           </div>
         </footer>
       </div>
