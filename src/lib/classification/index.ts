@@ -2,7 +2,6 @@
 // Main export file for the classification module
 // Re-exports all functionality from the individual modules
 export * from './config';
-export * from './types';
 export * from './ruleBasedClassification';
 export * from './nlpClassification';
 export * from './aiClassification';
@@ -28,9 +27,13 @@ export {
 // Export specific functions from enhancedClassification but exclude enhancedProcessBatch to avoid conflict
 export { enhancedClassifyPayee } from './enhancedClassification';
 
-// Export new enhanced V2 functions
+// Export enhanced V2 functions
 export { enhancedClassifyPayeeV2 } from './enhancedClassificationV2';
 export { enhancedProcessBatchV2, exportResultsWithOriginalData } from './enhancedBatchProcessorV2';
+
+// Export new V3 functions (no failures, intelligent escalation)
+export { enhancedClassifyPayeeV3 } from './enhancedClassificationV3';
+export { enhancedProcessBatchV3, exportResultsWithOriginalDataV3 } from './enhancedBatchProcessorV3';
 
 // Export new enhanced keyword exclusion (avoid conflict with old one)
 export { 

@@ -29,6 +29,10 @@ export * from './openai/hybridBatchProcessor';
 export { enhancedClassifyPayeeV2 } from './classification/enhancedClassificationV2';
 export { enhancedProcessBatchV2, exportResultsWithOriginalData } from './classification/enhancedBatchProcessorV2';
 
+// Export new V3 functions (NO FAILURES, intelligent escalation)
+export { enhancedClassifyPayeeV3 } from './classification/enhancedClassificationV3';
+export { enhancedProcessBatchV3, exportResultsWithOriginalDataV3 } from './classification/enhancedBatchProcessorV3';
+
 // Export string matching functions explicitly to avoid conflicts
 export { 
   levenshteinDistance,
