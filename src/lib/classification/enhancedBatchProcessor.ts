@@ -1,74 +1,20 @@
 
 import { ClassificationResult, ClassificationConfig } from '../types';
-import { optimizedBatchClassification } from '../openai/optimizedBatchClassification';
-import { detectBusinessByExtendedRules, detectIndividualByExtendedRules } from './enhancedRules';
+import { processBatchClassification } from '../openai/batchAPI';
+import { filterPayeeNames, ExclusionResult } from './keywordExclusion';
 import { DEFAULT_CLASSIFICATION_CONFIG } from './config';
-
-const ENHANCED_BATCH_SIZE = 10; // Reduced for better reliability
-const MAX_PARALLEL_BATCHES = 2; // Reduced for better stability
 
 interface ProcessingStats {
   totalNames: number;
+  excludedCount: number;
   processedCount: number;
-  cacheHits: number;
-  apiCalls: number;
-  ruleBasedCount: number;
+  successCount: number;
+  failureCount: number;
   startTime: number;
 }
 
 /**
- * Apply rule-based pre-filtering to reduce API calls
- */
-function applyRuleBasedPreFilter(payeeNames: string[]): {
-  ruleBasedResults: Map<string, ClassificationResult>;
-  remainingNames: string[];
-} {
-  console.log(`[ENHANCED] Applying rule-based pre-filtering to ${payeeNames.length} names`);
-  
-  const ruleBasedResults = new Map<string, ClassificationResult>();
-  const remainingNames: string[] = [];
-
-  for (const name of payeeNames) {
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      console.warn(`[ENHANCED] Skipping invalid name:`, name);
-      continue;
-    }
-
-    // Check for definitive business indicators
-    const businessCheck = detectBusinessByExtendedRules(name);
-    if (businessCheck.isMatch && businessCheck.rules.length > 0) {
-      ruleBasedResults.set(name, {
-        classification: 'Business',
-        confidence: 95,
-        reasoning: `Rule-based: ${businessCheck.rules.join(", ")}`,
-        processingTier: 'Rule-Based',
-        matchingRules: businessCheck.rules
-      });
-      continue;
-    }
-
-    // Check for definitive individual indicators
-    const individualCheck = detectIndividualByExtendedRules(name);
-    if (individualCheck.isMatch && individualCheck.rules.length > 0) {
-      ruleBasedResults.set(name, {
-        classification: 'Individual',
-        confidence: 93,
-        reasoning: `Rule-based: ${individualCheck.rules.join(", ")}`,
-        processingTier: 'Rule-Based',
-        matchingRules: individualCheck.rules
-      });
-      continue;
-    }
-
-    remainingNames.push(name);
-  }
-
-  console.log(`[ENHANCED] Rule-based filtering: ${ruleBasedResults.size} resolved, ${remainingNames.length} remaining`);
-  return { ruleBasedResults, remainingNames };
-}
-
-/**
- * Enhanced batch processing with optimizations
+ * Enhanced batch processing with OpenAI Batch API and keyword exclusions
  */
 export async function enhancedProcessBatch(
   payeeNames: string[],
@@ -79,10 +25,10 @@ export async function enhancedProcessBatch(
 
   const stats: ProcessingStats = {
     totalNames: payeeNames.length,
+    excludedCount: 0,
     processedCount: 0,
-    cacheHits: 0,
-    apiCalls: 0,
-    ruleBasedCount: 0,
+    successCount: 0,
+    failureCount: 0,
     startTime: Date.now()
   };
 
@@ -105,8 +51,7 @@ export async function enhancedProcessBatch(
   if (onProgress) {
     onProgress(0, total, 0, { 
       phase: 'Initializing',
-      cacheHits: 0,
-      ruleBasedCount: 0,
+      excludedCount: 0,
       estimatedTimeRemaining: 'Calculating...'
     });
   }
@@ -114,102 +59,115 @@ export async function enhancedProcessBatch(
   const results: ClassificationResult[] = new Array(total);
 
   try {
-    // Phase 1: Apply rule-based pre-filtering
-    console.log(`[ENHANCED] Phase 1: Rule-based pre-filtering`);
-    const { ruleBasedResults, remainingNames } = applyRuleBasedPreFilter(validPayeeNames);
+    // Phase 1: Apply keyword exclusion filtering
+    console.log(`[ENHANCED] Phase 1: Keyword exclusion filtering`);
+    onProgress?.('Filtering excluded keywords...', 5);
     
-    stats.ruleBasedCount = ruleBasedResults.size;
-    stats.processedCount = stats.ruleBasedCount;
+    const { validNames, excludedNames } = filterPayeeNames(validPayeeNames);
+    stats.excludedCount = excludedNames.length;
+    
+    console.log(`[ENHANCED] Excluded ${excludedNames.length} names, processing ${validNames.length}`);
 
-    // Update progress after rule-based filtering
+    // Create exclusion results
+    excludedNames.forEach(({ name, reason }) => {
+      const originalIndex = validPayeeNames.indexOf(name);
+      if (originalIndex !== -1) {
+        results[originalIndex] = {
+          classification: 'Individual', // Default for excluded
+          confidence: 0,
+          reasoning: `Excluded due to keywords: ${reason.join(', ')}`,
+          processingTier: 'Excluded'
+        };
+        stats.processedCount++;
+      }
+    });
+
+    // Update progress after filtering
     if (onProgress) {
       const percentage = Math.round((stats.processedCount / total) * 100);
       onProgress(stats.processedCount, total, percentage, {
-        phase: 'Rule-based filtering complete',
-        ruleBasedCount: stats.ruleBasedCount,
-        remainingForAI: remainingNames.length
+        phase: 'Keyword filtering complete',
+        excludedCount: stats.excludedCount,
+        remainingForAI: validNames.length
       });
     }
 
-    // Phase 2: Process remaining names with AI
-    if (remainingNames.length > 0) {
-      console.log(`[ENHANCED] Phase 2: Processing ${remainingNames.length} names with AI`);
+    // Phase 2: Process remaining names with OpenAI Batch API
+    if (validNames.length > 0) {
+      console.log(`[ENHANCED] Phase 2: Processing ${validNames.length} names with OpenAI Batch API`);
       
       try {
-        const aiResults = await optimizedBatchClassification(remainingNames);
-        
-        // Count cache hits and API calls
-        aiResults.forEach(result => {
-          if (result.source === 'cache') {
-            stats.cacheHits++;
-          } else {
-            stats.apiCalls++;
+        const batchResults = await processBatchClassification({
+          payeeNames: validNames,
+          onProgress: (status: string, progress: number) => {
+            // Map batch API progress to overall progress
+            const batchProgressWeight = 90; // 90% of remaining progress
+            const baseProgress = (stats.excludedCount / total) * 100;
+            const adjustedProgress = baseProgress + ((progress / 100) * batchProgressWeight * (validNames.length / total));
+            
+            onProgress?.(stats.processedCount, total, Math.round(adjustedProgress), {
+              phase: status,
+              excludedCount: stats.excludedCount,
+              batchProgress: progress
+            });
           }
         });
 
-        // Map AI results back to positions
-        aiResults.forEach((aiResult, index) => {
-          const name = remainingNames[index];
+        // Map batch results back to positions
+        batchResults.forEach((batchResult, index) => {
+          const name = validNames[index];
           if (name) {
             const globalIndex = validPayeeNames.indexOf(name);
             if (globalIndex !== -1) {
               results[globalIndex] = {
-                classification: aiResult.classification,
-                confidence: aiResult.confidence,
-                reasoning: aiResult.reasoning,
-                processingTier: 'AI-Powered'
+                classification: batchResult.classification,
+                confidence: batchResult.confidence,
+                reasoning: batchResult.reasoning,
+                processingTier: batchResult.status === 'success' ? 'AI-Powered' : 'Failed'
               };
+              
+              if (batchResult.status === 'success') {
+                stats.successCount++;
+              } else {
+                stats.failureCount++;
+              }
               stats.processedCount++;
             }
           }
         });
 
       } catch (error) {
-        console.error(`[ENHANCED] AI processing failed:`, error);
+        console.error(`[ENHANCED] Batch API processing failed:`, error);
         
-        // Create fallback results for AI failures
-        remainingNames.forEach(name => {
+        // Create fallback results for batch API failures
+        validNames.forEach(name => {
           const globalIndex = validPayeeNames.indexOf(name);
-          if (globalIndex !== -1) {
+          if (globalIndex !== -1 && !results[globalIndex]) {
             results[globalIndex] = {
               classification: 'Individual',
               confidence: 0,
-              reasoning: `AI processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-              processingTier: 'Rule-Based'
+              reasoning: `Batch API processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              processingTier: 'Failed'
             };
+            stats.failureCount++;
             stats.processedCount++;
           }
         });
       }
-
-      // Update progress after AI processing
-      if (onProgress) {
-        const percentage = Math.round((stats.processedCount / total) * 100);
-        onProgress(stats.processedCount, total, percentage, {
-          phase: 'AI processing complete',
-          cacheHits: stats.cacheHits,
-          apiCalls: stats.apiCalls,
-          ruleBasedCount: stats.ruleBasedCount
-        });
-      }
     }
 
-    // Phase 3: Fill in rule-based results
-    console.log(`[ENHANCED] Phase 3: Filling in rule-based results`);
+    // Phase 3: Fill in any missing results
+    console.log(`[ENHANCED] Phase 3: Filling in missing results`);
     validPayeeNames.forEach((name, index) => {
       if (!results[index]) {
-        const ruleResult = ruleBasedResults.get(name);
-        if (ruleResult) {
-          results[index] = ruleResult;
-        } else {
-          // Final fallback
-          results[index] = {
-            classification: 'Individual',
-            confidence: 50,
-            reasoning: 'Fallback classification - no processing result found',
-            processingTier: 'Rule-Based'
-          };
-        }
+        results[index] = {
+          classification: 'Individual',
+          confidence: 50,
+          reasoning: 'Fallback classification - no processing result found',
+          processingTier: 'Rule-Based'
+        };
+        stats.failureCount++;
+        stats.processedCount++;
       }
     });
 
@@ -218,9 +176,9 @@ export async function enhancedProcessBatch(
       const totalTime = (Date.now() - stats.startTime) / 1000;
       onProgress(total, total, 100, {
         phase: 'Complete',
-        cacheHits: stats.cacheHits,
-        apiCalls: stats.apiCalls,
-        ruleBasedCount: stats.ruleBasedCount,
+        excludedCount: stats.excludedCount,
+        successCount: stats.successCount,
+        failureCount: stats.failureCount,
         totalTime: `${totalTime.toFixed(2)}s`,
         avgTimePerName: `${(totalTime / total).toFixed(3)}s`
       });
@@ -228,9 +186,9 @@ export async function enhancedProcessBatch(
 
     const totalTime = (Date.now() - stats.startTime) / 1000;
     console.log(`[ENHANCED] Batch processing complete in ${totalTime.toFixed(2)}s:`);
-    console.log(`[ENHANCED] - Rule-based: ${stats.ruleBasedCount}`);
-    console.log(`[ENHANCED] - Cache hits: ${stats.cacheHits}`);
-    console.log(`[ENHANCED] - API calls: ${stats.apiCalls}`);
+    console.log(`[ENHANCED] - Excluded: ${stats.excludedCount}`);
+    console.log(`[ENHANCED] - Successful: ${stats.successCount}`);
+    console.log(`[ENHANCED] - Failed: ${stats.failureCount}`);
 
     return results;
 
@@ -242,7 +200,7 @@ export async function enhancedProcessBatch(
       classification: 'Individual' as const,
       confidence: 0,
       reasoning: `Batch processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      processingTier: 'Rule-Based' as const
+      processingTier: 'Failed' as const
     }));
 
     return fallbackResults;

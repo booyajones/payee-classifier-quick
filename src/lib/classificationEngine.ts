@@ -9,3 +9,7 @@ export { consensusClassification } from './openai/enhancedClassification';
 export { getConfidenceLevel, classifyPayee } from './classification/utils';
 export { DEFAULT_CLASSIFICATION_CONFIG } from './classification/config';
 export { processBatch } from './classification/batchProcessing';
+
+// Export new functionality
+export * from './classification/keywordExclusion';
+export * from './openai/batchAPI';
