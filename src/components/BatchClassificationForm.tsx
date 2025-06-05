@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,7 @@ import { createPayeeClassification } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import BatchProcessingSummary from "./BatchProcessingSummary";
 import ClassificationResultTable from "./ClassificationResultTable";
-import { PayeeClassification, BatchProcessingResult, ClassificationConfig } from "@/lib/types";
+import { PayeeClassification, BatchProcessingResult, ClassificationConfig, ClassificationResult } from "@/lib/types";
 import FileUploadForm from "./FileUploadForm";
 import BatchJobManager from "./BatchJobManager";
 import BatchProcessingModeSelector from "./BatchProcessingModeSelector";
@@ -130,12 +129,16 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
           if (!classResult) {
             console.warn(`[BATCH FORM] Missing result for index ${index}, name: ${name}`);
           }
-          return createPayeeClassification(name, classResult || {
-            classification: 'Individual',
-            confidence: 0,
-            reasoning: 'No result found',
-            processingTier: 'Rule-Based'
-          });
+          
+          // Convert to proper ClassificationResult type
+          const classificationResult: ClassificationResult = {
+            classification: classResult?.classification || 'Individual',
+            confidence: classResult?.confidence || 0,
+            reasoning: classResult?.reasoning || 'No result found',
+            processingTier: classResult?.processingTier || 'Failed'
+          };
+          
+          return createPayeeClassification(name, classificationResult);
         });
 
         console.log(`[BATCH FORM] Created ${classifications.length} classifications`);

@@ -1,15 +1,15 @@
 
 import { ClassificationConfig } from '@/lib/types';
 import { createBatchJob, BatchJob, getBatchJobResults, TrueBatchClassificationResult } from './trueBatchAPI';
-import { classifyPayeesParallel } from './optimizedBatchClassification';
-import { checkKeywordExclusions } from '@/lib/classification/keywordExclusion';
+import { classifyPayees } from './optimizedBatchClassification';
+import { checkKeywordExclusion } from '@/lib/classification/keywordExclusion';
 
 export interface HybridBatchResult {
   results: Array<{
     classification: 'Business' | 'Individual';
     confidence: number;
     reasoning: string;
-    processingTier: string;
+    processingTier: 'Rule-Based' | 'AI-Powered' | 'Failed' | 'NLP-Based' | 'AI-Assisted' | 'Excluded';
   }>;
   batchJob?: BatchJob;
   stats?: {
@@ -53,19 +53,19 @@ export async function processWithHybridBatch(
   stats.phase = 'Applying keyword exclusions';
   onProgress?.(0, payeeNames.length, 0, stats);
 
-  const exclusionResults = payeeNames.map(name => checkKeywordExclusions(name));
+  const exclusionResults = payeeNames.map(name => checkKeywordExclusion(name));
   
   // Separate excluded vs. needs AI processing
   const needsAI: { name: string; index: number }[] = [];
   const finalResults = payeeNames.map((name, index) => {
     const exclusionResult = exclusionResults[index];
-    if (exclusionResult.excluded) {
+    if (exclusionResult.isExcluded) {
       stats.keywordExcluded++;
       return {
-        classification: exclusionResult.classification,
-        confidence: exclusionResult.confidence,
-        reasoning: exclusionResult.reasoning,
-        processingTier: 'Rule-Based'
+        classification: 'Business' as const,
+        confidence: 95,
+        reasoning: `Excluded by keyword match: ${exclusionResult.matchedKeywords.join(', ')}`,
+        processingTier: 'Rule-Based' as const
       };
     } else {
       needsAI.push({ name, index });
@@ -114,7 +114,7 @@ export async function processWithHybridBatch(
     stats.phase = 'Processing with AI (real-time)';
     
     try {
-      const aiResults = await classifyPayeesParallel(
+      const aiResults = await classifyPayees(
         aiNames,
         (current, total) => {
           const totalProgress = stats.keywordExcluded + current;
@@ -135,7 +135,7 @@ export async function processWithHybridBatch(
           classification: aiResult?.classification || 'Individual',
           confidence: aiResult?.confidence || 0,
           reasoning: aiResult?.reasoning || 'AI classification failed',
-          processingTier: 'AI-Powered'
+          processingTier: 'AI-Powered' as const
         };
       });
 
@@ -164,16 +164,16 @@ export async function completeBatchJob(
   console.log(`[HYBRID BATCH] Completing batch job ${batchJob.id} for ${originalPayeeNames.length} payees`);
   
   // Re-apply keyword exclusions to get the same filtering
-  const exclusionResults = originalPayeeNames.map(name => checkKeywordExclusions(name));
+  const exclusionResults = originalPayeeNames.map(name => checkKeywordExclusion(name));
   const needsAI: { name: string; index: number }[] = [];
   const finalResults = originalPayeeNames.map((name, index) => {
     const exclusionResult = exclusionResults[index];
-    if (exclusionResult.excluded) {
+    if (exclusionResult.isExcluded) {
       return {
-        classification: exclusionResult.classification,
-        confidence: exclusionResult.confidence,
-        reasoning: exclusionResult.reasoning,
-        processingTier: 'Rule-Based'
+        classification: 'Business' as const,
+        confidence: 95,
+        reasoning: `Excluded by keyword match: ${exclusionResult.matchedKeywords.join(', ')}`,
+        processingTier: 'Rule-Based' as const
       };
     } else {
       needsAI.push({ name, index });
@@ -200,7 +200,7 @@ export async function completeBatchJob(
         classification: batchResult?.classification || 'Individual',
         confidence: batchResult?.confidence || 0,
         reasoning: batchResult?.reasoning || 'Batch processing failed',
-        processingTier: batchResult?.status === 'success' ? 'AI-Powered' : 'Failed'
+        processingTier: (batchResult?.status === 'success' ? 'AI-Powered' : 'Failed') as const
       };
     });
 

@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, File, Upload, RotateCcw } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { createPayeeClassification } from "@/lib/utils";
-import { PayeeClassification, BatchProcessingResult, ClassificationConfig } from "@/lib/types";
+import { PayeeClassification, BatchProcessingResult, ClassificationConfig, ClassificationResult } from "@/lib/types";
 import { Progress } from "@/components/ui/progress";
 import { processWithHybridBatch } from "@/lib/openai/hybridBatchProcessor";
 import { DEFAULT_CLASSIFICATION_CONFIG } from "@/lib/classification/config";
@@ -162,7 +162,17 @@ const FileUploadForm = ({
 
       // Map to PayeeClassification objects (for real-time mode)
       const classifications = payeeNames.map((name, index) => {
-        return createPayeeClassification(name, result.results[index]);
+        const classResult = result.results[index];
+        
+        // Convert to proper ClassificationResult type
+        const classificationResult: ClassificationResult = {
+          classification: classResult?.classification || 'Individual',
+          confidence: classResult?.confidence || 0,
+          reasoning: classResult?.reasoning || 'No result found',
+          processingTier: classResult?.processingTier || 'Failed'
+        };
+        
+        return createPayeeClassification(name, classificationResult);
       });
 
       const successCount = result.results.filter(r => r.confidence > 0).length;
