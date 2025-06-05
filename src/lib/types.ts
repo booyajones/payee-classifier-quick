@@ -5,6 +5,24 @@ export interface ClassificationResult {
   reasoning: string;
   processingTier: 'Rule-Based' | 'NLP-Based' | 'AI-Assisted' | 'AI-Powered' | 'Excluded' | 'Failed';
   matchingRules?: string[];
+  similarityScores?: SimilarityScores;
+  keywordExclusion?: KeywordExclusionResult;
+  processingMethod?: string;
+}
+
+export interface SimilarityScores {
+  levenshtein: number;
+  jaroWinkler: number;
+  dice: number;
+  tokenSort: number;
+  combined: number;
+}
+
+export interface KeywordExclusionResult {
+  isExcluded: boolean;
+  matchedKeywords: string[];
+  confidence: number;
+  reasoning: string;
 }
 
 export interface PayeeClassification {
@@ -12,13 +30,17 @@ export interface PayeeClassification {
   payeeName: string;
   result: ClassificationResult;
   timestamp: Date;
+  originalData?: any; // For preserving original file data
+  rowIndex?: number; // For maintaining order from original file
 }
 
 export interface BatchProcessingResult {
   results: PayeeClassification[];
   successCount: number;
   failureCount: number;
-  processingTime?: number; // Made optional since we removed processing time tracking
+  processingTime?: number;
+  originalFileData?: any[]; // Preserve original file structure
+  enhancedStats?: EnhancedBatchStatistics;
 }
 
 export interface ParsedPerson {
@@ -43,25 +65,36 @@ export interface ParsedCorporation {
 }
 
 export interface ClassificationConfig {
-  aiThreshold: number;   // Confidence threshold below which AI will be used
-  bypassRuleNLP: boolean; // Whether to skip rule-based and NLP classification
-  useEnhanced?: boolean;  // Whether to use the enhanced classification system
-  offlineMode?: boolean;  // Whether to operate in offline mode (no API calls)
-  useFuzzyMatching?: boolean; // Whether to use fuzzy matching for similar names
-  useCacheForDuplicates?: boolean; // Whether to deduplicate similar names
+  aiThreshold: number;
+  bypassRuleNLP: boolean;
+  useEnhanced?: boolean;
+  offlineMode?: boolean;
+  useFuzzyMatching?: boolean;
+  useCacheForDuplicates?: boolean;
+  similarityThreshold?: number; // For fuzzy matching
+  retryFailedClassifications?: boolean;
+  maxRetries?: number;
 }
 
-// Enhanced statistics for batch processing
 export interface EnhancedBatchStatistics {
   totalProcessed: number;
   businessCount: number;
   individualCount: number;
+  excludedCount: number;
+  failedCount: number;
   averageConfidence: number;
   highConfidenceCount: number;
   mediumConfidenceCount: number;
   lowConfidenceCount: number;
   processingTierCounts: Record<string, number>;
   processingTime: number;
-  deduplicationSavings?: number; // How many API calls were saved by deduplication
-  cacheSavings?: number; // How many API calls were saved by caching
+  deduplicationSavings?: number;
+  cacheSavings?: number;
+  retryCount?: number;
+  similarityStats?: {
+    averageLevenshtein: number;
+    averageJaroWinkler: number;
+    averageDice: number;
+    averageTokenSort: number;
+  };
 }

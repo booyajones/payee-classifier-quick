@@ -17,3 +17,9 @@ export * from './openai/batchAPI';
 // Export new true batch API functionality
 export * from './openai/trueBatchAPI';
 export * from './openai/hybridBatchProcessor';
+
+// Export enhanced V2 functions
+export { enhancedClassifyPayeeV2 } from './classification/enhancedClassificationV2';
+export { enhancedProcessBatchV2, exportResultsWithOriginalData } from './classification/enhancedBatchProcessorV2';
+export * from './classification/stringMatching';
+export * from './classification/enhancedKeywordExclusion';
