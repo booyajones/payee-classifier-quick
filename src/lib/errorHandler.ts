@@ -126,14 +126,10 @@ export const showRetryableErrorToast = (
       title: `${context || 'Operation'} Failed`,
       description: `${error.message} Click to retry.`,
       variant: "destructive",
-      action: (
-        <button 
-          onClick={onRetry}
-          className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium"
-        >
-          Retry
-        </button>
-      ),
+      action: {
+        label: "Retry",
+        onClick: onRetry
+      }
     });
   } else {
     showErrorToast(error, context);
