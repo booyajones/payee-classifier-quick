@@ -1,5 +1,5 @@
-
 import { getOpenAIClient } from './client';
+import { makeAPIRequest, logMemoryUsage } from './apiUtils';
 
 export interface BatchJob {
   id: string;
@@ -64,108 +64,114 @@ export async function createBatchJob(
   payeeNames: string[],
   description?: string
 ): Promise<BatchJob> {
-  const client = getOpenAIClient();
+  logMemoryUsage('createBatchJob');
   
-  console.log(`[TRUE BATCH API] Creating batch job for ${payeeNames.length} payees`);
-  
-  // Create batch requests in JSONL format
-  const batchRequests = payeeNames.map((name, index) => ({
-    custom_id: `payee-${index}-${Date.now()}`,
-    method: 'POST',
-    url: '/v1/chat/completions',
-    body: {
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert at classifying payee names. Classify each name as either "Business" or "Individual". Return only a JSON object with classification, confidence (0-100), and reasoning.'
-        },
-        {
-          role: 'user',
-          content: `Classify this payee name: "${name}"\n\nReturn ONLY a JSON object like: {"classification": "Business", "confidence": 95, "reasoning": "Contains LLC suffix indicating business entity"}`
-        }
-      ],
-      temperature: 0.1,
-      max_tokens: 200
-    }
-  }));
-  
-  // Convert to JSONL format
-  const jsonlContent = batchRequests.map(req => JSON.stringify(req)).join('\n');
-  
-  // Create a file with the batch requests
-  const file = await client.files.create({
-    file: new File([jsonlContent], 'batch_requests.jsonl', { type: 'application/jsonl' }),
-    purpose: 'batch'
-  });
-  
-  console.log(`[TRUE BATCH API] Created input file: ${file.id}`);
-  
-  // Create the batch job
-  const batch = await client.batches.create({
-    input_file_id: file.id,
-    endpoint: '/v1/chat/completions',
-    completion_window: '24h',
-    metadata: {
-      payee_count: payeeNames.length.toString(),
-      description: description || 'Payee classification batch'
-    }
-  });
-  
-  console.log(`[TRUE BATCH API] Created batch job: ${batch.id}`);
-  
-  return {
-    id: batch.id,
-    status: batch.status as BatchJob['status'],
-    created_at: batch.created_at,
-    completed_at: batch.completed_at || undefined,
-    failed_at: batch.failed_at || undefined,
-    expired_at: batch.expired_at || undefined,
-    finalizing_at: batch.finalizing_at || undefined,
-    in_progress_at: batch.in_progress_at || undefined,
-    output_file_id: batch.output_file_id || undefined,
-    error_file_id: batch.error_file_id || undefined,
-    request_counts: {
-      total: batch.request_counts?.total || payeeNames.length,
-      completed: batch.request_counts?.completed || 0,
-      failed: batch.request_counts?.failed || 0
-    },
-    metadata: {
-      payee_count: payeeNames.length,
-      description: description || 'Payee classification batch'
-    }
-  };
+  return makeAPIRequest(async () => {
+    const client = getOpenAIClient();
+    
+    console.log(`[TRUE BATCH API] Creating batch job for ${payeeNames.length} payees`);
+    
+    // Create batch requests in JSONL format
+    const batchRequests = payeeNames.map((name, index) => ({
+      custom_id: `payee-${index}-${Date.now()}`,
+      method: 'POST',
+      url: '/v1/chat/completions',
+      body: {
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert at classifying payee names. Classify each name as either "Business" or "Individual". Return only a JSON object with classification, confidence (0-100), and reasoning.'
+          },
+          {
+            role: 'user',
+            content: `Classify this payee name: "${name}"\n\nReturn ONLY a JSON object like: {"classification": "Business", "confidence": 95, "reasoning": "Contains LLC suffix indicating business entity"}`
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 200
+      }
+    }));
+    
+    // Convert to JSONL format
+    const jsonlContent = batchRequests.map(req => JSON.stringify(req)).join('\n');
+    
+    // Create a file with the batch requests
+    const file = await client.files.create({
+      file: new File([jsonlContent], 'batch_requests.jsonl', { type: 'application/jsonl' }),
+      purpose: 'batch'
+    });
+    
+    console.log(`[TRUE BATCH API] Created input file: ${file.id}`);
+    
+    // Create the batch job
+    const batch = await client.batches.create({
+      input_file_id: file.id,
+      endpoint: '/v1/chat/completions',
+      completion_window: '24h',
+      metadata: {
+        payee_count: payeeNames.length.toString(),
+        description: description || 'Payee classification batch'
+      }
+    });
+    
+    console.log(`[TRUE BATCH API] Created batch job: ${batch.id}`);
+    
+    return {
+      id: batch.id,
+      status: batch.status as BatchJob['status'],
+      created_at: batch.created_at,
+      completed_at: batch.completed_at || undefined,
+      failed_at: batch.failed_at || undefined,
+      expired_at: batch.expired_at || undefined,
+      finalizing_at: batch.finalizing_at || undefined,
+      in_progress_at: batch.in_progress_at || undefined,
+      output_file_id: batch.output_file_id || undefined,
+      error_file_id: batch.error_file_id || undefined,
+      request_counts: {
+        total: batch.request_counts?.total || payeeNames.length,
+        completed: batch.request_counts?.completed || 0,
+        failed: batch.request_counts?.failed || 0
+      },
+      metadata: {
+        payee_count: payeeNames.length,
+        description: description || 'Payee classification batch'
+      }
+    };
+  }, { timeout: 60000, retries: 2 }); // 60s timeout with 2 retries
 }
 
 /**
  * Check the status of a batch job
  */
 export async function checkBatchJobStatus(batchId: string): Promise<BatchJob> {
-  const client = getOpenAIClient();
-  
-  const batch = await client.batches.retrieve(batchId);
-  
-  return {
-    id: batch.id,
-    status: batch.status as BatchJob['status'],
-    created_at: batch.created_at,
-    completed_at: batch.completed_at || undefined,
-    failed_at: batch.failed_at || undefined,
-    expired_at: batch.expired_at || undefined,
-    finalizing_at: batch.finalizing_at || undefined,
-    in_progress_at: batch.in_progress_at || undefined,
-    output_file_id: batch.output_file_id || undefined,
-    error_file_id: batch.error_file_id || undefined,
-    request_counts: {
-      total: batch.request_counts?.total || 0,
-      completed: batch.request_counts?.completed || 0,
-      failed: batch.request_counts?.failed || 0
-    },
-    metadata: batch.metadata ? {
-      payee_count: parseInt(batch.metadata.payee_count || '0'),
-      description: batch.metadata.description || 'Payee classification batch'
-    } : undefined
-  };
+  return makeAPIRequest(async () => {
+    const client = getOpenAIClient();
+    
+    const batch = await client.batches.retrieve(batchId);
+    
+    return {
+      id: batch.id,
+      status: batch.status as BatchJob['status'],
+      created_at: batch.created_at,
+      completed_at: batch.completed_at || undefined,
+      failed_at: batch.failed_at || undefined,
+      expired_at: batch.expired_at || undefined,
+      finalizing_at: batch.finalizing_at || undefined,
+      in_progress_at: batch.in_progress_at || undefined,
+      output_file_id: batch.output_file_id || undefined,
+      error_file_id: batch.error_file_id || undefined,
+      request_counts: {
+        total: batch.request_counts?.total || 0,
+        completed: batch.request_counts?.completed || 0,
+        failed: batch.request_counts?.failed || 0
+      },
+      metadata: batch.metadata ? {
+        payee_count: parseInt(batch.metadata.payee_count || '0'),
+        description: batch.metadata.description || 'Payee classification batch'
+      } : undefined
+    };
+  }, { timeout: 15000, retries: 1 }); // Shorter timeout for status checks
 }
 
 /**
@@ -179,118 +185,131 @@ export async function getBatchJobResults(
     throw new Error(`Batch job is not completed or has no output file. Status: ${batchJob.status}`);
   }
   
-  const client = getOpenAIClient();
-  
-  console.log(`[TRUE BATCH API] Retrieving results from file: ${batchJob.output_file_id}`);
-  
-  // Get the output file content
-  const fileContent = await client.files.content(batchJob.output_file_id);
-  const responseText = await fileContent.text();
-  
-  // Parse JSONL results
-  const results: BatchJobResult[] = responseText
-    .trim()
-    .split('\n')
-    .map(line => JSON.parse(line));
-  
-  console.log(`[TRUE BATCH API] Parsed ${results.length} results`);
-  
-  // Map results back to payee names
-  const classificationResults: TrueBatchClassificationResult[] = payeeNames.map((name, index) => {
-    const customId = `payee-${index}-${batchJob.created_at}`;
-    const result = results.find(r => r.custom_id.startsWith(`payee-${index}-`));
+  return makeAPIRequest(async () => {
+    const client = getOpenAIClient();
     
-    if (!result) {
-      return {
-        payeeName: name,
-        classification: 'Individual',
-        confidence: 0,
-        reasoning: 'No result found in batch output',
-        status: 'failed',
-        error: 'Missing result'
-      };
-    }
+    console.log(`[TRUE BATCH API] Retrieving results from file: ${batchJob.output_file_id}`);
     
-    if (result.error) {
-      return {
-        payeeName: name,
-        classification: 'Individual',
-        confidence: 0,
-        reasoning: `Batch processing error: ${result.error.message}`,
-        status: 'failed',
-        error: result.error.message
-      };
-    }
+    // Get the output file content
+    const fileContent = await client.files.content(batchJob.output_file_id!);
+    const responseText = await fileContent.text();
     
-    if (!result.response) {
-      return {
-        payeeName: name,
-        classification: 'Individual',
-        confidence: 0,
-        reasoning: 'No response in batch result',
-        status: 'failed',
-        error: 'Missing response'
-      };
-    }
+    // Parse JSONL results
+    const results: BatchJobResult[] = responseText
+      .trim()
+      .split('\n')
+      .filter(line => line.trim()) // Remove empty lines
+      .map(line => {
+        try {
+          return JSON.parse(line);
+        } catch (error) {
+          console.error('[TRUE BATCH API] Error parsing result line:', line, error);
+          return null;
+        }
+      })
+      .filter(result => result !== null);
     
-    try {
-      const content = result.response.body.choices[0]?.message?.content;
-      if (content) {
-        const parsed = JSON.parse(content);
+    console.log(`[TRUE BATCH API] Parsed ${results.length} results`);
+    logMemoryUsage('getBatchJobResults');
+    
+    // Map results back to payee names
+    const classificationResults: TrueBatchClassificationResult[] = payeeNames.map((name, index) => {
+      const result = results.find(r => r.custom_id.startsWith(`payee-${index}-`));
+      
+      if (!result) {
         return {
           payeeName: name,
-          classification: parsed.classification || 'Individual',
-          confidence: parsed.confidence || 50,
-          reasoning: parsed.reasoning || 'Classified via OpenAI Batch API',
-          status: 'success'
+          classification: 'Individual',
+          confidence: 0,
+          reasoning: 'No result found in batch output',
+          status: 'failed',
+          error: 'Missing result'
         };
       }
-    } catch (error) {
-      console.error(`[TRUE BATCH API] Error parsing result for ${name}:`, error);
-    }
+      
+      if (result.error) {
+        return {
+          payeeName: name,
+          classification: 'Individual',
+          confidence: 0,
+          reasoning: `Batch processing error: ${result.error.message}`,
+          status: 'failed',
+          error: result.error.message
+        };
+      }
+      
+      if (!result.response) {
+        return {
+          payeeName: name,
+          classification: 'Individual',
+          confidence: 0,
+          reasoning: 'No response in batch result',
+          status: 'failed',
+          error: 'Missing response'
+        };
+      }
+      
+      try {
+        const content = result.response.body.choices[0]?.message?.content;
+        if (content) {
+          const parsed = JSON.parse(content);
+          return {
+            payeeName: name,
+            classification: parsed.classification || 'Individual',
+            confidence: parsed.confidence || 50,
+            reasoning: parsed.reasoning || 'Classified via OpenAI Batch API',
+            status: 'success'
+          };
+        }
+      } catch (error) {
+        console.error(`[TRUE BATCH API] Error parsing result for ${name}:`, error);
+      }
+      
+      return {
+        payeeName: name,
+        classification: 'Individual',
+        confidence: 0,
+        reasoning: 'Failed to parse batch result',
+        status: 'failed',
+        error: 'Parse error'
+      };
+    });
     
-    return {
-      payeeName: name,
-      classification: 'Individual',
-      confidence: 0,
-      reasoning: 'Failed to parse batch result',
-      status: 'failed',
-      error: 'Parse error'
-    };
-  });
-  
-  return classificationResults;
+    return classificationResults;
+  }, { timeout: 120000, retries: 2 }); // 2 minute timeout for large files
 }
 
 /**
  * Cancel a batch job
  */
 export async function cancelBatchJob(batchId: string): Promise<BatchJob> {
-  const client = getOpenAIClient();
-  
-  const batch = await client.batches.cancel(batchId);
-  
-  return {
-    id: batch.id,
-    status: batch.status as BatchJob['status'],
-    created_at: batch.created_at,
-    completed_at: batch.completed_at || undefined,
-    failed_at: batch.failed_at || undefined,
-    expired_at: batch.expired_at || undefined,
-    finalizing_at: batch.finalizing_at || undefined,
-    in_progress_at: batch.in_progress_at || undefined,
-    output_file_id: batch.output_file_id || undefined,
-    error_file_id: batch.error_file_id || undefined,
-    request_counts: {
-      total: batch.request_counts?.total || 0,
-      completed: batch.request_counts?.completed || 0,
-      failed: batch.request_counts?.failed || 0
-    },
-    metadata: batch.metadata ? {
-      payee_count: parseInt(batch.metadata.payee_count || '0'),
-      description: batch.metadata.description || 'Payee classification batch'
-    } : undefined
-  };
+  return makeAPIRequest(async () => {
+    const client = getOpenAIClient();
+    
+    const batch = await client.batches.cancel(batchId);
+    
+    return {
+      id: batch.id,
+      status: batch.status as BatchJob['status'],
+      created_at: batch.created_at,
+      completed_at: batch.completed_at || undefined,
+      failed_at: batch.failed_at || undefined,
+      expired_at: batch.expired_at || undefined,
+      finalizing_at: batch.finalizing_at || undefined,
+      in_progress_at: batch.in_progress_at || undefined,
+      output_file_id: batch.output_file_id || undefined,
+      error_file_id: batch.error_file_id || undefined,
+      request_counts: {
+        total: batch.request_counts?.total || 0,
+        completed: batch.request_counts?.completed || 0,
+        failed: batch.request_counts?.failed || 0
+      },
+      metadata: batch.metadata ? {
+        payee_count: parseInt(batch.metadata.payee_count || '0'),
+        description: batch.metadata.description || 'Payee classification batch'
+      } : undefined
+    };
+  }, { timeout: 30000, retries: 1 });
 }
 
 /**
