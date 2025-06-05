@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/use-toast";
 import BatchProcessingSummary from "./BatchProcessingSummary";
 import ClassificationResultTable from "./ClassificationResultTable";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
+import { exportResultsWithOriginalDataV3 } from "@/lib/classification/batchExporter";
 import * as XLSX from 'xlsx';
 
 interface BatchResultsDisplayProps {
@@ -33,29 +34,22 @@ const BatchResultsDisplay = ({
     }
 
     try {
-      const exportData = batchResults.map(result => ({
-        'Payee_Name': result.payeeName,
-        'Classification': result.result.classification,
-        'Confidence_%': result.result.confidence,
-        'Processing_Tier': result.result.processingTier,
-        'Reasoning': result.result.reasoning,
-        'Processing_Method': 'OpenAI Batch API',
-        'Timestamp': result.timestamp.toISOString()
-      }));
+      // Use the enhanced export function that preserves original data
+      const exportData = exportResultsWithOriginalDataV3(processingSummary, true);
       
       const workbook = XLSX.utils.book_new();
       const worksheet = XLSX.utils.json_to_sheet(exportData);
       
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Batch Classification Results");
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Enhanced Classification Results");
       
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const filename = `batch_payee_classification_${timestamp}.xlsx`;
+      const filename = `enhanced_payee_classification_${timestamp}.xlsx`;
       
       XLSX.writeFile(workbook, filename);
       
       toast({
         title: "Export Complete",
-        description: `Results exported to ${filename} with batch processing data.`,
+        description: `Enhanced results exported to ${filename} with original file data and keyword exclusion details.`,
       });
     } catch (error) {
       console.error("Export error:", error);
@@ -87,7 +81,7 @@ const BatchResultsDisplay = ({
               disabled={isProcessing}
               className="flex-1"
             >
-              Export Batch Results
+              Export Enhanced Results with Original Data
             </Button>
             
             <Button

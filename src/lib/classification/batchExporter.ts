@@ -19,6 +19,8 @@ export function exportResultsWithOriginalDataV3(
       'Processing_Method': result.result.processingMethod,
       'Matched_Keywords': result.result.keywordExclusion?.matchedKeywords?.join('; ') || '',
       'Keyword_Exclusion': result.result.keywordExclusion?.isExcluded ? 'Yes' : 'No',
+      'Keyword_Confidence': result.result.keywordExclusion?.confidence || '',
+      'Keyword_Reasoning': result.result.keywordExclusion?.reasoning || '',
       'Matching_Rules': result.result.matchingRules?.join('; ') || '',
       'Levenshtein_Score': result.result.similarityScores?.levenshtein || '',
       'Jaro_Winkler_Score': result.result.similarityScores?.jaroWinkler || '',
@@ -41,7 +43,11 @@ export function exportResultsWithOriginalDataV3(
         'Confidence_%': 50,
         'Processing_Tier': 'Rule-Based' as const,
         'Reasoning': 'Result not found - emergency fallback',
-        'Processing_Method': 'Emergency fallback'
+        'Processing_Method': 'Emergency fallback',
+        'Matched_Keywords': '',
+        'Keyword_Exclusion': 'No',
+        'Keyword_Confidence': '',
+        'Keyword_Reasoning': ''
       };
     }
 
@@ -54,6 +60,7 @@ export function exportResultsWithOriginalDataV3(
       'Matched_Keywords': result.result.keywordExclusion?.matchedKeywords?.join('; ') || '',
       'Keyword_Exclusion': result.result.keywordExclusion?.isExcluded ? 'Yes' : 'No',
       'Keyword_Confidence': result.result.keywordExclusion?.confidence || '',
+      'Keyword_Reasoning': result.result.keywordExclusion?.reasoning || '',
       'Matching_Rules': result.result.matchingRules?.join('; ') || '',
       'Timestamp': result.timestamp.toISOString()
     };
