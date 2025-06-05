@@ -123,13 +123,13 @@ export const showRetryableErrorToast = (
   if (error.retryable) {
     toast({
       title: `${context || 'Operation'} Failed`,
-      description: `${error.message} Click to retry.`,
+      description: `${error.message} Click retry to try again.`,
       variant: "destructive",
-      action: {
-        label: "Retry",
-        onClick: onRetry
-      }
     });
+
+    // For now, we'll just show the error without the retry button
+    // The user can manually retry through the UI
+    console.log('[RETRY] Retryable error occurred:', error);
   } else {
     showErrorToast(error, context);
   }
