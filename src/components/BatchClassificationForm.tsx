@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,7 +33,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
   const [activeTab, setActiveTab] = useState<string>("text");
   const [progress, setProgress] = useState<number>(0);
   const [processingStatus, setProcessingStatus] = useState<string>("");
-  const [processingMode, setProcessingMode<'realtime' | 'batch'>('realtime');
+  const [processingMode, setProcessingMode] = useState<'realtime' | 'batch'>('realtime');
   const [batchJobs, setBatchJobs] = useState<BatchJob[]>([]);
   const [payeeNamesMap, setPayeeNamesMap] = useState<Record<string, string[]>>({});
   const { toast } = useToast();
