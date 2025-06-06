@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
@@ -89,13 +88,23 @@ const BatchJobManager = ({
         throw new Error('No payee names found for this job. The job data may be corrupted.');
       }
 
-      // Get raw results from OpenAI
-      const rawResults = await downloadResultsWithRetry(job, payeeNames);
+      // Create original row indexes array - assume sequential for now
+      const originalRowIndexes = payeeNames.map((_, index) => index);
+
+      // Get raw results from OpenAI with enhanced index handling
+      const rawResults = await downloadResultsWithRetry(job, payeeNames, originalRowIndexes);
       
-      // Process results with keyword exclusions and enhanced data
-      const classifications = payeeNames.map((name, index) => {
-        const rawResult = rawResults[index];
-        const originalRowData = originalFileData[index] || {};
+      console.log(`[BATCH MANAGER] Raw results sample:`, rawResults.slice(0, 3));
+      
+      // Process results with enhanced validation and keyword exclusions
+      const classifications = payeeNames.map((name, arrayIndex) => {
+        const rawResult = rawResults[arrayIndex];
+        
+        // Determine the correct row index for original data
+        const originalRowIndex = rawResult?.originalRowIndex ?? arrayIndex;
+        const originalRowData = originalFileData[originalRowIndex] || originalFileData[arrayIndex] || {};
+        
+        console.log(`[BATCH MANAGER] Processing ${name} at arrayIndex ${arrayIndex}, originalRowIndex ${originalRowIndex}`);
         
         // Apply keyword exclusion check
         const keywordExclusion = checkKeywordExclusion(name);
@@ -127,7 +136,7 @@ const BatchJobManager = ({
           processingTier,
           keywordExclusion,
           processingMethod: keywordExclusion.isExcluded ? 'Keyword Exclusion' : 'OpenAI Batch API'
-        }, originalRowData, index);
+        }, originalRowData, originalRowIndex);
       });
 
       const successCount = classifications.filter(c => 
@@ -138,7 +147,8 @@ const BatchJobManager = ({
       console.log(`[BATCH MANAGER] Creating summary with original file data:`, {
         classificationsLength: classifications.length,
         originalFileDataLength: originalFileData.length,
-        hasOriginalData: originalFileData.length > 0
+        hasOriginalData: originalFileData.length > 0,
+        sampleClassification: classifications[0]
       });
 
       const summary: BatchProcessingResult = {
@@ -150,9 +160,17 @@ const BatchJobManager = ({
 
       onJobComplete(classifications, summary, job.id);
 
+      // Enhanced validation warning
+      const alignmentIssues = classifications.filter(c => 
+        originalFileData[c.rowIndex || 0] && 
+        originalFileData[c.rowIndex || 0]['Payee'] !== c.payeeName &&
+        originalFileData[c.rowIndex || 0]['Supplier'] !== c.payeeName &&
+        originalFileData[c.rowIndex || 0]['Name'] !== c.payeeName
+      );
+
       toast({
         title: "Results Downloaded Successfully",
-        description: `Downloaded ${successCount} successful classifications${failureCount > 0 ? ` and ${failureCount} failed attempts` : ''} with original file data and keyword exclusions.`,
+        description: `Downloaded ${successCount} successful classifications${failureCount > 0 ? ` and ${failureCount} failed attempts` : ''} with original file data and keyword exclusions.${alignmentIssues.length > 0 ? ` Detected ${alignmentIssues.length} potential alignment issues - check the Data_Alignment_Status column in the export.` : ''}`,
       });
     } catch (error) {
       const appError = handleError(error, 'Results Download');

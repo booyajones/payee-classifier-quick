@@ -187,15 +187,33 @@ const FileUploadForm = ({
 
       console.log(`[FILE UPLOAD] Creating batch job for ${payeeNames.length} names from column "${selectedColumn}" with ${originalFileData.length} original data rows`);
 
+      // Create array of original row indexes to preserve alignment
+      const originalRowIndexes = originalFileData
+        .map((row, index) => ({
+          rowIndex: index,
+          payeeName: row[selectedColumn]
+        }))
+        .filter(item => item.payeeName && typeof item.payeeName === 'string' && item.payeeName.trim() !== '')
+        .map(item => item.rowIndex);
+
+      console.log(`[FILE UPLOAD] Original row indexes for batch job:`, {
+        totalPayees: payeeNames.length,
+        totalOriginalRows: originalFileData.length,
+        indexesSample: originalRowIndexes.slice(0, 5),
+        indexesLength: originalRowIndexes.length
+      });
+
       const batchJob = await createBatchJobWithRetry(
         payeeNames, 
-        `File upload batch: ${file.name}, ${payeeNames.length} payees`
+        `File upload batch: ${file.name}, ${payeeNames.length} payees`,
+        originalRowIndexes
       );
       
-      console.log(`[FILE UPLOAD] Batch job created with original data:`, {
+      console.log(`[FILE UPLOAD] Batch job created with enhanced index preservation:`, {
         jobId: batchJob.id,
         payeeCount: payeeNames.length,
         originalDataRows: originalFileData.length,
+        preservedIndexes: originalRowIndexes.length,
         originalDataSample: originalFileData.slice(0, 2)
       });
 
@@ -204,7 +222,7 @@ const FileUploadForm = ({
       
       toast({
         title: "Batch Job Created Successfully",
-        description: `Submitted ${payeeNames.length} payees from ${file.name} for processing with original data preserved. Job ID: ${batchJob.id.slice(-8)}`,
+        description: `Submitted ${payeeNames.length} payees from ${file.name} for processing with original data and row indexes preserved. Job ID: ${batchJob.id.slice(-8)}`,
       });
     } catch (error) {
       const appError = handleError(error, 'Batch Job Creation');
@@ -301,7 +319,7 @@ const FileUploadForm = ({
             </Select>
             {fileInfo && selectedColumn && (
               <p className="text-xs text-muted-foreground">
-                Found {fileInfo.rowCount} rows, {fileInfo.payeeCount} unique payee names. Original data with {columns.length} columns will be preserved.
+                Found {fileInfo.rowCount} rows, {fileInfo.payeeCount} unique payee names. Original data with {columns.length} columns will be preserved with enhanced row index tracking.
               </p>
             )}
           </div>

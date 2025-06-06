@@ -1,3 +1,4 @@
+
 import { getOpenAIClient } from './client';
 import { makeAPIRequest } from './apiUtils';
 import { logger } from '../logger';
@@ -70,6 +71,7 @@ export interface ProcessedBatchResult {
   confidence?: number;
   reasoning?: string;
   error?: string;
+  originalRowIndex?: number;
 }
 
 export async function checkBatchJobStatus(jobId: string): Promise<BatchJob> {
@@ -101,7 +103,8 @@ export async function checkBatchJobStatus(jobId: string): Promise<BatchJob> {
 
 export async function createBatchJob(
   payeeNames: string[],
-  description?: string
+  description?: string,
+  originalRowIndexes?: number[]
 ): Promise<BatchJob> {
   logger.info(`[BATCH API] Creating batch job for ${payeeNames.length} payees`);
   
@@ -114,28 +117,35 @@ export async function createBatchJob(
 
     logger.info("[BATCH API] OpenAI client ready, creating requests...");
 
-    // Create JSONL content
-    const requests = payeeNames.map((name, index) => ({
-      custom_id: `payee-${index}`,
-      method: "POST",
-      url: "/v1/chat/completions",
-      body: {
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You are an expert at classifying payee names as either 'Business' or 'Individual'. Analyze the given name and provide a classification with confidence level and reasoning."
-          },
-          {
-            role: "user",
-            content: `Classify this payee name: "${name}"\n\nRespond with a JSON object containing:\n- classification: "Business" or "Individual"\n- confidence: number from 0-100\n- reasoning: brief explanation for your decision`
-          }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.1,
-        max_tokens: 200
-      }
-    }));
+    // Create JSONL content with preserved row indexes
+    const requests = payeeNames.map((name, arrayIndex) => {
+      const originalRowIndex = originalRowIndexes?.[arrayIndex] ?? arrayIndex;
+      const customId = `payee-${originalRowIndex}-${arrayIndex}`;
+      
+      logger.info(`[BATCH API] Creating request for "${name}" - originalRow: ${originalRowIndex}, arrayIndex: ${arrayIndex}, customId: ${customId}`);
+      
+      return {
+        custom_id: customId,
+        method: "POST",
+        url: "/v1/chat/completions",
+        body: {
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "You are an expert at classifying payee names as either 'Business' or 'Individual'. Analyze the given name and provide a classification with confidence level and reasoning."
+            },
+            {
+              role: "user",
+              content: `Classify this payee name: "${name}"\n\nRespond with a JSON object containing:\n- classification: "Business" or "Individual"\n- confidence: number from 0-100\n- reasoning: brief explanation for your decision`
+            }
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.1,
+          max_tokens: 200
+        }
+      };
+    });
 
     const jsonlContent = requests.map(req => JSON.stringify(req)).join('\n');
     logger.info(`[BATCH API] Created JSONL content with ${requests.length} requests`);
@@ -200,13 +210,11 @@ export async function createBatchJob(
 
 /**
  * Download and parse the results for a completed batch job.
- *
- * Throws "Batch job is not completed" if the job has not finished, or
- * "Batch job has no output file" if the output file id is missing.
  */
 export async function getBatchJobResults(
   job: BatchJob,
-  payeeNames: string[]
+  payeeNames: string[],
+  originalRowIndexes?: number[]
 ): Promise<ProcessedBatchResult[]> {
   logger.info(`[BATCH API] Getting results for job: ${job.id}`);
 
@@ -234,42 +242,60 @@ export async function getBatchJobResults(
   
   logger.info(`[BATCH API] Downloaded ${lines.length} result lines`);
   
+  // Initialize results array with proper size
   const results: ProcessedBatchResult[] = new Array(payeeNames.length).fill(null);
   
   for (const line of lines) {
     try {
       const result: BatchResult = JSON.parse(line);
       const customId = result.custom_id;
-      const index = parseInt(customId.replace('payee-', ''));
       
-      if (index >= 0 && index < payeeNames.length) {
+      // Parse custom_id to extract both original row index and array index
+      const customIdMatch = customId.match(/^payee-(\d+)-(\d+)$/);
+      if (!customIdMatch) {
+        logger.warn(`[BATCH API] Invalid custom_id format: ${customId}`);
+        continue;
+      }
+      
+      const originalRowIndex = parseInt(customIdMatch[1]);
+      const arrayIndex = parseInt(customIdMatch[2]);
+      
+      logger.info(`[BATCH API] Processing result for customId: ${customId}, originalRow: ${originalRowIndex}, arrayIndex: ${arrayIndex}`);
+      
+      if (arrayIndex >= 0 && arrayIndex < payeeNames.length) {
         if (result.response?.body?.choices?.[0]?.message?.content) {
           try {
             const content = JSON.parse(result.response.body.choices[0].message.content);
-            results[index] = {
+            results[arrayIndex] = {
               status: 'success',
               classification: content.classification,
               confidence: content.confidence,
-              reasoning: content.reasoning
+              reasoning: content.reasoning,
+              originalRowIndex: originalRowIndex
             };
           } catch (parseError) {
             logger.error(`[BATCH API] Failed to parse response for ${customId}:`, parseError);
-            results[index] = {
+            results[arrayIndex] = {
               status: 'error',
-              error: 'Failed to parse classification result'
+              error: 'Failed to parse classification result',
+              originalRowIndex: originalRowIndex
             };
           }
         } else if (result.error) {
-          results[index] = {
+          results[arrayIndex] = {
             status: 'error',
-            error: result.error.message
+            error: result.error.message,
+            originalRowIndex: originalRowIndex
           };
         } else {
-          results[index] = {
+          results[arrayIndex] = {
             status: 'error',
-            error: 'No response data'
+            error: 'No response data',
+            originalRowIndex: originalRowIndex
           };
         }
+      } else {
+        logger.warn(`[BATCH API] Array index ${arrayIndex} out of bounds for ${payeeNames.length} payees`);
       }
     } catch (error) {
       logger.error('[BATCH API] Failed to parse result line:', error);
@@ -279,9 +305,11 @@ export async function getBatchJobResults(
   // Fill any null results with error status
   for (let i = 0; i < results.length; i++) {
     if (!results[i]) {
+      const originalRowIndex = originalRowIndexes?.[i] ?? i;
       results[i] = {
         status: 'error',
-        error: 'No result found'
+        error: 'No result found',
+        originalRowIndex: originalRowIndex
       };
     }
   }
