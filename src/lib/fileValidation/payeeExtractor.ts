@@ -1,4 +1,3 @@
-
 import { ValidationResult } from './types';
 
 export const validateFileContents = (data: any[]): ValidationResult => {
@@ -20,56 +19,49 @@ export const validateFileContents = (data: any[]): ValidationResult => {
     throw new Error('No data rows found in the file');
   }
 
-  // Extract payee names from the first column or find a column with names
-  const payeeNames: string[] = [];
-  
-  for (const row of dataRows) {
-    if (!row || typeof row !== 'object') continue;
+  // Find the payee column name
+  let payeeColumnName = '';
+  if (dataRows.length > 0) {
+    const firstRow = dataRows[0];
+    const keys = Object.keys(firstRow);
     
-    // Get the first non-empty value from the row, or look for common payee name columns
-    const keys = Object.keys(row);
-    let payeeName = '';
-    
-    // Look for common payee name column names first
+    // Look for common payee name column names
     const nameKeys = keys.filter(key => 
-      /^(name|payee|vendor|company|client|customer|recipient)/i.test(key)
+      /^(name|payee|vendor|company|client|customer|recipient|supplier)/i.test(key)
     );
     
     if (nameKeys.length > 0) {
-      payeeName = String(row[nameKeys[0]] || '').trim();
+      payeeColumnName = nameKeys[0];
     } else {
-      // Fallback to first non-empty column
-      for (const key of keys) {
-        const value = String(row[key] || '').trim();
-        if (value && value.length > 0) {
-          payeeName = value;
-          break;
-        }
-      }
-    }
-    
-    if (payeeName && payeeName.length > 0) {
-      payeeNames.push(payeeName);
+      // Fallback to first column
+      payeeColumnName = keys[0];
     }
   }
 
-  if (payeeNames.length === 0) {
-    throw new Error('No valid payee names found in the file. Please ensure the first column contains payee names.');
+  if (!payeeColumnName) {
+    throw new Error('No valid payee column found in the file.');
   }
 
-  console.log(`[FILE VALIDATION] Extracted ${payeeNames.length} payee names and preserved ${originalData.length} original data rows`);
+  // Extract payee names WITHOUT filtering or cleaning - maintain exact 1:1 correspondence
+  const payeeNames: string[] = [];
+  
+  for (const row of dataRows) {
+    const payeeName = String(row[payeeColumnName] || '').trim();
+    // Keep ALL rows, even empty ones - this maintains index correspondence
+    payeeNames.push(payeeName || '[Empty]');
+  }
+
+  console.log(`[FILE VALIDATION] Extracted ${payeeNames.length} payee names (including empty) and preserved ${originalData.length} original data rows with exact 1:1 correspondence`);
   
   return {
     payeeNames,
-    originalData // Return complete original data
+    originalData,
+    payeeColumnName // Include the column name for validation
   };
 };
 
 export const cleanPayeeNames = (payeeNames: string[]): string[] => {
-  return [...new Set(
-    payeeNames
-      .map(name => name.trim())
-      .filter(name => name.length > 0)
-      .filter(name => name.length <= 200) // Reasonable max length
-  )];
+  // Don't actually clean - just return as-is to maintain correspondence
+  // Any cleaning will break the index alignment
+  return payeeNames;
 };

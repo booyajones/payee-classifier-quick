@@ -1,19 +1,20 @@
 
-import { FileValidationError } from '../errorHandler';
+export interface ValidationResult {
+  payeeNames: string[];
+  originalData: any[];
+  payeeColumnName?: string;
+}
 
 export interface FileValidationResult {
   isValid: boolean;
-  error?: FileValidationError;
-  fileInfo?: {
-    name: string;
-    size: number;
-    type: string;
-    rowCount?: number;
-    columnCount?: number;
-  };
+  error?: Error;
+  fileType?: 'csv' | 'excel';
+  size?: number;
 }
 
-export interface ValidationResult {
-  payeeNames: string[];
-  originalData: any[]; // Add original data to validation result
+export interface DataValidationResult {
+  isValid: boolean;
+  error?: Error;
+  rowCount?: number;
+  payeeCount?: number;
 }

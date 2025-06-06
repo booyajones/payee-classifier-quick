@@ -9,7 +9,7 @@ import { AlertCircle, File, Upload, RotateCcw, CheckCircle, Loader2 } from "luci
 import { useToast } from "@/components/ui/use-toast";
 import { ClassificationConfig } from "@/lib/types";
 import { createBatchJob, BatchJob } from "@/lib/openai/trueBatchAPI";
-import { validateFile, validatePayeeData, cleanPayeeNames } from "@/lib/fileValidation";
+import { validateFile, validatePayeeData } from "@/lib/fileValidation";
 import { handleError, showErrorToast, showRetryableErrorToast } from "@/lib/errorHandler";
 import { useRetry } from "@/hooks/useRetry";
 
@@ -144,20 +144,21 @@ const FileUploadForm = ({
         return null;
       }
 
-      // Extract and clean payee names
-      const rawPayeeNames = originalFileData
-        .map(row => row[selectedColumn])
-        .filter(name => name && typeof name === 'string' && name.trim() !== '');
+      // Extract payee names WITHOUT filtering to maintain 1:1 correspondence
+      const payeeNames = originalFileData.map(row => {
+        const name = row[selectedColumn];
+        return String(name || '').trim() || '[Empty]';
+      });
       
-      const cleanedPayeeNames = cleanPayeeNames(rawPayeeNames);
+      console.log(`[FILE UPLOAD] Maintaining exact 1:1 correspondence: ${originalFileData.length} rows = ${payeeNames.length} payees`);
       
       setFileInfo({
         rowCount: originalFileData.length,
-        payeeCount: cleanedPayeeNames.length
+        payeeCount: payeeNames.length
       });
 
       setValidationStatus('valid');
-      return cleanedPayeeNames;
+      return payeeNames;
     } catch (error) {
       const appError = handleError(error, 'Data Validation');
       setValidationStatus('error');
@@ -185,44 +186,33 @@ const FileUploadForm = ({
         return;
       }
 
-      console.log(`[FILE UPLOAD] Creating batch job for ${payeeNames.length} names from column "${selectedColumn}" with ${originalFileData.length} original data rows`);
+      console.log(`[FILE UPLOAD] Creating batch job with EXACT 1:1 correspondence:`);
+      console.log(`- Original file rows: ${originalFileData.length}`);
+      console.log(`- Payee names: ${payeeNames.length}`);
+      console.log(`- First 3 payees: ${payeeNames.slice(0, 3)}`);
+      console.log(`- Selected column: "${selectedColumn}"`);
 
-      // Create array of original row indexes to preserve alignment
-      const originalRowIndexes = originalFileData
-        .map((row, index) => ({
-          rowIndex: index,
-          payeeName: row[selectedColumn]
-        }))
-        .filter(item => item.payeeName && typeof item.payeeName === 'string' && item.payeeName.trim() !== '')
-        .map(item => item.rowIndex);
-
-      console.log(`[FILE UPLOAD] Original row indexes for batch job:`, {
-        totalPayees: payeeNames.length,
-        totalOriginalRows: originalFileData.length,
-        indexesSample: originalRowIndexes.slice(0, 5),
-        indexesLength: originalRowIndexes.length
-      });
+      // Create sequential row indexes - exact 1:1 mapping
+      const originalRowIndexes = Array.from({ length: originalFileData.length }, (_, i) => i);
 
       const batchJob = await createBatchJobWithRetry(
         payeeNames, 
-        `File upload batch: ${file.name}, ${payeeNames.length} payees`,
+        `File upload batch: ${file.name}, ${payeeNames.length} payees with exact row correspondence`,
         originalRowIndexes
       );
       
-      console.log(`[FILE UPLOAD] Batch job created with enhanced index preservation:`, {
-        jobId: batchJob.id,
-        payeeCount: payeeNames.length,
-        originalDataRows: originalFileData.length,
-        preservedIndexes: originalRowIndexes.length,
-        originalDataSample: originalFileData.slice(0, 2)
-      });
+      console.log(`[FILE UPLOAD] Batch job created with PERFECT alignment:`);
+      console.log(`- Job ID: ${batchJob.id}`);
+      console.log(`- Payee count: ${payeeNames.length}`);
+      console.log(`- Original data rows: ${originalFileData.length}`);
+      console.log(`- Index alignment: GUARANTEED 1:1`);
 
-      // Pass both payee names AND original file data
+      // Pass both payee names AND original file data with guaranteed alignment
       onBatchJobCreated(batchJob, payeeNames, originalFileData);
       
       toast({
         title: "Batch Job Created Successfully",
-        description: `Submitted ${payeeNames.length} payees from ${file.name} for processing with original data and row indexes preserved. Job ID: ${batchJob.id.slice(-8)}`,
+        description: `Submitted ${payeeNames.length} payees from ${file.name} with GUARANTEED 1:1 row correspondence. Job ID: ${batchJob.id.slice(-8)}`,
       });
     } catch (error) {
       const appError = handleError(error, 'Batch Job Creation');
