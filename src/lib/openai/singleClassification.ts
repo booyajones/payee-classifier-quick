@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { getOpenAIClient } from './client';
 import { timeoutPromise } from './utils';
 import { DEFAULT_API_TIMEOUT, CLASSIFICATION_MODEL } from './config';
+import { logger } from '../logger';
 
 /**
  * Classify a single payee name using the OpenAI API
@@ -15,7 +16,7 @@ export async function classifyPayeeWithAI(
   confidence: number;
   reasoning: string;
 }> {
-  const openaiClient = getOpenAIClient();
+  const openaiClient = await getOpenAIClient();
   if (!openaiClient) {
     throw new Error("OpenAI client not initialized. Please set your API key first.");
   }
@@ -25,7 +26,7 @@ export async function classifyPayeeWithAI(
   }
 
   try {
-    console.log(`[DEBUG] Classifying "${payeeName}" with OpenAI API...`);
+    logger.info(`[DEBUG] Classifying "${payeeName}" with OpenAI API...`);
     
     const apiCall = openaiClient.chat.completions.create({
       model: CLASSIFICATION_MODEL,
@@ -44,7 +45,7 @@ export async function classifyPayeeWithAI(
       max_tokens: 150 // Reduced for faster response
     });
     
-    console.log(`[DEBUG] Making API call for "${payeeName}"...`);
+    logger.info(`[DEBUG] Making API call for "${payeeName}"...`);
     
     const response = await timeoutPromise(apiCall, timeout);
 
@@ -53,7 +54,7 @@ export async function classifyPayeeWithAI(
       throw new Error("No response content from OpenAI API");
     }
 
-    console.log(`[DEBUG] Raw OpenAI response for "${payeeName}":`, content);
+    logger.info(`[DEBUG] Raw OpenAI response for "${payeeName}":`, content);
     
     try {
       const result = JSON.parse(content);
@@ -62,7 +63,7 @@ export async function classifyPayeeWithAI(
         throw new Error(`Invalid response structure: ${JSON.stringify(result)}`);
       }
       
-      console.log(`[DEBUG] Successfully classified "${payeeName}": ${result.classification} (${result.confidence}%)`);
+      logger.info(`[DEBUG] Successfully classified "${payeeName}": ${result.classification} (${result.confidence}%)`);
       
       return {
         classification: result.classification as 'Business' | 'Individual',
@@ -70,11 +71,11 @@ export async function classifyPayeeWithAI(
         reasoning: result.reasoning
       };
     } catch (parseError) {
-      console.error(`[DEBUG] Failed to parse response for "${payeeName}":`, content);
+      logger.error(`[DEBUG] Failed to parse response for "${payeeName}":`, content);
       throw new Error("Failed to parse OpenAI response as JSON");
     }
   } catch (error) {
-    console.error(`[DEBUG] Error calling OpenAI API for "${payeeName}":`, error);
+    logger.error(`[DEBUG] Error calling OpenAI API for "${payeeName}":`, error);
     
     if (error instanceof Error) {
       if (error.message.includes('401') || error.message.includes('authentication')) {

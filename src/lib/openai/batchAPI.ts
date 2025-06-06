@@ -1,3 +1,4 @@
+import { logger } from "../logger";
 
 import { getOpenAIClient } from './client';
 
@@ -63,11 +64,11 @@ async function processWithChatCompletions(
   payeeNames: string[],
   onProgress?: (status: string, progress: number) => void
 ): Promise<BatchClassificationResult[]> {
-  const client = getOpenAIClient();
+  const client = await getOpenAIClient();
   const results: BatchClassificationResult[] = [];
   const batchSize = 10; // Process in smaller batches to avoid rate limits
   
-  console.log(`[BATCH API] Processing ${payeeNames.length} names with chat completions`);
+  logger.info(`[BATCH API] Processing ${payeeNames.length} names with chat completions`);
   
   for (let i = 0; i < payeeNames.length; i += batchSize) {
     const batch = payeeNames.slice(i, i + batchSize);
@@ -101,7 +102,7 @@ async function processWithChatCompletions(
           };
         }
       } catch (error) {
-        console.error(`[BATCH API] Error processing ${name}:`, error);
+        logger.error(`[BATCH API] Error processing ${name}:`, error);
         return {
           payeeName: name,
           classification: 'Individual' as const,
@@ -140,7 +141,7 @@ export async function processBatchClassification({
     return [];
   }
 
-  console.log(`[BATCH API] Starting batch classification for ${payeeNames.length} payees`);
+  logger.info(`[BATCH API] Starting batch classification for ${payeeNames.length} payees`);
   
   try {
     onProgress?.('Starting classification...', 10);
@@ -151,12 +152,12 @@ export async function processBatchClassification({
     });
     
     onProgress?.('Classification complete', 100);
-    console.log(`[BATCH API] Completed classification: ${results.length} results`);
+    logger.info(`[BATCH API] Completed classification: ${results.length} results`);
     
     return results;
 
   } catch (error) {
-    console.error('[BATCH API] Processing failed:', error);
+    logger.error('[BATCH API] Processing failed:', error);
     
     // Return fallback results
     return payeeNames.map(name => ({

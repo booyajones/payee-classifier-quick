@@ -1,5 +1,6 @@
 import { getOpenAIClient } from './client';
 import { makeAPIRequest } from './apiUtils';
+import { logger } from '../logger';
 
 export interface BatchJob {
   id: string;
@@ -72,9 +73,9 @@ export interface ProcessedBatchResult {
 }
 
 export async function checkBatchJobStatus(jobId: string): Promise<BatchJob> {
-  console.log(`[BATCH API] Checking status for job: ${jobId}`);
+  logger.info(`[BATCH API] Checking status for job: ${jobId}`);
   
-  const openaiClient = getOpenAIClient();
+  const openaiClient = await getOpenAIClient();
   if (!openaiClient) {
     throw new Error("OpenAI client not initialized. Please check your API key.");
   }
@@ -95,9 +96,9 @@ export async function createBatchJob(
   payeeNames: string[],
   description?: string
 ): Promise<BatchJob> {
-  console.log(`[BATCH API] Creating batch job for ${payeeNames.length} payees`);
+  logger.info(`[BATCH API] Creating batch job for ${payeeNames.length} payees`);
   
-  const openaiClient = getOpenAIClient();
+  const openaiClient = await getOpenAIClient();
   if (!openaiClient) {
     throw new Error("OpenAI client not initialized. Please check your API key.");
   }
@@ -138,7 +139,7 @@ export async function createBatchJob(
     { retries: 2, retryDelay: 3000 }
   );
 
-  console.log(`[BATCH API] File uploaded: ${uploadedFile.id}`);
+  logger.info(`[BATCH API] File uploaded: ${uploadedFile.id}`);
 
   // Create batch job with retry
   const result = await makeAPIRequest(
@@ -154,7 +155,7 @@ export async function createBatchJob(
     { retries: 2, retryDelay: 3000 }
   );
 
-  console.log(`[BATCH API] Batch job created: ${result.id}`);
+  logger.info(`[BATCH API] Batch job created: ${result.id}`);
   
   // Ensure the result matches our BatchJob interface
   return {
@@ -167,13 +168,13 @@ export async function getBatchJobResults(
   job: BatchJob,
   payeeNames: string[]
 ): Promise<ProcessedBatchResult[]> {
-  console.log(`[BATCH API] Getting results for job: ${job.id}`);
+  logger.info(`[BATCH API] Getting results for job: ${job.id}`);
   
   if (!job.output_file_id) {
     throw new Error('Batch job has no output file');
   }
 
-  const openaiClient = getOpenAIClient();
+  const openaiClient = await getOpenAIClient();
   if (!openaiClient) {
     throw new Error("OpenAI client not initialized. Please check your API key.");
   }
@@ -187,7 +188,7 @@ export async function getBatchJobResults(
   const text = await fileContent.text();
   const lines = text.trim().split('\n').filter(line => line.trim());
   
-  console.log(`[BATCH API] Downloaded ${lines.length} result lines`);
+  logger.info(`[BATCH API] Downloaded ${lines.length} result lines`);
   
   const results: ProcessedBatchResult[] = new Array(payeeNames.length).fill(null);
   
@@ -208,7 +209,7 @@ export async function getBatchJobResults(
               reasoning: content.reasoning
             };
           } catch (parseError) {
-            console.error(`[BATCH API] Failed to parse response for ${customId}:`, parseError);
+            logger.error(`[BATCH API] Failed to parse response for ${customId}:`, parseError);
             results[index] = {
               status: 'error',
               error: 'Failed to parse classification result'
@@ -227,7 +228,7 @@ export async function getBatchJobResults(
         }
       }
     } catch (error) {
-      console.error('[BATCH API] Failed to parse result line:', error);
+      logger.error('[BATCH API] Failed to parse result line:', error);
     }
   }
   
@@ -241,14 +242,14 @@ export async function getBatchJobResults(
     }
   }
   
-  console.log(`[BATCH API] Processed ${results.length} results`);
+  logger.info(`[BATCH API] Processed ${results.length} results`);
   return results;
 }
 
 export async function cancelBatchJob(jobId: string): Promise<BatchJob> {
-  console.log(`[BATCH API] Cancelling job: ${jobId}`);
+  logger.info(`[BATCH API] Cancelling job: ${jobId}`);
   
-  const openaiClient = getOpenAIClient();
+  const openaiClient = await getOpenAIClient();
   if (!openaiClient) {
     throw new Error("OpenAI client not initialized. Please check your API key.");
   }

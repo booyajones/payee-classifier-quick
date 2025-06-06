@@ -1,6 +1,39 @@
 
 import { v4 as uuidv4 } from 'uuid';
 
+const ENC_KEY_STORAGE = 'api_key_enc_key';
+
+async function getCryptoKey(): Promise<CryptoKey> {
+  const stored = sessionStorage.getItem(ENC_KEY_STORAGE);
+  if (stored) {
+    const raw = Uint8Array.from(atob(stored), c => c.charCodeAt(0));
+    return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+  }
+  const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+  const raw = await crypto.subtle.exportKey('raw', key);
+  sessionStorage.setItem(ENC_KEY_STORAGE, btoa(String.fromCharCode(...new Uint8Array(raw))));
+  return key;
+}
+
+async function encryptValue(value: string): Promise<{ iv: string; data: string }> {
+  const key = await getCryptoKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(value);
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
+  return {
+    iv: btoa(String.fromCharCode(...iv)),
+    data: btoa(String.fromCharCode(...new Uint8Array(encrypted)))
+  };
+}
+
+async function decryptValue(iv: string, data: string): Promise<string> {
+  const key = await getCryptoKey();
+  const ivArr = Uint8Array.from(atob(iv), c => c.charCodeAt(0));
+  const encrypted = Uint8Array.from(atob(data), c => c.charCodeAt(0));
+  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: ivArr }, key, encrypted);
+  return new TextDecoder().decode(decrypted);
+}
+
 interface StoredApiKey {
   id: string;
   token: string;
@@ -17,26 +50,27 @@ const STORAGE_PREFIX = 'secure_api_key_';
  * @param apiKey The API key to store
  * @returns A token that can be used to retrieve the key
  */
-export function storeApiKey(apiKey: string): string {
+export async function storeApiKey(apiKey: string): Promise<string> {
   try {
     const id = uuidv4();
     const token = uuidv4();
-    
+
+    const encrypted = await encryptValue(apiKey);
+
     const entry: StoredApiKey = {
       id,
       token,
-      apiKey,
+      apiKey: JSON.stringify(encrypted),
       created: Date.now(),
       lastUsed: Date.now()
     };
-    
+
     localStorage.setItem(`${STORAGE_PREFIX}${id}`, JSON.stringify(entry));
-    
-    // Store token reference for quick lookup
+
     const tokenMap = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}token_map`) || '{}');
     tokenMap[token] = id;
     localStorage.setItem(`${STORAGE_PREFIX}token_map`, JSON.stringify(tokenMap));
-    
+
     return token;
   } catch (error) {
     console.error('Failed to store API key:', error);
@@ -49,7 +83,7 @@ export function storeApiKey(apiKey: string): string {
  * @param token The token used to retrieve the key
  * @returns The API key or null if not found
  */
-export function getApiKey(token: string): string | null {
+export async function getApiKey(token: string): Promise<string | null> {
   try {
     // Look up the ID from the token map
     const tokenMap = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}token_map`) || '{}');
@@ -78,8 +112,13 @@ export function getApiKey(token: string): string | null {
     // Update last used time
     entry.lastUsed = Date.now();
     localStorage.setItem(`${STORAGE_PREFIX}${id}`, JSON.stringify(entry));
-    
-    return entry.apiKey;
+
+    try {
+      const { iv, data } = JSON.parse(entry.apiKey);
+      return await decryptValue(iv, data);
+    } catch {
+      return null;
+    }
   } catch (error) {
     console.error('Failed to retrieve API key:', error);
     return null;

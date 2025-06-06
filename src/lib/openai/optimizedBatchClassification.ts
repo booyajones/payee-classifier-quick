@@ -2,6 +2,7 @@
 import { getOpenAIClient } from './client';
 import { timeoutPromise } from './utils';
 import { DEFAULT_API_TIMEOUT, CLASSIFICATION_MODEL, MAX_PARALLEL_BATCHES } from './config';
+import { logger } from '../logger';
 
 export const OPTIMIZED_BATCH_SIZE = 10; // Reduced for better reliability
 export const MAX_RETRIES = 2;
@@ -60,9 +61,9 @@ function loadCacheFromStorage(): void {
     }
 
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(Object.fromEntries(entries)));
-    console.log(`[CACHE] Loaded ${classificationCache.size} cached results from storage`);
+    logger.info(`[CACHE] Loaded ${classificationCache.size} cached results from storage`);
   } catch (error) {
-    console.warn('[CACHE] Failed to load cache from storage:', error);
+    logger.warn('[CACHE] Failed to load cache from storage:', error);
   }
 }
 
@@ -90,7 +91,7 @@ function saveCacheToStorage(): void {
 
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(Object.fromEntries(entries)));
   } catch (error) {
-    console.warn('[CACHE] Failed to save cache to storage:', error);
+    logger.warn('[CACHE] Failed to save cache to storage:', error);
   }
 }
 
@@ -107,7 +108,7 @@ if (typeof window !== 'undefined') {
  */
 function normalizeForCache(name: string): string {
   if (!name || typeof name !== 'string') {
-    console.warn('[CACHE] Invalid name for caching:', name);
+    logger.warn('[CACHE] Invalid name for caching:', name);
     return '';
   }
   return name.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -141,7 +142,7 @@ function getCachedResult(name: string): CachedResult | null {
 
   if (cached && isCacheValid(cached)) {
     cacheHits++;
-    console.log(`[CACHE] Using cached result for "${name}"`);
+    logger.info(`[CACHE] Using cached result for "${name}"`);
     return cached;
   }
   
@@ -157,7 +158,7 @@ function getCachedResult(name: string): CachedResult | null {
  */
 function setCachedResult(name: string, result: CachedResult): void {
   if (!name || typeof name !== 'string' || !result) {
-    console.warn('[CACHE] Invalid data for caching:', { name, result });
+    logger.warn('[CACHE] Invalid data for caching:', { name, result });
     return;
   }
   
@@ -205,7 +206,7 @@ async function withRetry<T>(
       }
       
       const delay = baseDelay * Math.pow(2, attempt);
-      console.log(`[RETRY] Attempt ${attempt + 1} failed, retrying in ${delay}ms:`, error);
+      logger.info(`[RETRY] Attempt ${attempt + 1} failed, retrying in ${delay}ms:`, error);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
@@ -240,7 +241,7 @@ function validateApiResponse(content: string, expectedCount: number): any[] {
     throw new Error('Invalid API response: empty or non-string content');
   }
 
-  console.log(`[VALIDATION] Raw API response:`, content);
+  logger.info(`[VALIDATION] Raw API response:`, content);
 
   // The `json_object` response format should already be valid JSON.
   // Remove possible markdown fences for backward compatibility.
@@ -253,7 +254,7 @@ function validateApiResponse(content: string, expectedCount: number): any[] {
   try {
     parsed = JSON.parse(cleanContent);
   } catch (parseError) {
-    console.error(`[VALIDATION] JSON parse error:`, parseError);
+    logger.error(`[VALIDATION] JSON parse error:`, parseError);
     throw new Error(`Failed to parse API response as JSON: ${parseError}`);
   }
 
@@ -271,7 +272,7 @@ function validateApiResponse(content: string, expectedCount: number): any[] {
     throw new Error('No valid classifications array found in response');
   }
 
-  console.log(`[VALIDATION] Extracted ${classifications.length} classifications, expected ${expectedCount}`);
+  logger.info(`[VALIDATION] Extracted ${classifications.length} classifications, expected ${expectedCount}`);
 
   // Validate each classification object
   const validatedClassifications = classifications.slice(0, expectedCount).map((item, index) => {
@@ -315,7 +316,7 @@ async function processBatch(
   reasoning: string;
   source: 'api';
 }>> {
-  console.log(`[OPTIMIZED] Processing batch ${batchNumber} with ${batchNames.length} names`);
+  logger.info(`[OPTIMIZED] Processing batch ${batchNumber} with ${batchNames.length} names`);
 
   try {
     const batchResults = await withRetry(async () => {
@@ -374,10 +375,10 @@ async function processBatch(
             timestamp: Date.now()
           });
         } catch (cacheError) {
-          console.warn(`[OPTIMIZED] Failed to cache result for "${originalName}":`, cacheError);
+          logger.warn(`[OPTIMIZED] Failed to cache result for "${originalName}":`, cacheError);
         }
 
-        console.log(`[OPTIMIZED] Classified "${originalName}": ${result.classification} (${result.confidence}%)`);
+        logger.info(`[OPTIMIZED] Classified "${originalName}": ${result.classification} (${result.confidence}%)`);
       }
     });
 
@@ -392,7 +393,7 @@ async function processBatch(
 
     return batchOutput;
   } catch (error) {
-    console.error(`[OPTIMIZED] Batch ${batchNumber} failed:`, error);
+    logger.error(`[OPTIMIZED] Batch ${batchNumber} failed:`, error);
 
     const fallback: Array<{
       payeeName: string;
@@ -423,15 +424,15 @@ export async function optimizedBatchClassification(
   reasoning: string;
   source: 'cache' | 'api';
 }>> {
-  console.log(`[OPTIMIZED] Starting classification of ${payeeNames.length} payees`);
+  logger.info(`[OPTIMIZED] Starting classification of ${payeeNames.length} payees`);
 
   // Input validation
   if (!Array.isArray(payeeNames)) {
-    console.error('[OPTIMIZED] Invalid input: payeeNames is not an array');
+    logger.error('[OPTIMIZED] Invalid input: payeeNames is not an array');
     return [];
   }
 
-  const openaiClient = getOpenAIClient();
+  const openaiClient = await getOpenAIClient();
   if (!openaiClient) {
     throw new Error("OpenAI client not initialized. Please check your API key.");
   }
@@ -439,7 +440,7 @@ export async function optimizedBatchClassification(
   // Filter and validate names
   const validNames = payeeNames.filter(name => name && typeof name === 'string' && name.trim());
   if (validNames.length === 0) {
-    console.warn('[OPTIMIZED] No valid names to process');
+    logger.warn('[OPTIMIZED] No valid names to process');
     return [];
   }
 
@@ -468,12 +469,12 @@ export async function optimizedBatchClassification(
         uncachedNames.push(name);
       }
     } catch (error) {
-      console.error(`[OPTIMIZED] Cache error for "${name}":`, error);
+      logger.error(`[OPTIMIZED] Cache error for "${name}":`, error);
       uncachedNames.push(name);
     }
   }
 
-  console.log(`[OPTIMIZED] Cache: ${results.length} hits, ${uncachedNames.length} need API`);
+  logger.info(`[OPTIMIZED] Cache: ${results.length} hits, ${uncachedNames.length} need API`);
 
   // Step 2: Process uncached names in batches with controlled concurrency
   if (uncachedNames.length > 0) {
@@ -496,13 +497,13 @@ export async function optimizedBatchClassification(
   const orderedResults = validNames.map(name => {
     const result = results.find(r => r.payeeName === name);
     if (!result) {
-      console.warn(`[OPTIMIZED] Missing result for "${name}", creating fallback`);
+      logger.warn(`[OPTIMIZED] Missing result for "${name}", creating fallback`);
       return createFallbackResult(name, 'No result found');
     }
     return result;
   });
   
-  console.log(`[OPTIMIZED] Completed: ${orderedResults.length} total, ${results.filter(r => r.source === 'cache').length} cached, ${results.filter(r => r.source === 'api').length} from API`);
+  logger.info(`[OPTIMIZED] Completed: ${orderedResults.length} total, ${results.filter(r => r.source === 'cache').length} cached, ${results.filter(r => r.source === 'api').length} from API`);
   return orderedResults;
 }
 
@@ -514,7 +515,7 @@ export function clearClassificationCache(): void {
   if (persistCache && typeof localStorage !== 'undefined') {
     localStorage.removeItem(LOCAL_STORAGE_KEY);
   }
-  console.log('[CACHE] Classification cache cleared');
+  logger.info('[CACHE] Classification cache cleared');
 }
 
 /**

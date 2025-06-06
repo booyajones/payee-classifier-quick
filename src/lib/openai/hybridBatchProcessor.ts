@@ -1,3 +1,4 @@
+import { logger } from "../logger";
 import { ClassificationConfig } from '@/lib/types';
 import { createBatchJob, BatchJob, getBatchJobResults } from './trueBatchAPI';
 import { optimizedBatchClassification } from './optimizedBatchClassification';
@@ -40,7 +41,7 @@ export async function processWithHybridBatch(
   onProgress?: ProgressCallback,
   config?: ClassificationConfig
 ): Promise<HybridBatchResult> {
-  console.log(`[HYBRID BATCH] Starting ${mode} processing for ${payeeNames.length} payees`);
+  logger.info(`[HYBRID BATCH] Starting ${mode} processing for ${payeeNames.length} payees`);
   
   const stats: BatchStats = {
     keywordExcluded: 0,
@@ -77,7 +78,7 @@ export async function processWithHybridBatch(
     }
   });
 
-  console.log(`[HYBRID BATCH] Keyword exclusions: ${stats.keywordExcluded}, Need AI: ${needsAI.length}`);
+  logger.info(`[HYBRID BATCH] Keyword exclusions: ${stats.keywordExcluded}, Need AI: ${needsAI.length}`);
 
   if (needsAI.length === 0) {
     // All were excluded by keywords
@@ -96,9 +97,9 @@ export async function processWithHybridBatch(
     onProgress?.(stats.keywordExcluded, payeeNames.length, (stats.keywordExcluded / payeeNames.length) * 100, stats);
 
     try {
-      console.log(`[HYBRID BATCH] Creating batch job for ${aiNames.length} names`);
+      logger.info(`[HYBRID BATCH] Creating batch job for ${aiNames.length} names`);
       const batchJob = await createBatchJob(aiNames, `Hybrid classification batch - ${aiNames.length} payees`);
-      console.log(`[HYBRID BATCH] Created batch job:`, batchJob);
+      logger.info(`[HYBRID BATCH] Created batch job:`, batchJob);
       
       stats.phase = 'Batch job submitted';
       stats.aiProcessed = aiNames.length;
@@ -110,7 +111,7 @@ export async function processWithHybridBatch(
         stats
       };
     } catch (error) {
-      console.error('[HYBRID BATCH] Error creating batch job:', error);
+      logger.error('[HYBRID BATCH] Error creating batch job:', error);
       throw new Error(`Failed to create batch job: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   } else {
@@ -123,7 +124,7 @@ export async function processWithHybridBatch(
         30000 // timeout
       );
 
-      console.log(`[HYBRID BATCH] AI processing complete. Results:`, aiResults);
+      logger.info(`[HYBRID BATCH] AI processing complete. Results:`, aiResults);
 
       // Merge AI results back into final results
       needsAI.forEach((item, aiIndex) => {
@@ -154,7 +155,7 @@ export async function processWithHybridBatch(
         stats
       };
     } catch (error) {
-      console.error('[HYBRID BATCH] Error in real-time processing:', error);
+      logger.error('[HYBRID BATCH] Error in real-time processing:', error);
       throw new Error(`Real-time processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -167,7 +168,7 @@ export async function completeBatchJob(
   batchJob: BatchJob,
   originalPayeeNames: string[]
 ): Promise<HybridBatchResult> {
-  console.log(`[HYBRID BATCH] Completing batch job ${batchJob.id} for ${originalPayeeNames.length} payees`);
+  logger.info(`[HYBRID BATCH] Completing batch job ${batchJob.id} for ${originalPayeeNames.length} payees`);
   
   // Re-apply keyword exclusions to get the same filtering
   const exclusionResults = originalPayeeNames.map(name => checkKeywordExclusion(name));
@@ -201,7 +202,7 @@ export async function completeBatchJob(
   const aiNames = needsAI.map(item => item.name);
   
   try {
-    console.log(`[HYBRID BATCH] Retrieving batch results for ${aiNames.length} AI-processed names`);
+    logger.info(`[HYBRID BATCH] Retrieving batch results for ${aiNames.length} AI-processed names`);
     const batchResults = await getBatchJobResults(batchJob, aiNames);
     
     // Merge batch results back into final results
@@ -215,7 +216,7 @@ export async function completeBatchJob(
       };
     });
 
-    console.log(`[HYBRID BATCH] Batch job completion successful`);
+    logger.info(`[HYBRID BATCH] Batch job completion successful`);
 
     return {
       results: finalResults.filter(r => r !== null) as HybridBatchResult['results'],
@@ -226,7 +227,7 @@ export async function completeBatchJob(
       }
     };
   } catch (error) {
-    console.error('[HYBRID BATCH] Error completing batch job:', error);
+    logger.error('[HYBRID BATCH] Error completing batch job:', error);
     throw new Error(`Failed to complete batch job: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

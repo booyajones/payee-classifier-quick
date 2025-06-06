@@ -2,6 +2,7 @@
 import { ClassificationResult } from '../types';
 import { getOpenAIClient } from './client';
 import { timeoutPromise } from './utils';
+import { logger } from '../logger';
 
 interface AIClassificationResponse {
   classification: 'Business' | 'Individual';
@@ -68,7 +69,7 @@ function saveToCache(payeeName: string, result: AIClassificationResponse): void 
     cachedClassifications[normalizedName] = cacheEntry;
     localStorage.setItem('payeeClassifications', JSON.stringify(cachedClassifications));
   } catch (error) {
-    console.warn('Failed to save classification to cache:', error);
+    logger.warn('Failed to save classification to cache:', error);
   }
 }
 
@@ -95,7 +96,7 @@ function getFromCache(payeeName: string): AIClassificationResponse | null {
       return entry.result;
     }
   } catch (error) {
-    console.warn('Failed to retrieve classification from cache:', error);
+    logger.warn('Failed to retrieve classification from cache:', error);
   }
   
   return null;
@@ -117,9 +118,9 @@ function loadCacheFromStorage(): void {
       }
     });
     
-    console.log(`Loaded ${inMemoryCache.size} cached classifications from storage`);
+    logger.info(`Loaded ${inMemoryCache.size} cached classifications from storage`);
   } catch (error) {
-    console.warn('Failed to load classifications from storage:', error);
+    logger.warn('Failed to load classifications from storage:', error);
   }
 }
 
@@ -135,11 +136,11 @@ export async function enhancedClassifyPayeeWithAI(payeeName: string): Promise<AI
   // Check cache first
   const cachedResult = getFromCache(payeeName);
   if (cachedResult) {
-    console.log(`Using cached classification for "${payeeName}"`);
+    logger.info(`Using cached classification for "${payeeName}"`);
     return cachedResult;
   }
   
-  const openai = getOpenAIClient();
+  const openai = await getOpenAIClient();
   
   if (!openai) {
     throw new Error("OpenAI client is not initialized");
@@ -228,7 +229,7 @@ Step-by-step analysis:
       throw new Error("Failed to parse OpenAI API response");
     }
   } catch (error) {
-    console.error("Error in AI classification:", error);
+    logger.error("Error in AI classification:", error);
     throw error;
   }
 }
@@ -248,7 +249,7 @@ export async function consensusClassification(
   // Check cache first for quick return
   const cachedResult = getFromCache(payeeName);
   if (cachedResult) {
-    console.log(`Using cached consensus classification for "${payeeName}"`);
+    logger.info(`Using cached consensus classification for "${payeeName}"`);
     return cachedResult;
   }
   
@@ -257,7 +258,7 @@ export async function consensusClassification(
   // Run multiple classifications in parallel for better performance
   const promises = Array(runs).fill(0).map(() => 
     enhancedClassifyPayeeWithAI(payeeName).catch(error => {
-      console.error(`Error in classification run:`, error);
+      logger.error(`Error in classification run:`, error);
       return null;
     })
   );
