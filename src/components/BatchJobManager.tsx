@@ -1,11 +1,7 @@
 
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
-import { CheckCircle, XCircle, Clock, Download, RefreshCw, Trash, Loader2, Calendar, AlertTriangle } from "lucide-react";
 import { BatchJob, getBatchJobResults, cancelBatchJob } from "@/lib/openai/trueBatchAPI";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import { createPayeeClassification } from "@/lib/utils";
@@ -14,11 +10,12 @@ import { handleError, showErrorToast, showRetryableErrorToast } from "@/lib/erro
 import { useRetry } from "@/hooks/useRetry";
 import { checkKeywordExclusion } from "@/lib/classification/enhancedKeywordExclusion";
 import ConfirmationDialog from "./ConfirmationDialog";
+import BatchJobCard from "./batch/BatchJobCard";
 
 interface BatchJobManagerProps {
   jobs: BatchJob[];
   payeeNamesMap: Record<string, string[]>;
-  originalFileDataMap: Record<string, any[]>; // Add original file data mapping
+  originalFileDataMap: Record<string, any[]>;
   onJobUpdate: (job: BatchJob) => void;
   onJobComplete: (results: PayeeClassification[], summary: BatchProcessingResult, jobId: string) => void;
   onJobDelete: (jobId: string) => void;
@@ -27,7 +24,7 @@ interface BatchJobManagerProps {
 const BatchJobManager = ({ 
   jobs, 
   payeeNamesMap, 
-  originalFileDataMap, // Add this prop
+  originalFileDataMap,
   onJobUpdate, 
   onJobComplete, 
   onJobDelete 
@@ -56,29 +53,6 @@ const BatchJobManager = ({
     execute: downloadResultsWithRetry,
     isRetrying: isDownloadRetrying
   } = useRetry(getBatchJobResults, { maxRetries: 3, baseDelay: 2000 });
-
-  const formatTimestamp = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleString();
-  };
-
-  const calculateDuration = (startTime: number, endTime?: number) => {
-    if (!endTime) return null;
-    const duration = endTime - startTime;
-    const minutes = Math.floor(duration / 60);
-    const seconds = duration % 60;
-    return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-  };
-
-  const formatLastPollTime = (timestamp?: number) => {
-    if (!timestamp) return 'Never';
-    const now = Date.now();
-    const diff = now - timestamp;
-    const minutes = Math.floor(diff / 60000);
-    const seconds = Math.floor((diff % 60000) / 1000);
-    
-    if (minutes > 0) return `${minutes}m ${seconds}s ago`;
-    return `${seconds}s ago`;
-  };
 
   // Manual refresh - triggers single check + starts auto-polling
   const handleManualRefresh = async (jobId: string) => {
@@ -171,7 +145,7 @@ const BatchJobManager = ({
         results: classifications,
         successCount,
         failureCount,
-        originalFileData // CRITICAL: Include original file data in summary
+        originalFileData
       };
 
       onJobComplete(classifications, summary, job.id);
@@ -235,34 +209,6 @@ const BatchJobManager = ({
     });
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'failed':
-      case 'expired':
-      case 'cancelled':
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      default:
-        return <Clock className="h-4 w-4 text-yellow-500" />;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      case 'failed':
-      case 'expired':
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      case 'in_progress':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-yellow-100 text-yellow-800';
-    }
-  };
-
   // Sort jobs by creation date in descending order (most recent first)
   const sortedJobs = [...jobs].sort((a, b) => b.created_at - a.created_at);
 
@@ -286,159 +232,20 @@ const BatchJobManager = ({
           const isJobRefreshing = refreshingJobs.has(job.id);
           const isJobDownloading = downloadingJobs.has(job.id);
           const payeeCount = payeeNamesMap[job.id]?.length || 0;
-          const completionTime = job.completed_at || job.failed_at || job.expired_at;
-          const duration = calculateDuration(job.created_at, completionTime);
           
           return (
-            <Card key={job.id}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-sm">
-                      Job {job.id.slice(-8)}
-                      {pollingState?.isPolling && (
-                        <span className="ml-2 text-xs text-blue-600">
-                          (Auto-checking every minute)
-                        </span>
-                      )}
-                    </CardTitle>
-                    <CardDescription>
-                      {job.metadata?.description || 'Payee classification batch'} • {payeeCount} payees
-                    </CardDescription>
-                    {pollingState?.lastError && (
-                      <div className="flex items-center gap-1 mt-1">
-                        <AlertTriangle className="h-3 w-3 text-red-500" />
-                        <p className="text-xs text-red-600">
-                          {pollingState.lastError}
-                        </p>
-                      </div>
-                    )}
-                    {pollingState?.lastSuccessfulPoll && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Last checked: {formatLastPollTime(pollingState.lastSuccessfulPoll)}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {getStatusIcon(job.status)}
-                    <Badge className={getStatusColor(job.status)}>
-                      {job.status.replace('_', ' ')}
-                    </Badge>
-                  </div>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="space-y-4">
-                {/* Timeline Section */}
-                <div className="bg-muted/50 p-3 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Timeline</span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Created:</span>
-                      <span>{formatTimestamp(job.created_at)}</span>
-                    </div>
-                    {job.in_progress_at && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Started:</span>
-                        <span>{formatTimestamp(job.in_progress_at)}</span>
-                      </div>
-                    )}
-                    {job.finalizing_at && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Finalizing:</span>
-                        <span>{formatTimestamp(job.finalizing_at)}</span>
-                      </div>
-                    )}
-                    {completionTime && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">
-                          {job.completed_at ? 'Completed:' : job.failed_at ? 'Failed:' : 'Expired:'}
-                        </span>
-                        <span>{formatTimestamp(completionTime)}</span>
-                      </div>
-                    )}
-                    {duration && (
-                      <div className="flex justify-between font-medium">
-                        <span className="text-muted-foreground">Duration:</span>
-                        <span>{duration}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium">Total Requests:</span> {job.request_counts.total}
-                  </div>
-                  <div>
-                    <span className="font-medium">Completed:</span> {job.request_counts.completed}
-                  </div>
-                  <div>
-                    <span className="font-medium">Failed:</span> {job.request_counts.failed}
-                  </div>
-                  <div>
-                    <span className="font-medium">Progress:</span>{' '}
-                    {Math.round((job.request_counts.completed / job.request_counts.total) * 100)}%
-                  </div>
-                </div>
-
-                <div className="flex gap-2 flex-wrap">
-                  {/* Manual Refresh Button */}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleManualRefresh(job.id)}
-                    disabled={isJobRefreshing}
-                  >
-                    {isJobRefreshing ? (
-                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-3 w-3 mr-1" />
-                    )}
-                    {isJobRefreshing ? 'Checking...' : 'Check Status'}
-                  </Button>
-
-                  {job.status === 'completed' && (
-                    <Button
-                      size="sm"
-                      onClick={() => handleDownloadResults(job)}
-                      disabled={isJobDownloading}
-                    >
-                      {isJobDownloading ? (
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                      ) : (
-                        <Download className="h-3 w-3 mr-1" />
-                      )}
-                      {isJobDownloading ? 'Downloading...' : 'Download Results'}
-                    </Button>
-                  )}
-
-                  {['validating', 'in_progress'].includes(job.status) && (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => showCancelConfirmation(job.id)}
-                    >
-                      Cancel Job
-                    </Button>
-                  )}
-
-                  {['completed', 'failed', 'expired', 'cancelled'].includes(job.status) && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => showDeleteConfirmation(job.id)}
-                    >
-                      <Trash className="h-3 w-3 mr-1" />
-                      Remove
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <BatchJobCard
+              key={job.id}
+              job={job}
+              pollingState={pollingState}
+              payeeCount={payeeCount}
+              isRefreshing={isJobRefreshing}
+              isDownloading={isJobDownloading}
+              onManualRefresh={handleManualRefresh}
+              onDownloadResults={handleDownloadResults}
+              onCancelJob={showCancelConfirmation}
+              onDeleteJob={showDeleteConfirmation}
+            />
           );
         })}
       </div>
