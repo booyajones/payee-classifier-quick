@@ -1,6 +1,14 @@
 
 import { ClassificationConfig } from '../types';
 
+// Helper function to safely get environment variables
+const getEnvVar = (key: string, defaultValue: string): string => {
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env[key] || defaultValue;
+  }
+  return defaultValue;
+};
+
 // Default classification configuration
 export const DEFAULT_CLASSIFICATION_CONFIG: ClassificationConfig = {
   aiThreshold: 75, // Default threshold - use AI when confidence is below 75%
@@ -12,12 +20,12 @@ export const DEFAULT_CLASSIFICATION_CONFIG: ClassificationConfig = {
 };
 
 // Increased concurrency limits for better parallel processing
-const envConcurrency = parseInt(process.env.CLASSIFIER_MAX_CONCURRENCY || '', 10);
+const envConcurrency = parseInt(getEnvVar('CLASSIFIER_MAX_CONCURRENCY', '20'), 10);
 export const MAX_CONCURRENCY =
   Number.isFinite(envConcurrency) && envConcurrency > 0 ? envConcurrency : 20; // Doubled from 10
 
 // Maximum batch size for AI classification
-const envBatchSize = parseInt(process.env.CLASSIFIER_MAX_BATCH_SIZE || '', 10);
+const envBatchSize = parseInt(getEnvVar('CLASSIFIER_MAX_BATCH_SIZE', '15'), 10);
 export const MAX_BATCH_SIZE =
   Number.isFinite(envBatchSize) && envBatchSize > 0 ? envBatchSize : 15; // Increased from 5
 
