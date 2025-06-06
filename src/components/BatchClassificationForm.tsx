@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -168,23 +167,74 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
           </Alert>
 
           <div className="grid md:grid-cols-2 gap-4">
-            <FileUploadForm
-              onFileUpload={handleFileUpload}
-              isProcessing={isProcessing}
-              icon={<Upload className="h-4 w-4" />}
-              title="Upload File for Batch Processing"
-              description="Upload CSV/Excel file to create a batch job"
-              acceptedTypes=".csv,.xlsx,.xls"
-              ref={fileInputRef}
-            />
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="h-4 w-4" />
+                  Upload File for Batch Processing
+                </CardTitle>
+                <CardDescription>
+                  Upload CSV/Excel file to create a batch job
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file);
+                  }}
+                  disabled={isProcessing}
+                  className="w-full"
+                />
+                {isProcessing && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-sm text-muted-foreground">Processing file...</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-            <BatchTextInput
-              onSubmit={handleTextSubmit}
-              isProcessing={isProcessing}
-              icon={<FileText className="h-4 w-4" />}
-              title="Text Input for Batch Processing"
-              description="Enter payee names (one per line) to create a batch job"
-            />
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Text Input for Batch Processing
+                </CardTitle>
+                <CardDescription>
+                  Enter payee names (one per line) to create a batch job
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  const text = formData.get('payeeNames') as string;
+                  const names = text.split('\n').map(name => name.trim()).filter(name => name.length > 0);
+                  if (names.length > 0) handleTextSubmit(names);
+                }}>
+                  <textarea
+                    name="payeeNames"
+                    placeholder="Enter payee names (one per line)"
+                    className="w-full min-h-[100px] p-2 border rounded"
+                    disabled={isProcessing}
+                  />
+                  <Button type="submit" disabled={isProcessing} className="mt-2 w-full">
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Creating Job...
+                      </>
+                    ) : (
+                      'Submit for Processing'
+                    )}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
           </div>
         </CardContent>
       </Card>
@@ -193,7 +243,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
         <BatchJobManager
           jobs={batchJobs}
           payeeNamesMap={payeeNamesMap}
-          originalFileDataMap={originalFileDataMap} // Pass original file data
+          originalFileDataMap={originalFileDataMap}
           onJobUpdate={handleJobUpdate}
           onJobComplete={handleJobComplete}
           onJobDelete={handleJobDelete}
