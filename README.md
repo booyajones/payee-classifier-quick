@@ -59,6 +59,7 @@ This project is built with:
 - React
 - shadcn-ui
 - Tailwind CSS
+- ProbablePeople for improved NLP name parsing
 
 ## How can I deploy this project?
 
@@ -103,3 +104,7 @@ before the AI model is called. A higher threshold typically improves accuracy at
 the cost of additional API usage and slower processing. Likewise, extending
 `DEFAULT_API_TIMEOUT` allows more time for the API to respond, reducing timeout
 errors but making each classification call take longer if the service is slow.
+
+The optional `probablepeople` dependency enhances the NLP-based tier by
+providing detailed personal and business name parsing. Installing it will yield
+more accurate classifications when local heuristics are used.
