@@ -10,7 +10,8 @@ export * from './enhancedClassification';
 export {
   DEFAULT_API_TIMEOUT,
   CLASSIFICATION_MODEL,
-  MAX_BATCH_SIZE as CONFIG_MAX_BATCH_SIZE
+  MAX_BATCH_SIZE as CONFIG_MAX_BATCH_SIZE,
+  MAX_PARALLEL_BATCHES
 } from './config';
 
 // Export the batch-specific MAX_BATCH_SIZE with a distinctive name

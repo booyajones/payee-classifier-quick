@@ -1,7 +1,7 @@
 
 import { getOpenAIClient } from './client';
 import { timeoutPromise } from './utils';
-import { DEFAULT_API_TIMEOUT, CLASSIFICATION_MODEL } from './config';
+import { DEFAULT_API_TIMEOUT, CLASSIFICATION_MODEL, MAX_PARALLEL_BATCHES } from './config';
 
 export const OPTIMIZED_BATCH_SIZE = 10; // Reduced for better reliability
 export const MAX_RETRIES = 2;
@@ -301,6 +301,116 @@ function validateApiResponse(content: string, expectedCount: number): any[] {
 }
 
 /**
+ * Process a single batch of payee names with retry and caching
+ */
+async function processBatch(
+  batchNames: string[],
+  batchNumber: number,
+  openaiClient: ReturnType<typeof getOpenAIClient>,
+  timeout: number
+): Promise<Array<{
+  payeeName: string;
+  classification: 'Business' | 'Individual';
+  confidence: number;
+  reasoning: string;
+  source: 'api';
+}>> {
+  console.log(`[OPTIMIZED] Processing batch ${batchNumber} with ${batchNames.length} names`);
+
+  try {
+    const batchResults = await withRetry(async () => {
+      const prompt = `Classify each payee name as "Business" or "Individual". Return ONLY a JSON array:\n` +
+        `[\n  {"name": "payee_name", "classification": "Business", "confidence": 95, "reasoning": "brief reason"},\n` +
+        `  {"name": "next_payee", "classification": "Individual", "confidence": 90, "reasoning": "brief reason"}\n]\n\n` +
+        `Names to classify:\n${batchNames.map((name, idx) => `${idx + 1}. "${name}"`).join('\n')}`;
+
+      const apiCall = openaiClient.chat.completions.create({
+        model: CLASSIFICATION_MODEL,
+        messages: [
+          { role: 'system', content: 'You are an expert classifier. Return only valid JSON array, no other text.' },
+          { role: 'user', content: prompt }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.1,
+        max_tokens: 800
+      });
+
+      return await timeoutPromise(apiCall, timeout);
+    });
+
+    const content = batchResults?.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error('No response content from OpenAI API');
+    }
+
+    const validatedClassifications = validateApiResponse(content, batchNames.length);
+
+    const batchOutput: Array<{
+      payeeName: string;
+      classification: 'Business' | 'Individual';
+      confidence: number;
+      reasoning: string;
+      source: 'api';
+    }> = [];
+
+    validatedClassifications.forEach((result, index) => {
+      if (index < batchNames.length) {
+        const originalName = batchNames[index];
+        const classificationResult = {
+          payeeName: originalName,
+          classification: result.classification as 'Business' | 'Individual',
+          confidence: result.confidence,
+          reasoning: result.reasoning,
+          source: 'api' as const
+        };
+
+        batchOutput.push(classificationResult);
+
+        try {
+          setCachedResult(originalName, {
+            classification: classificationResult.classification,
+            confidence: classificationResult.confidence,
+            reasoning: classificationResult.reasoning,
+            timestamp: Date.now()
+          });
+        } catch (cacheError) {
+          console.warn(`[OPTIMIZED] Failed to cache result for "${originalName}":`, cacheError);
+        }
+
+        console.log(`[OPTIMIZED] Classified "${originalName}": ${result.classification} (${result.confidence}%)`);
+      }
+    });
+
+    if (validatedClassifications.length < batchNames.length) {
+      for (let j = validatedClassifications.length; j < batchNames.length; j++) {
+        const missingName = batchNames[j];
+        if (missingName) {
+          batchOutput.push(createFallbackResult(missingName, 'Incomplete API response'));
+        }
+      }
+    }
+
+    return batchOutput;
+  } catch (error) {
+    console.error(`[OPTIMIZED] Batch ${batchNumber} failed:`, error);
+
+    const fallback: Array<{
+      payeeName: string;
+      classification: 'Business' | 'Individual';
+      confidence: number;
+      reasoning: string;
+      source: 'api';
+    }> = [];
+    batchNames.forEach(name => {
+      if (name) {
+        fallback.push(createFallbackResult(name, error instanceof Error ? error.message : 'Unknown error'));
+      }
+    });
+    return fallback;
+  }
+}
+
+/**
  * Classify multiple payees in an optimized batch
  */
 export async function optimizedBatchClassification(
@@ -365,107 +475,24 @@ export async function optimizedBatchClassification(
 
   console.log(`[OPTIMIZED] Cache: ${results.length} hits, ${uncachedNames.length} need API`);
 
-  // Step 2: Process uncached names in batches
+  // Step 2: Process uncached names in batches with controlled concurrency
   if (uncachedNames.length > 0) {
+    const batches: string[][] = [];
     for (let i = 0; i < uncachedNames.length; i += OPTIMIZED_BATCH_SIZE) {
-      const batchNames = uncachedNames.slice(i, i + OPTIMIZED_BATCH_SIZE);
-      const batchNumber = Math.floor(i / OPTIMIZED_BATCH_SIZE) + 1;
-      
-      console.log(`[OPTIMIZED] Processing batch ${batchNumber} with ${batchNames.length} names`);
-      
-      try {
-        const batchResults = await withRetry(async () => {
-          const prompt = `Classify each payee name as "Business" or "Individual". Return ONLY a JSON array:
-[
-  {"name": "payee_name", "classification": "Business", "confidence": 95, "reasoning": "brief reason"},
-  {"name": "next_payee", "classification": "Individual", "confidence": 90, "reasoning": "brief reason"}
-]
+      batches.push(uncachedNames.slice(i, i + OPTIMIZED_BATCH_SIZE));
+    }
 
-Names to classify:
-${batchNames.map((name, idx) => `${idx + 1}. "${name}"`).join('\n')}`;
+    let active: Promise<Array<{ payeeName: string; classification: 'Business' | 'Individual'; confidence: number; reasoning: string; source: 'api'; }>>[] = [];
 
-            const apiCall = openaiClient.chat.completions.create({
-              model: CLASSIFICATION_MODEL,
-              messages: [
-                {
-                  role: "system",
-                  content: "You are an expert classifier. Return only valid JSON array, no other text."
-                },
-                {
-                  role: "user",
-                  content: prompt
-                }
-              ],
-            response_format: { type: "json_object" },
-            temperature: 0.1,
-            max_tokens: 800
-          });
-          
-          return await timeoutPromise(apiCall, timeout);
-        });
-
-        const content = batchResults?.choices?.[0]?.message?.content;
-        if (!content) {
-          throw new Error("No response content from OpenAI API");
-        }
-
-        // Validate and parse response
-        const validatedClassifications = validateApiResponse(content, batchNames.length);
-
-        // Process results
-        validatedClassifications.forEach((result, index) => {
-          if (index < batchNames.length) {
-            const originalName = batchNames[index];
-            const classificationResult = {
-              payeeName: originalName,
-              classification: result.classification as 'Business' | 'Individual',
-              confidence: result.confidence,
-              reasoning: result.reasoning,
-              source: 'api' as const
-            };
-            
-            results.push(classificationResult);
-            
-            // Cache the result
-            try {
-              setCachedResult(originalName, {
-                classification: classificationResult.classification,
-                confidence: classificationResult.confidence,
-                reasoning: classificationResult.reasoning,
-                timestamp: Date.now()
-              });
-            } catch (cacheError) {
-              console.warn(`[OPTIMIZED] Failed to cache result for "${originalName}":`, cacheError);
-            }
-            
-            console.log(`[OPTIMIZED] Classified "${originalName}": ${result.classification} (${result.confidence}%)`);
-          }
-        });
-        
-        // Handle missing results
-        if (validatedClassifications.length < batchNames.length) {
-          for (let j = validatedClassifications.length; j < batchNames.length; j++) {
-            const missingName = batchNames[j];
-            if (missingName) {
-              results.push(createFallbackResult(missingName, 'Incomplete API response'));
-            }
-          }
-        }
-        
-      } catch (error) {
-        console.error(`[OPTIMIZED] Batch ${batchNumber} failed:`, error);
-        
-        // Create fallback results for this batch
-        batchNames.forEach(name => {
-          if (name) {
-            results.push(createFallbackResult(name, error instanceof Error ? error.message : 'Unknown error'));
-          }
-        });
+    for (let i = 0; i < batches.length; i++) {
+      active.push(processBatch(batches[i], i + 1, openaiClient, timeout));
+      if (active.length === MAX_PARALLEL_BATCHES || i === batches.length - 1) {
+        const resolved = await Promise.all(active);
+        resolved.forEach(r => results.push(...r));
+        active = [];
       }
     }
   }
-  
-  // Step 3: Ensure all input names have results
   const orderedResults = validNames.map(name => {
     const result = results.find(r => r.payeeName === name);
     if (!result) {
