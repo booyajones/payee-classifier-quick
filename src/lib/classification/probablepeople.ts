@@ -1,25 +1,25 @@
 
 // Lazy-loaded probablepeople module to handle import issues
-let probablepeople: any = null;
+let loadedModule: any = null;
 let importPromise: Promise<any> | null = null;
 
 const loadProbablePeople = async () => {
-  if (probablepeople) return probablepeople;
+  if (loadedModule) return loadedModule;
   
   if (!importPromise) {
     importPromise = (async () => {
       try {
         const module = await import('probablepeople');
-        probablepeople = (module as any).default ?? module;
-        return probablepeople;
+        loadedModule = (module as any).default ?? module;
+        return loadedModule;
       } catch (error) {
         console.warn('Warning: probablepeople package not available, using fallback classification only');
-        probablepeople = {
+        loadedModule = {
           parse: () => {
             throw new Error('probablepeople not available');
           }
         };
-        return probablepeople;
+        return loadedModule;
       }
     })();
   }

@@ -1,125 +1,85 @@
 
-import { ClassificationResult, ClassificationConfig, SimilarityScores } from '../types';
+import { ClassificationResult, ClassificationConfig } from '../types';
 import { DEFAULT_CLASSIFICATION_CONFIG } from './config';
-import { checkKeywordExclusion } from './enhancedKeywordExclusion';
-import { calculateCombinedSimilarity, advancedNormalization } from './stringMatching';
 import { applyRuleBasedClassification } from './ruleBasedClassification';
 import { applyNLPClassification } from './nlpClassification';
-import { consensusClassification } from '../openai/enhancedClassification';
-import { detectBusinessByExtendedRules, detectIndividualByExtendedRules } from './enhancedRules';
+import { enhancedClassifyPayeeWithAI, consensusClassification } from '../openai/enhancedClassification';
+import { detectBusinessByExtendedRules, detectIndividualByExtendedRules, normalizeText } from './enhancedRules';
+import { checkKeywordExclusion } from './enhancedKeywordExclusion';
 
 /**
- * Enhanced classification with advanced string matching and comprehensive error handling
+ * Enhanced classification function V2 with improved keyword exclusion handling
  */
 export async function enhancedClassifyPayeeV2(
   payeeName: string,
-  config: ClassificationConfig = DEFAULT_CLASSIFICATION_CONFIG,
-  retryCount: number = 0
+  config: ClassificationConfig = DEFAULT_CLASSIFICATION_CONFIG
 ): Promise<ClassificationResult> {
   if (!payeeName || payeeName.trim() === '') {
     return {
       classification: 'Individual',
       confidence: 0,
       reasoning: "Invalid or empty payee name",
-      processingTier: 'Failed',
-      processingMethod: 'Input validation'
+      processingTier: 'Rule-Based'
     };
   }
-
-  try {
-    // Step 1: Check keyword exclusion first
-    const keywordExclusion = checkKeywordExclusion(payeeName);
-    if (keywordExclusion.isExcluded) {
-      return {
-        classification: 'Business', // Default for excluded items
-        confidence: keywordExclusion.confidence,
-        reasoning: keywordExclusion.reasoning,
-        processingTier: 'Excluded',
-        keywordExclusion,
-        processingMethod: 'Keyword exclusion'
-      };
-    }
-
-    // Step 2: Advanced normalization and analysis
-    const { normalized, businessIndicators, individualIndicators } = advancedNormalization(payeeName);
+  
+  // Check keyword exclusion first
+  const exclusionResult = checkKeywordExclusion(payeeName);
+  if (exclusionResult.isExcluded) {
+    return {
+      classification: 'Individual',
+      confidence: 95,
+      reasoning: `Excluded by keyword filter: ${exclusionResult.matchedKeywords?.join(", ")}`,
+      processingTier: 'Keyword-Exclusion',
+      keywordExclusion: exclusionResult
+    };
+  }
+  
+  // Normalize the payee name
+  const normalizedName = normalizeText(payeeName);
+  
+  // Stage 1: Ultra-fast Rule Gate
+  const businessCheck = detectBusinessByExtendedRules(payeeName);
+  if (businessCheck.isMatch) {
+    return {
+      classification: 'Business',
+      confidence: 99,
+      reasoning: `Classified as business based on extended rules: ${businessCheck.rules.join(", ")}`,
+      processingTier: 'Rule-Based',
+      matchingRules: businessCheck.rules,
+      keywordExclusion: exclusionResult
+    };
+  }
+  
+  const individualCheck = detectIndividualByExtendedRules(payeeName);
+  if (individualCheck.isMatch) {
+    return {
+      classification: 'Individual',
+      confidence: 97,
+      reasoning: `Classified as individual based on extended rules: ${individualCheck.rules.join(", ")}`,
+      processingTier: 'Rule-Based',
+      matchingRules: individualCheck.rules,
+      keywordExclusion: exclusionResult
+    };
+  }
+  
+  // If offline mode, use rule-based classification
+  if (config.offlineMode) {
+    const isLikelyBusiness = payeeName.split(' ').length > 2 || 
+                            /\d/.test(payeeName) || 
+                            payeeName.length > 25;
     
-    // Step 3: Ultra-fast rule gate with enhanced detection
-    const businessCheck = detectBusinessByExtendedRules(payeeName);
-    if (businessCheck.isMatch) {
-      return {
-        classification: 'Business',
-        confidence: Math.min(99, 85 + businessIndicators.length * 3),
-        reasoning: `Strong business indicators detected: ${businessCheck.rules.join(", ")}`,
-        processingTier: 'Rule-Based',
-        matchingRules: businessCheck.rules,
-        processingMethod: 'Extended business rules'
-      };
-    }
-
-    const individualCheck = detectIndividualByExtendedRules(payeeName);
-    if (individualCheck.isMatch) {
-      return {
-        classification: 'Individual',
-        confidence: Math.min(97, 80 + individualIndicators.length * 4),
-        reasoning: `Strong individual indicators detected: ${individualCheck.rules.join(", ")}`,
-        processingTier: 'Rule-Based',
-        matchingRules: individualCheck.rules,
-        processingMethod: 'Extended individual rules'
-      };
-    }
-
-    // Step 4: Fuzzy matching against known patterns (if enabled)
-    if (config.useFuzzyMatching) {
-      const fuzzyResult = await performFuzzyMatching(payeeName, config.similarityThreshold || 80);
-      if (fuzzyResult) {
-        return fuzzyResult;
-      }
-    }
-
-    // Step 5: Offline mode fallback
-    if (config.offlineMode) {
-      const offlineResult = performOfflineClassification(payeeName, businessIndicators, individualIndicators);
-      return offlineResult;
-    }
-
-    // Step 6: Bypass rule/NLP and go straight to AI
-    if (config.bypassRuleNLP) {
-      try {
-        const aiResult = await consensusClassification(payeeName, 2);
-        return {
-          classification: aiResult.classification,
-          confidence: aiResult.confidence,
-          reasoning: aiResult.reasoning,
-          processingTier: 'AI-Assisted',
-          matchingRules: aiResult.matchingRules,
-          processingMethod: 'Consensus AI classification'
-        };
-      } catch (error) {
-        console.error("Error with AI classification:", error);
-        // Fall through to rule-based backup
-      }
-    }
-
-    // Step 7: Standard tiered approach
-    // Tier 1: Rule-based classification
-    const ruleBasedResult = applyRuleBasedClassification(payeeName);
-    if (ruleBasedResult && ruleBasedResult.confidence >= config.aiThreshold) {
-      return {
-        ...ruleBasedResult,
-        processingMethod: 'Standard rule-based classification'
-      };
-    }
-
-    // Tier 2: NLP-based classification
-    const nlpResult = applyNLPClassification(payeeName);
-    if (nlpResult && nlpResult.confidence >= config.aiThreshold) {
-      return {
-        ...nlpResult,
-        processingMethod: 'NLP-based classification'
-      };
-    }
-
-    // Tier 3: AI-assisted classification with retry logic
+    return {
+      classification: isLikelyBusiness ? 'Business' : 'Individual',
+      confidence: 65,
+      reasoning: `Offline classification based on name structure and patterns.`,
+      processingTier: 'Rule-Based',
+      keywordExclusion: exclusionResult
+    };
+  }
+  
+  // If bypassing rule-based and NLP, go straight to AI
+  if (config.bypassRuleNLP) {
     try {
       const aiResult = await consensusClassification(payeeName, 2);
       return {
@@ -128,158 +88,70 @@ export async function enhancedClassifyPayeeV2(
         reasoning: aiResult.reasoning,
         processingTier: 'AI-Assisted',
         matchingRules: aiResult.matchingRules,
-        processingMethod: 'AI consensus classification'
+        keywordExclusion: exclusionResult
       };
     } catch (error) {
-      console.error("Error with consensus classification:", error);
-      
-      // Retry logic for failed classifications
-      if (config.retryFailedClassifications && retryCount < (config.maxRetries || 2)) {
-        console.log(`Retrying classification for "${payeeName}" (attempt ${retryCount + 1})`);
-        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Exponential backoff
-        return enhancedClassifyPayeeV2(payeeName, config, retryCount + 1);
-      }
-
-      // Final fallback with detailed heuristics
-      return performHeuristicClassification(payeeName, businessIndicators, individualIndicators, error);
+      console.error("Error with AI classification:", error);
+      // Fall through to rule-based backup
     }
-
-  } catch (error) {
-    console.error(`Unexpected error classifying "${payeeName}":`, error);
-    
-    // Return a failed classification with error details
+  }
+  
+  // Regular tiered approach
+  
+  // Tier 1: Apply rule-based classification
+  const ruleBasedResult = await applyRuleBasedClassification(payeeName);
+  if (ruleBasedResult && ruleBasedResult.confidence >= config.aiThreshold) {
     return {
-      classification: 'Individual', // Default to individual on error
-      confidence: 25,
-      reasoning: `Classification failed due to unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      processingTier: 'Failed',
-      processingMethod: 'Error fallback'
+      ...ruleBasedResult,
+      keywordExclusion: exclusionResult
     };
   }
-}
-
-/**
- * Perform fuzzy matching against cached results
- */
-async function performFuzzyMatching(payeeName: string, threshold: number): Promise<ClassificationResult | null> {
+  
+  // Tier 2: Apply NLP-based classification
+  const nlpResult = await applyNLPClassification(payeeName);
+  if (nlpResult && nlpResult.confidence >= config.aiThreshold) {
+    return {
+      ...nlpResult,
+      keywordExclusion: exclusionResult
+    };
+  }
+  
+  // Tier 3: Apply AI-assisted classification
   try {
-    // Get cached classifications from localStorage
-    const cachedClassifications = JSON.parse(localStorage.getItem('payeeClassifications') || '{}');
-    const cachedNames = Object.keys(cachedClassifications);
-    
-    if (cachedNames.length === 0) return null;
-    
-    // Find best matches using our string matching algorithms
-    const similarities = cachedNames.map(cachedName => ({
-      name: cachedName,
-      scores: calculateCombinedSimilarity(payeeName, cachedName),
-      result: cachedClassifications[cachedName]
-    })).filter(match => match.scores.combined >= threshold);
-    
-    if (similarities.length === 0) return null;
-    
-    // Get the best match
-    const bestMatch = similarities.sort((a, b) => b.scores.combined - a.scores.combined)[0];
-    
+    const aiResult = await consensusClassification(payeeName, 2);
     return {
-      classification: bestMatch.result.result.classification,
-      confidence: Math.min(bestMatch.scores.combined, 85), // Cap confidence for fuzzy matches
-      reasoning: `Fuzzy match with "${bestMatch.name}" (${bestMatch.scores.combined.toFixed(1)}% similarity)`,
-      processingTier: 'Rule-Based',
-      similarityScores: bestMatch.scores,
-      processingMethod: 'Fuzzy matching against cache'
+      classification: aiResult.classification,
+      confidence: aiResult.confidence,
+      reasoning: aiResult.reasoning,
+      processingTier: 'AI-Assisted',
+      matchingRules: aiResult.matchingRules,
+      keywordExclusion: exclusionResult
     };
   } catch (error) {
-    console.warn('Fuzzy matching failed:', error);
-    return null;
+    console.error("Error with consensus classification:", error);
+    
+    // Fallback to single AI classification
+    try {
+      const result = await enhancedClassifyPayeeWithAI(payeeName);
+      return {
+        classification: result.classification,
+        confidence: result.confidence,
+        reasoning: result.reasoning,
+        processingTier: 'AI-Assisted',
+        matchingRules: result.matchingRules,
+        keywordExclusion: exclusionResult
+      };
+    } catch (innerError) {
+      console.error("Error with enhanced AI classification:", innerError);
+      
+      // Last resort: basic heuristic
+      return {
+        classification: payeeName.split(/\s+/).length <= 2 ? 'Individual' : 'Business',
+        confidence: 51,
+        reasoning: "Classification based on fallback heuristics due to service errors",
+        processingTier: 'Rule-Based',
+        keywordExclusion: exclusionResult
+      };
+    }
   }
-}
-
-/**
- * Offline classification using advanced heuristics
- */
-function performOfflineClassification(
-  payeeName: string, 
-  businessIndicators: string[], 
-  individualIndicators: string[]
-): ClassificationResult {
-  const words = payeeName.split(/\s+/);
-  const hasNumbers = /\d/.test(payeeName);
-  const hasSpecialChars = /[&@#$%]/.test(payeeName);
-  const isAllCaps = payeeName === payeeName.toUpperCase() && payeeName.length > 5;
-  
-  let businessScore = 0;
-  let individualScore = 0;
-  
-  // Scoring logic
-  businessScore += businessIndicators.length * 20;
-  businessScore += words.length > 3 ? 15 : 0;
-  businessScore += hasNumbers ? 10 : 0;
-  businessScore += hasSpecialChars ? 15 : 0;
-  businessScore += isAllCaps ? 10 : 0;
-  businessScore += payeeName.length > 25 ? 10 : 0;
-  
-  individualScore += individualIndicators.length * 25;
-  individualScore += words.length === 2 ? 20 : 0;
-  individualScore += words.length === 3 ? 15 : 0;
-  individualScore += !hasNumbers ? 10 : 0;
-  individualScore += !isAllCaps ? 5 : 0;
-  
-  const classification = businessScore > individualScore ? 'Business' : 'Individual';
-  const confidence = Math.min(85, Math.max(businessScore, individualScore));
-  
-  return {
-    classification,
-    confidence,
-    reasoning: `Offline heuristic classification (Business: ${businessScore}, Individual: ${individualScore})`,
-    processingTier: 'Rule-Based',
-    processingMethod: 'Offline heuristic analysis'
-  };
-}
-
-/**
- * Heuristic classification fallback when all else fails
- */
-function performHeuristicClassification(
-  payeeName: string, 
-  businessIndicators: string[], 
-  individualIndicators: string[],
-  originalError: any
-): ClassificationResult {
-  const words = payeeName.split(/\s+/);
-  
-  // Simple heuristics
-  const isLikelyBusiness = 
-    businessIndicators.length > 0 ||
-    words.length > 3 ||
-    /\d/.test(payeeName) ||
-    payeeName.length > 25 ||
-    /[&@#$%]/.test(payeeName);
-  
-  const isLikelyIndividual = 
-    individualIndicators.length > 0 ||
-    (words.length === 2 && !/\d/.test(payeeName));
-  
-  let classification: 'Business' | 'Individual';
-  let confidence: number;
-  
-  if (isLikelyBusiness && !isLikelyIndividual) {
-    classification = 'Business';
-    confidence = 60;
-  } else if (isLikelyIndividual && !isLikelyBusiness) {
-    classification = 'Individual';
-    confidence = 60;
-  } else {
-    // Default to individual for ambiguous cases
-    classification = 'Individual';
-    confidence = 51;
-  }
-  
-  return {
-    classification,
-    confidence,
-    reasoning: `Fallback heuristic classification due to service errors (Original error: ${originalError?.message || 'Unknown'})`,
-    processingTier: 'Rule-Based',
-    processingMethod: 'Final heuristic fallback'
-  };
 }
