@@ -1,7 +1,8 @@
 
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { PayeeClassification, ClassificationResult } from "@/lib/types"
+import { PayeeClassification, ClassificationResult, BatchProcessingResult } from "@/lib/types"
+import { exportResultsWithOriginalDataV3 } from "@/lib/classification/batchExporter"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -34,21 +35,26 @@ export const formatDate = (date: Date): string => {
 };
 
 export const downloadCSV = (results: PayeeClassification[]) => {
-  const csvData = results.map(result => ({
-    'Payee Name': result.payeeName,
-    'Classification': result.result.classification,
-    'Confidence': result.result.confidence,
-    'Reasoning': result.result.reasoning,
-    'Processing Tier': result.result.processingTier,
-    'Timestamp': formatDate(result.timestamp)
-  }));
+  if (results.length === 0) return;
 
-  const csv = [
-    Object.keys(csvData[0]).join(','),
-    ...csvData.map(row => Object.values(row).map(val => `"${val}"`).join(','))
-  ].join('\n');
+  const summary: BatchProcessingResult = {
+    results,
+    successCount: results.filter(r => r.result.processingTier !== 'Failed').length,
+    failureCount: results.filter(r => r.result.processingTier === 'Failed').length,
+    originalFileData: results.map(r => r.originalData)
+  };
 
-  const blob = new Blob([csv], { type: 'text/csv' });
+  const exportRows = exportResultsWithOriginalDataV3(summary, true);
+
+  const headers = Object.keys(exportRows[0]);
+  const csvLines = [
+    headers.join(','),
+    ...exportRows.map(row =>
+      headers.map(h => `"${(row[h] ?? '').toString().replace(/"/g, '""')}"`).join(',')
+    )
+  ];
+
+  const blob = new Blob([csvLines.join('\n')], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

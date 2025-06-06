@@ -153,6 +153,13 @@ const ClassificationResultTable = ({ results }: ClassificationResultTableProps) 
                   <span className="font-medium">Processing Tier:</span>
                   <span>{selectedResult.result.processingTier}</span>
                 </div>
+
+                {selectedResult.result.processingMethod && (
+                  <div className="flex justify-between">
+                    <span className="font-medium">Processing Method:</span>
+                    <span>{selectedResult.result.processingMethod}</span>
+                  </div>
+                )}
                 
                 <div>
                   <h4 className="font-medium mb-1">Reasoning:</h4>
@@ -167,6 +174,23 @@ const ClassificationResultTable = ({ results }: ClassificationResultTableProps) 
                         <li key={index}>{rule}</li>
                       ))}
                     </ul>
+                  </div>
+                )}
+
+                {selectedResult.result.keywordExclusion && (
+                  <div>
+                    <h4 className="font-medium mb-1">Keyword Exclusion:</h4>
+                    <p className="text-sm">
+                      {selectedResult.result.keywordExclusion.isExcluded ? 'Excluded' : 'Not Excluded'}
+                    </p>
+                    {selectedResult.result.keywordExclusion.matchedKeywords && selectedResult.result.keywordExclusion.matchedKeywords.length > 0 && (
+                      <p className="text-sm">
+                        Matched Keywords: {selectedResult.result.keywordExclusion.matchedKeywords.join(', ')}
+                      </p>
+                    )}
+                    <p className="text-sm">
+                      {selectedResult.result.keywordExclusion.reasoning}
+                    </p>
                   </div>
                 )}
               </div>
