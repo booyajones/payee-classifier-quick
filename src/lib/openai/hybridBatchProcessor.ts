@@ -1,7 +1,5 @@
-
-
 import { ClassificationConfig } from '@/lib/types';
-import { createBatchJob, BatchJob, getBatchJobResults, TrueBatchClassificationResult } from './trueBatchAPI';
+import { createBatchJob, BatchJob, getBatchJobResults } from './trueBatchAPI';
 import { optimizedBatchClassification } from './optimizedBatchClassification';
 import { checkKeywordExclusion } from '@/lib/classification/keywordExclusion';
 
@@ -232,4 +230,3 @@ export async function completeBatchJob(
     throw new Error(`Failed to complete batch job: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
-
