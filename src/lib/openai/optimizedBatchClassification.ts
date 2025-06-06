@@ -161,9 +161,13 @@ function validateApiResponse(content: string, expectedCount: number): any[] {
   }
 
   console.log(`[VALIDATION] Raw API response:`, content);
-  
-  // Clean the response - remove markdown formatting
-  const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+  // The `json_object` response format should already be valid JSON.
+  // Remove possible markdown fences for backward compatibility.
+  const cleanContent = content
+    .replace(/```json\n?/g, '')
+    .replace(/```\n?/g, '')
+    .trim();
   
   let parsed: any;
   try {
@@ -300,18 +304,19 @@ export async function optimizedBatchClassification(
 Names to classify:
 ${batchNames.map((name, idx) => `${idx + 1}. "${name}"`).join('\n')}`;
 
-          const apiCall = openaiClient.chat.completions.create({
-            model: CLASSIFICATION_MODEL,
-            messages: [
-              {
-                role: "system",
-                content: "You are an expert classifier. Return only valid JSON array, no other text."
-              },
-              {
-                role: "user",
-                content: prompt
-              }
-            ],
+            const apiCall = openaiClient.chat.completions.create({
+              model: CLASSIFICATION_MODEL,
+              messages: [
+                {
+                  role: "system",
+                  content: "You are an expert classifier. Return only valid JSON array, no other text."
+                },
+                {
+                  role: "user",
+                  content: prompt
+                }
+              ],
+            response_format: { type: "json_object" },
             temperature: 0.1,
             max_tokens: 800
           });
