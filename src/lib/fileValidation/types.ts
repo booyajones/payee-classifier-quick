@@ -10,6 +10,13 @@ export interface FileValidationResult {
   error?: Error;
   fileType?: 'csv' | 'excel';
   size?: number;
+  fileInfo?: {
+    name: string;
+    size: number;
+    type: string;
+    rowCount?: number;
+    columnCount?: number;
+  };
 }
 
 export interface DataValidationResult {
