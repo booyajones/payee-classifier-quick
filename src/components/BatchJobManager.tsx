@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
 import { CheckCircle, XCircle, Clock, Download, RefreshCw, Trash, Loader2, Calendar, AlertTriangle } from "lucide-react";
-import { BatchJob, checkBatchJobStatus, getBatchJobResults, cancelBatchJob } from "@/lib/openai/trueBatchAPI";
+import { BatchJob, getBatchJobResults, cancelBatchJob } from "@/lib/openai/trueBatchAPI";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import { createPayeeClassification } from "@/lib/utils";
 import { useBatchJobPolling } from "@/hooks/useBatchJobPolling";
@@ -49,11 +50,6 @@ const BatchJobManager = ({
 
   // Retry mechanism for operations
   const {
-    execute: refreshJobWithRetry,
-    isRetrying: isRefreshRetrying
-  } = useRetry(checkBatchJobStatus, { maxRetries: 2, baseDelay: 1000 });
-
-  const {
     execute: downloadResultsWithRetry,
     isRetrying: isDownloadRetrying
   } = useRetry(getBatchJobResults, { maxRetries: 3, baseDelay: 2000 });
@@ -81,40 +77,21 @@ const BatchJobManager = ({
     return `${seconds}s ago`;
   };
 
-  const handleRefreshJob = async (jobId: string) => {
+  // Single manual refresh - only pings once
+  const handleManualRefresh = async (jobId: string) => {
     setRefreshingJobs(prev => new Set(prev).add(jobId));
     try {
-      console.log(`[BATCH MANAGER] Refreshing job ${jobId}`);
-      const updatedJob = await refreshJobWithRetry(jobId);
-      onJobUpdate(updatedJob);
-      
-      toast({
-        title: "Job Status Updated",
-        description: `Job ${jobId.slice(-8)} status refreshed to "${updatedJob.status}".`,
-      });
+      console.log(`[BATCH MANAGER] Single manual refresh for job ${jobId}`);
+      await manualRefresh(jobId);
     } catch (error) {
-      const appError = handleError(error, 'Job Status Refresh');
-      console.error(`[BATCH MANAGER] Error refreshing job ${jobId}:`, error);
-      
-      showRetryableErrorToast(
-        appError, 
-        () => handleRefreshJob(jobId),
-        'Job Refresh'
-      );
+      // Error already handled by manualRefresh
+      console.error(`[BATCH MANAGER] Manual refresh failed for job ${jobId}:`, error);
     } finally {
       setRefreshingJobs(prev => {
         const newSet = new Set(prev);
         newSet.delete(jobId);
         return newSet;
       });
-    }
-  };
-
-  const handleManualRefresh = async (jobId: string) => {
-    try {
-      await manualRefresh(jobId);
-    } catch (error) {
-      // Error already handled by manualRefresh
     }
   };
 
@@ -310,7 +287,7 @@ const BatchJobManager = ({
               </CardHeader>
               
               <CardContent className="space-y-4">
-                {/* Timestamps Section */}
+                {/* Timeline Section */}
                 <div className="bg-muted/50 p-3 rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -367,31 +344,20 @@ const BatchJobManager = ({
                 </div>
 
                 <div className="flex gap-2 flex-wrap">
+                  {/* Single Manual Refresh Button */}
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleRefreshJob(job.id)}
-                    disabled={isJobRefreshing || pollingState?.isPolling}
+                    onClick={() => handleManualRefresh(job.id)}
+                    disabled={isJobRefreshing}
                   >
                     {isJobRefreshing ? (
                       <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                     ) : (
                       <RefreshCw className="h-3 w-3 mr-1" />
                     )}
-                    {isJobRefreshing ? 'Refreshing...' : 'Refresh'}
+                    {isJobRefreshing ? 'Checking...' : 'Check Status'}
                   </Button>
-
-                  {pollingState?.lastError && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleManualRefresh(job.id)}
-                      className="border-orange-200 text-orange-700 hover:bg-orange-50"
-                    >
-                      <RefreshCw className="h-3 w-3 mr-1" />
-                      Manual Check
-                    </Button>
-                  )}
 
                   {job.status === 'completed' && (
                     <Button

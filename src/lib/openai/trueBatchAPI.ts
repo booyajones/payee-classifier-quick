@@ -79,16 +79,22 @@ export async function checkBatchJobStatus(jobId: string): Promise<BatchJob> {
     throw new Error("OpenAI client not initialized. Please check your API key.");
   }
 
-  return makeAPIRequest(
+  const result = await makeAPIRequest(
     () => openaiClient.batches.retrieve(jobId),
     { isStatusCheck: true, retries: 3, retryDelay: 2000 }
   );
+
+  // Ensure the result matches our BatchJob interface
+  return {
+    ...result,
+    errors: result.errors || null
+  } as BatchJob;
 }
 
 export async function createBatchJob(
   payeeNames: string[],
   description?: string
-): Promise<{ job: BatchJob; uploadedFileId: string }> {
+): Promise<BatchJob> {
   console.log(`[BATCH API] Creating batch job for ${payeeNames.length} payees`);
   
   const openaiClient = getOpenAIClient();
@@ -135,7 +141,7 @@ export async function createBatchJob(
   console.log(`[BATCH API] File uploaded: ${uploadedFile.id}`);
 
   // Create batch job with retry
-  const batchJob = await makeAPIRequest(
+  const result = await makeAPIRequest(
     () => openaiClient.batches.create({
       input_file_id: uploadedFile.id,
       endpoint: '/v1/chat/completions',
@@ -148,8 +154,13 @@ export async function createBatchJob(
     { retries: 2, retryDelay: 3000 }
   );
 
-  console.log(`[BATCH API] Batch job created: ${batchJob.id}`);
-  return { job: batchJob as BatchJob, uploadedFileId: uploadedFile.id };
+  console.log(`[BATCH API] Batch job created: ${result.id}`);
+  
+  // Ensure the result matches our BatchJob interface
+  return {
+    ...result,
+    errors: result.errors || null
+  } as BatchJob;
 }
 
 export async function getBatchJobResults(
@@ -242,8 +253,14 @@ export async function cancelBatchJob(jobId: string): Promise<BatchJob> {
     throw new Error("OpenAI client not initialized. Please check your API key.");
   }
 
-  return makeAPIRequest(
+  const result = await makeAPIRequest(
     () => openaiClient.batches.cancel(jobId),
     { retries: 2, retryDelay: 2000 }
   );
+
+  // Ensure the result matches our BatchJob interface
+  return {
+    ...result,
+    errors: result.errors || null
+  } as BatchJob;
 }

@@ -93,7 +93,7 @@ export const useBatchJobPolling = (
     }));
 
     const pollJob = async (currentPollCount: number) => {
-      const currentState = pollingStates[jobId] || {};
+      const currentState = pollingStates[jobId] || { consecutiveFailures: 0, isRateLimited: false };
       const consecutiveFailures = currentState.consecutiveFailures || 0;
       const isRateLimited = currentState.isRateLimited || false;
 
@@ -224,10 +224,10 @@ export const useBatchJobPolling = (
     pollJob(0);
   };
 
-  // Manual refresh function
+  // Manual refresh function - SINGLE REQUEST ONLY
   const manualRefresh = async (jobId: string) => {
     try {
-      console.log(`[POLLING] Manual refresh for job ${jobId}`);
+      console.log(`[POLLING] Single manual refresh for job ${jobId}`);
       const updatedJob = await checkBatchJobStatus(jobId);
       onJobUpdate(updatedJob);
       
@@ -268,6 +268,19 @@ export const useBatchJobPolling = (
     }
   };
 
+  // Stop polling for a specific job
+  const stopPolling = (jobId: string) => {
+    if (intervalRefs.current[jobId]) {
+      clearInterval(intervalRefs.current[jobId]);
+      delete intervalRefs.current[jobId];
+    }
+    
+    setPollingStates(prev => ({
+      ...prev,
+      [jobId]: { ...prev[jobId], isPolling: false }
+    }));
+  };
+
   // Auto-start polling for active jobs
   useEffect(() => {
     const activeJobs = jobs.filter(job => 
@@ -294,6 +307,7 @@ export const useBatchJobPolling = (
   return {
     pollingStates,
     startPolling,
+    stopPolling,
     cleanupPolling,
     manualRefresh
   };
