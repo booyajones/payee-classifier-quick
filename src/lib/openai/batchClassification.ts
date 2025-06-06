@@ -3,8 +3,10 @@ import { getOpenAIClient } from './client';
 import { timeoutPromise } from './utils';
 import { classifyPayeeWithAI } from './singleClassification';
 import { DEFAULT_API_TIMEOUT, CLASSIFICATION_MODEL } from './config';
+import { MAX_CONCURRENCY as BATCH_CONCURRENCY } from '../classification/config';
 
 export const MAX_BATCH_SIZE = 5; // Reduced for better reliability
+export { BATCH_CONCURRENCY };
 
 /**
  * Classify multiple payee names in a batch using the OpenAI API
@@ -36,31 +38,39 @@ export async function classifyPayeesBatchWithAI(
     reasoning: string;
   }> = [];
 
-  // Process in smaller batches with reduced concurrency
+  // Process in smaller batches with limited concurrency
   for (let i = 0; i < payeeNames.length; i += MAX_BATCH_SIZE) {
     const batchNames = payeeNames.slice(i, i + MAX_BATCH_SIZE);
     console.log(`[BATCH] Processing batch ${Math.floor(i/MAX_BATCH_SIZE) + 1} with ${batchNames.length} payees`);
-    
+
     try {
-      // Process names sequentially to avoid overwhelming the API
-      const batchResults = [];
-      for (const name of batchNames) {
-        try {
-          const result = await classifyPayeeWithAI(name, timeout);
-          batchResults.push({
-            payeeName: name,
-            ...result
-          });
-        } catch (error) {
-          console.error(`[INDIVIDUAL] Failed to classify ${name}:`, error);
-          throw new Error(`Classification failed for ${name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
+      const batchResults: Array<{
+        payeeName: string;
+        classification: 'Business' | 'Individual';
+        confidence: number;
+        reasoning: string;
+      }> = [];
+
+      for (let j = 0; j < batchNames.length; j += BATCH_CONCURRENCY) {
+        const chunk = batchNames.slice(j, j + BATCH_CONCURRENCY);
+        const chunkResults = await Promise.all(
+          chunk.map(async (name) => {
+            try {
+              const result = await classifyPayeeWithAI(name, timeout);
+              return { payeeName: name, ...result };
+            } catch (error) {
+              console.error(`[INDIVIDUAL] Failed to classify ${name}:`, error);
+              throw new Error(`Classification failed for ${name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+          })
+        );
+        batchResults.push(...chunkResults);
       }
-      
+
       results.push(...batchResults);
-      
+
       console.log(`[BATCH] Successfully processed batch ${Math.floor(i/MAX_BATCH_SIZE) + 1}`);
-      
+
     } catch (error) {
       console.error(`[BATCH] Error with batch ${Math.floor(i/MAX_BATCH_SIZE) + 1}:`, error);
       throw error;
