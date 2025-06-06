@@ -44,7 +44,8 @@ describe('createBatchJob', () => {
       metadata: { payee_count: '2', description: 'desc' }
     });
     expect(job.id).toBe('batch1');
-    expect(job.metadata?.payee_count).toBe(2);
+    // payee_count is stored as a string in the returned metadata
+    expect(job.metadata?.payee_count).toBe('2');
   });
 });
 
