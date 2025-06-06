@@ -1,13 +1,17 @@
 
-// Use a try-catch for the import to handle potential issues
+// Use a dynamic import to support ESM environments
 let probablepeople: any;
+
 try {
-  probablepeople = require("probablepeople");
-} catch (error) {
-  console.warn("Warning: probablepeople package not available, using fallback classification only");
+  const module = await import('probablepeople');
+  probablepeople = (module as any).default ?? module;
+} catch {
+  console.warn(
+    'Warning: probablepeople package not available, using fallback classification only'
+  );
   probablepeople = {
     parse: () => {
-      throw new Error("probablepeople not available");
+      throw new Error('probablepeople not available');
     }
   };
 }
