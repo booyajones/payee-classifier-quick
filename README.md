@@ -99,6 +99,15 @@ system waits for each API response. You can override this timeout by setting the
 `OPENAI_TIMEOUT_MS` environment variable or by passing a `timeout` parameter to
 the classification functions.
 
+The library also respects several optional environment variables:
+
+- `CLASSIFIER_MAX_CONCURRENCY` – maximum number of concurrent classification tasks.
+- `CLASSIFIER_MAX_BATCH_SIZE` – limit on batch size for classifier utilities.
+- `OPENAI_MAX_BATCH_SIZE` – batch size for OpenAI requests.
+- `OPENAI_MAX_PARALLEL_BATCHES` – maximum OpenAI batches processed concurrently.
+
+Each variable falls back to a sensible default when not provided.
+
 Increasing `aiThreshold` means rule‑based and NLP results must be more confident
 before the AI model is called. A higher threshold typically improves accuracy at
 the cost of additional API usage and slower processing. Likewise, extending

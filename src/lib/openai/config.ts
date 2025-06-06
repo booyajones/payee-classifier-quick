@@ -3,15 +3,19 @@
 export const DEFAULT_API_TIMEOUT = 20000; // 20 seconds for batch processing
 
 // Optimized batch size for faster processing
-export const MAX_BATCH_SIZE = 15; // Increased for better throughput
+const envBatchSize = parseInt(process.env.OPENAI_MAX_BATCH_SIZE || '', 10);
+export const MAX_BATCH_SIZE =
+  Number.isFinite(envBatchSize) && envBatchSize > 0 ? envBatchSize : 15; // Increased for better throughput
 
 // Use the most reliable and fast model
 export const CLASSIFICATION_MODEL = 'gpt-4o-mini';
 
 // Enhanced processing configuration
+const envParallel = parseInt(process.env.OPENAI_MAX_PARALLEL_BATCHES || '', 10);
 export const ENHANCED_PROCESSING = {
-  BATCH_SIZE: 15,
-  MAX_PARALLEL_BATCHES: 3,
+  BATCH_SIZE: MAX_BATCH_SIZE,
+  MAX_PARALLEL_BATCHES:
+    Number.isFinite(envParallel) && envParallel > 0 ? envParallel : 3,
   CACHE_TTL: 30 * 60 * 1000, // 30 minutes
   MAX_RETRIES: 3,
   RETRY_DELAY_BASE: 1000
