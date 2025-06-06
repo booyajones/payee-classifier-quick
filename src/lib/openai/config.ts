@@ -16,3 +16,6 @@ export const ENHANCED_PROCESSING = {
   MAX_RETRIES: 3,
   RETRY_DELAY_BASE: 1000
 };
+
+// Maximum number of batches to process concurrently
+export const MAX_PARALLEL_BATCHES = ENHANCED_PROCESSING.MAX_PARALLEL_BATCHES;
