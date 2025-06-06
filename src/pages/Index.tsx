@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import BatchClassificationForm from "@/components/BatchClassificationForm";
@@ -33,10 +32,16 @@ const Index = () => {
     results: PayeeClassification[],
     summary: BatchProcessingResult
   ) => {
+    console.log('[INDEX] Batch complete - adding to persistent results:', {
+      newResultsCount: results.length,
+      currentResultsCount: allResults.length,
+      totalAfterAdd: allResults.length + results.length
+    });
+    
     // Add to historical summaries instead of replacing
     setAllBatchSummaries(prev => [summary, ...prev]);
-    // Add to all results instead of replacing
-    setAllResults(prev => [...results, ...prev]);
+    // Add to all results instead of replacing - accumulate all results
+    setAllResults(prev => [...prev, ...results]);
     setActiveTab("results");
     logMemoryUsage('Batch processing complete');
   };
