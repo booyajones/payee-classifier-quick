@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,7 +15,9 @@ interface BatchClassificationFormProps {
 
 const STORAGE_KEYS = {
   BATCH_JOBS: 'batch_classification_jobs',
-  PAYEE_NAMES_MAP: 'batch_classification_payee_names'
+  PAYEE_NAMES_MAP: 'batch_classification_payee_names',
+  BATCH_RESULTS: 'batch_classification_results',
+  PROCESSING_SUMMARY: 'batch_processing_summary'
 };
 
 const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassificationFormProps) => {
@@ -37,22 +38,54 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
     similarityThreshold: 85
   };
 
-  // Save state to localStorage
-  const saveToStorage = (jobs: BatchJob[], payeeMap: Record<string, string[]>) => {
+  // COMPREHENSIVE Save state to localStorage - ALWAYS SAVE EVERYTHING
+  const saveToStorage = (
+    jobs: BatchJob[], 
+    payeeMap: Record<string, string[]>, 
+    results: PayeeClassification[] = [],
+    summary: BatchProcessingResult | null = null
+  ) => {
     try {
       localStorage.setItem(STORAGE_KEYS.BATCH_JOBS, JSON.stringify(jobs));
       localStorage.setItem(STORAGE_KEYS.PAYEE_NAMES_MAP, JSON.stringify(payeeMap));
-      console.log(`[BATCH FORM] Saved ${jobs.length} jobs to localStorage`);
+      localStorage.setItem(STORAGE_KEYS.BATCH_RESULTS, JSON.stringify(results));
+      if (summary) {
+        localStorage.setItem(STORAGE_KEYS.PROCESSING_SUMMARY, JSON.stringify(summary));
+      }
+      console.log(`[BATCH FORM] COMPREHENSIVE SAVE: ${jobs.length} jobs, ${Object.keys(payeeMap).length} payee maps, ${results.length} results`);
     } catch (error) {
       console.error('[BATCH FORM] Error saving to localStorage:', error);
+      // Even if save fails, continue operation - don't break the app
     }
   };
 
-  // Load and recover jobs from localStorage
+  // Load and recover EVERYTHING from localStorage
   const loadFromStorage = async () => {
     try {
       const savedJobs = localStorage.getItem(STORAGE_KEYS.BATCH_JOBS);
       const savedPayeeMap = localStorage.getItem(STORAGE_KEYS.PAYEE_NAMES_MAP);
+      const savedResults = localStorage.getItem(STORAGE_KEYS.BATCH_RESULTS);
+      const savedSummary = localStorage.getItem(STORAGE_KEYS.PROCESSING_SUMMARY);
+
+      console.log('[BATCH FORM] Loading from storage:', {
+        hasJobs: !!savedJobs,
+        hasPayeeMap: !!savedPayeeMap,
+        hasResults: !!savedResults,
+        hasSummary: !!savedSummary
+      });
+
+      // Load results and summary first
+      if (savedResults) {
+        const results: PayeeClassification[] = JSON.parse(savedResults);
+        setBatchResults(results);
+        console.log(`[BATCH FORM] Restored ${results.length} batch results`);
+      }
+
+      if (savedSummary) {
+        const summary: BatchProcessingResult = JSON.parse(savedSummary);
+        setProcessingSummary(summary);
+        console.log('[BATCH FORM] Restored processing summary');
+      }
 
       if (!savedJobs || !savedPayeeMap) {
         console.log('[BATCH FORM] No saved jobs found');
@@ -65,7 +98,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
 
       console.log(`[BATCH FORM] Found ${jobs.length} saved jobs, checking status...`);
 
-      // Check status of each saved job
+      // Check status of each saved job - but KEEP ALL JOBS regardless of status
       const updatedJobs: BatchJob[] = [];
       const validPayeeMap: Record<string, string[]> = {};
 
@@ -80,46 +113,46 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
             console.log(`[BATCH FORM] Job ${job.id} status changed: ${job.status} -> ${updatedJob.status}`);
           }
         } catch (error) {
-          console.error(`[BATCH FORM] Job ${job.id} no longer valid, removing:`, error);
-          // Job is invalid/expired, don't include it
+          console.warn(`[BATCH FORM] Job ${job.id} status check failed, keeping original:`, error);
+          // KEEP THE JOB even if status check fails - don't lose jobs!
+          updatedJobs.push(job);
+          validPayeeMap[job.id] = payeeMap[job.id] || [];
         }
       }
 
       setBatchJobs(updatedJobs);
       setPayeeNamesMap(validPayeeMap);
 
-      // Save the cleaned up state
-      saveToStorage(updatedJobs, validPayeeMap);
+      // Save the updated state immediately
+      saveToStorage(updatedJobs, validPayeeMap, batchResults, processingSummary);
 
       if (updatedJobs.length > 0) {
         setActiveTab("jobs");
         toast({
-          title: "Jobs Recovered",
-          description: `Restored ${updatedJobs.length} batch job(s) from previous session.`,
+          title: "Session Restored",
+          description: `Restored ${updatedJobs.length} batch job(s) and ${batchResults.length} results from previous session.`,
         });
       }
 
     } catch (error) {
       console.error('[BATCH FORM] Error loading from localStorage:', error);
-      // Clear corrupted data
-      localStorage.removeItem(STORAGE_KEYS.BATCH_JOBS);
-      localStorage.removeItem(STORAGE_KEYS.PAYEE_NAMES_MAP);
+      // Don't clear data on error - try to preserve what we can
     } finally {
       setIsLoadingJobs(false);
     }
   };
 
-  // Load jobs on component mount
+  // Load everything on component mount
   useEffect(() => {
     loadFromStorage();
   }, []);
 
-  // Save jobs whenever they change
+  // Save EVERYTHING whenever ANY state changes
   useEffect(() => {
-    if (!isLoadingJobs && batchJobs.length > 0) {
-      saveToStorage(batchJobs, payeeNamesMap);
+    if (!isLoadingJobs) {
+      saveToStorage(batchJobs, payeeNamesMap, batchResults, processingSummary);
     }
-  }, [batchJobs, payeeNamesMap, isLoadingJobs]);
+  }, [batchJobs, payeeNamesMap, batchResults, processingSummary, isLoadingJobs]);
 
   const resetForm = () => {
     setBatchResults([]);
@@ -127,13 +160,15 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
     setBatchJobs([]);
     setPayeeNamesMap({});
     
-    // Clear localStorage
+    // Clear ALL localStorage
     localStorage.removeItem(STORAGE_KEYS.BATCH_JOBS);
     localStorage.removeItem(STORAGE_KEYS.PAYEE_NAMES_MAP);
+    localStorage.removeItem(STORAGE_KEYS.BATCH_RESULTS);
+    localStorage.removeItem(STORAGE_KEYS.PROCESSING_SUMMARY);
     
     toast({
-      title: "Form Reset",
-      description: "The batch classification form has been reset. You can now start over.",
+      title: "Complete Reset",
+      description: "All batch data has been cleared. You can now start fresh.",
     });
   };
 
@@ -166,7 +201,14 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
 
   const handleJobComplete = (results: PayeeClassification[], summary: BatchProcessingResult, jobId: string) => {
     console.log(`[BATCH FORM] Job ${jobId} completed with ${results.length} results`);
-    setBatchResults(results);
+    
+    // ALWAYS preserve and append results - never overwrite
+    setBatchResults(prev => {
+      const newResults = [...prev, ...results];
+      console.log(`[BATCH FORM] Total results now: ${newResults.length}`);
+      return newResults;
+    });
+    
     setProcessingSummary(summary);
     
     if (onBatchClassify) {
@@ -203,13 +245,13 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
         <CardHeader>
           <CardTitle>Batch Payee Classification</CardTitle>
           <CardDescription>
-            Loading previous batch jobs...
+            Loading previous session data...
           </CardDescription>
         </CardHeader>
         <CardContent className="py-8">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p className="text-muted-foreground mt-2">Checking for previous batch jobs...</p>
+            <p className="text-muted-foreground mt-2">Restoring jobs, results, and session data...</p>
           </div>
         </CardContent>
       </Card>
@@ -221,7 +263,7 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
       <CardHeader>
         <CardTitle>Batch Payee Classification</CardTitle>
         <CardDescription>
-          Upload files for payee classification processing.
+          Upload files for payee classification processing. All data is automatically saved.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -231,7 +273,9 @@ const BatchClassificationForm = ({ onBatchClassify, onComplete }: BatchClassific
             <TabsTrigger value="jobs">
               Batch Jobs {batchJobs.length > 0 && `(${batchJobs.length})`}
             </TabsTrigger>
-            <TabsTrigger value="results">Results</TabsTrigger>
+            <TabsTrigger value="results">
+              Results {batchResults.length > 0 && `(${batchResults.length})`}
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="file" className="mt-4">

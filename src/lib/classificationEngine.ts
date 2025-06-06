@@ -1,4 +1,3 @@
-
 // This file is maintained for backward compatibility
 // It re-exports all functionality from the new module structure
 
@@ -32,6 +31,9 @@ export { enhancedProcessBatchV2, exportResultsWithOriginalData } from './classif
 // Export new V3 functions (NO FAILURES, intelligent escalation)
 export { enhancedClassifyPayeeV3 } from './classification/enhancedClassificationV3';
 export { enhancedProcessBatchV3 } from './classification/enhancedBatchProcessorV3';
+
+// Export comprehensive data exporter
+export { exportResultsWithOriginalDataV3 } from './classification/batchExporter';
 
 // Export string matching functions explicitly to avoid conflicts
 export { 
