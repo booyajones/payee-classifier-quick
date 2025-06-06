@@ -1,5 +1,3 @@
-
-
 import { getOpenAIClient } from './client';
 import { timeoutPromise } from './utils';
 import { DEFAULT_API_TIMEOUT, CLASSIFICATION_MODEL, MAX_PARALLEL_BATCHES } from './config';
@@ -340,7 +338,8 @@ async function processBatch(
       return await timeoutPromise(apiCall, timeout);
     });
 
-    const content = batchResults?.choices?.[0]?.message?.content;
+    // Type the response properly to fix the TypeScript error
+    const content = (batchResults as any)?.choices?.[0]?.message?.content;
     if (!content) {
       throw new Error('No response content from OpenAI API');
     }
@@ -537,4 +536,3 @@ export function getCacheStats(): { size: number; hitRate: number } {
 export function setCachePersistence(enabled: boolean): void {
   persistCache = enabled;
 }
-
