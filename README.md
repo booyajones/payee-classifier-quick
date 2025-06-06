@@ -94,7 +94,9 @@ Additional constants in `config.ts` include `MAX_CONCURRENCY` for controlling
 the number of concurrent classification requests and `MAX_BATCH_SIZE` for
 limiting batch size. The OpenAI client settings in `openai/config.ts` expose
 `DEFAULT_API_TIMEOUT` (20&nbsp;seconds by default) which defines how long the
-system waits for each API response.
+system waits for each API response. You can override this timeout by setting the
+`OPENAI_TIMEOUT_MS` environment variable or by passing a `timeout` parameter to
+the classification functions.
 
 Increasing `aiThreshold` means rule‑based and NLP results must be more confident
 before the AI model is called. A higher threshold typically improves accuracy at
