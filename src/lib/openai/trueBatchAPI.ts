@@ -164,12 +164,22 @@ export async function createBatchJob(
   } as BatchJob;
 }
 
+/**
+ * Download and parse the results for a completed batch job.
+ *
+ * Throws "Batch job is not completed" if the job has not finished, or
+ * "Batch job has no output file" if the output file id is missing.
+ */
 export async function getBatchJobResults(
   job: BatchJob,
   payeeNames: string[]
 ): Promise<ProcessedBatchResult[]> {
   logger.info(`[BATCH API] Getting results for job: ${job.id}`);
-  
+
+  if (job.status !== 'completed') {
+    throw new Error('Batch job is not completed');
+  }
+
   if (!job.output_file_id) {
     throw new Error('Batch job has no output file');
   }
