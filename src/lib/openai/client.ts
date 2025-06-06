@@ -64,7 +64,11 @@ export async function initializeOpenAI(apiKey?: string, rememberKey?: boolean): 
           } catch (error) {
             logger.error("Failed to retrieve API key with token:", token, error);
             // Try next token or clean up invalid token
-            deleteApiKey(token);
+            try {
+              deleteApiKey(token);
+            } catch (deleteError) {
+              logger.error("Failed to delete invalid token:", deleteError);
+            }
           }
         }
       }
