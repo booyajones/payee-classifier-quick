@@ -1,8 +1,6 @@
 
 // Optimized timeout for better reliability and speed
-const envTimeout = parseInt(process.env.OPENAI_TIMEOUT_MS || '', 10);
-export const DEFAULT_API_TIMEOUT =
-  Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : 20000; // Increased to 20 seconds for batch processing
+export const DEFAULT_API_TIMEOUT = 20000; // 20 seconds for batch processing
 
 // Optimized batch size for faster processing
 export const MAX_BATCH_SIZE = 15; // Increased for better throughput
