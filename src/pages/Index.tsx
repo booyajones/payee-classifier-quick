@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import BatchClassificationForm from "@/components/BatchClassificationForm";
@@ -5,6 +6,7 @@ import ClassificationResultTable from "@/components/ClassificationResultTable";
 import BatchProcessingSummary from "@/components/BatchProcessingSummary";
 import OpenAIKeySetup from "@/components/OpenAIKeySetup";
 import KeywordExclusionManager from "@/components/KeywordExclusionManager";
+import OpenAIDiagnostics from "@/components/OpenAIDiagnostics";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import ClassificationErrorBoundary from "@/components/ClassificationErrorBoundary";
 import ChatWidget from "@/components/chat/ChatWidget";
@@ -50,6 +52,10 @@ const Index = () => {
     setHasApiKey(true);
   };
 
+  const handleDiagnosticsReset = () => {
+    setHasApiKey(false);
+  };
+
   if (!hasApiKey) {
     return (
       <ErrorBoundary>
@@ -64,8 +70,9 @@ const Index = () => {
           </header>
 
           <main className="container px-4 pb-8">
-            <div className="max-w-2xl mx-auto">
+            <div className="max-w-2xl mx-auto space-y-6">
               <OpenAIKeySetup onKeySet={handleKeySet} />
+              <OpenAIDiagnostics onReset={handleDiagnosticsReset} />
             </div>
           </main>
         </div>
@@ -87,9 +94,10 @@ const Index = () => {
 
         <main className="container px-4 pb-8">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="batch">File Processing</TabsTrigger>
               <TabsTrigger value="keywords">Keyword Management</TabsTrigger>
+              <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
               <TabsTrigger value="results">
                 Results {allResults.length > 0 && `(${allResults.length})`}
               </TabsTrigger>
@@ -104,6 +112,12 @@ const Index = () => {
             <TabsContent value="keywords" className="mt-6">
               <ClassificationErrorBoundary context="Keyword Management">
                 <KeywordExclusionManager />
+              </ClassificationErrorBoundary>
+            </TabsContent>
+            
+            <TabsContent value="diagnostics" className="mt-6">
+              <ClassificationErrorBoundary context="Diagnostics">
+                <OpenAIDiagnostics onReset={handleDiagnosticsReset} />
               </ClassificationErrorBoundary>
             </TabsContent>
             

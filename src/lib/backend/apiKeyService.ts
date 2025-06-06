@@ -1,4 +1,3 @@
-
 import { v4 as uuidv4 } from 'uuid';
 
 const ENC_KEY_STORAGE = 'api_key_enc_key';
@@ -6,8 +5,13 @@ const ENC_KEY_STORAGE = 'api_key_enc_key';
 async function getCryptoKey(): Promise<CryptoKey> {
   const stored = sessionStorage.getItem(ENC_KEY_STORAGE);
   if (stored) {
-    const raw = Uint8Array.from(atob(stored), c => c.charCodeAt(0));
-    return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+    try {
+      const raw = Uint8Array.from(atob(stored), c => c.charCodeAt(0));
+      return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+    } catch (error) {
+      console.error('[API_KEY_SERVICE] Failed to import stored crypto key, generating new one:', error);
+      sessionStorage.removeItem(ENC_KEY_STORAGE);
+    }
   }
   const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
   const raw = await crypto.subtle.exportKey('raw', key);
@@ -47,11 +51,10 @@ const STORAGE_PREFIX = 'secure_api_key_';
 
 /**
  * Securely store an API key and return a token for retrieving it
- * @param apiKey The API key to store
- * @returns A token that can be used to retrieve the key
  */
 export async function storeApiKey(apiKey: string): Promise<string> {
   try {
+    console.log('[API_KEY_SERVICE] Storing new API key...');
     const id = uuidv4();
     const token = uuidv4();
 
@@ -71,33 +74,34 @@ export async function storeApiKey(apiKey: string): Promise<string> {
     tokenMap[token] = id;
     localStorage.setItem(`${STORAGE_PREFIX}token_map`, JSON.stringify(tokenMap));
 
+    console.log('[API_KEY_SERVICE] API key stored successfully with token:', token.slice(-8));
     return token;
   } catch (error) {
-    console.error('Failed to store API key:', error);
+    console.error('[API_KEY_SERVICE] Failed to store API key:', error);
     throw new Error('Failed to securely store API key');
   }
 }
 
 /**
  * Retrieve an API key using a token
- * @param token The token used to retrieve the key
- * @returns The API key or null if not found
  */
 export async function getApiKey(token: string): Promise<string | null> {
   try {
+    console.log('[API_KEY_SERVICE] Retrieving API key for token:', token.slice(-8));
+    
     // Look up the ID from the token map
     const tokenMap = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}token_map`) || '{}');
     const id = tokenMap[token];
     
     if (!id) {
-      console.warn('Token not found in token map');
+      console.warn('[API_KEY_SERVICE] Token not found in token map');
       return null;
     }
     
     // Get the stored key entry
     const storedEntry = localStorage.getItem(`${STORAGE_PREFIX}${id}`);
     if (!storedEntry) {
-      console.warn('Stored API key entry not found');
+      console.warn('[API_KEY_SERVICE] Stored API key entry not found for ID:', id);
       return null;
     }
     
@@ -105,7 +109,7 @@ export async function getApiKey(token: string): Promise<string | null> {
     
     // Verify the token matches
     if (entry.token !== token) {
-      console.warn('Token mismatch in stored entry');
+      console.warn('[API_KEY_SERVICE] Token mismatch in stored entry');
       return null;
     }
     
@@ -115,12 +119,15 @@ export async function getApiKey(token: string): Promise<string | null> {
 
     try {
       const { iv, data } = JSON.parse(entry.apiKey);
-      return await decryptValue(iv, data);
-    } catch {
+      const decryptedKey = await decryptValue(iv, data);
+      console.log('[API_KEY_SERVICE] API key retrieved successfully');
+      return decryptedKey;
+    } catch (decryptError) {
+      console.error('[API_KEY_SERVICE] Failed to decrypt API key:', decryptError);
       return null;
     }
   } catch (error) {
-    console.error('Failed to retrieve API key:', error);
+    console.error('[API_KEY_SERVICE] Failed to retrieve API key:', error);
     return null;
   }
 }
@@ -131,8 +138,11 @@ export async function getApiKey(token: string): Promise<string | null> {
 export function hasSavedApiKey(): boolean {
   try {
     const tokenMap = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}token_map`) || '{}');
-    return Object.keys(tokenMap).length > 0;
+    const hasKeys = Object.keys(tokenMap).length > 0;
+    console.log('[API_KEY_SERVICE] Has saved API keys:', hasKeys);
+    return hasKeys;
   } catch (error) {
+    console.error('[API_KEY_SERVICE] Error checking for saved API keys:', error);
     return false;
   }
 }
@@ -142,10 +152,12 @@ export function hasSavedApiKey(): boolean {
  */
 export function deleteApiKey(token: string): boolean {
   try {
+    console.log('[API_KEY_SERVICE] Deleting API key for token:', token.slice(-8));
     const tokenMap = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}token_map`) || '{}');
     const id = tokenMap[token];
     
     if (!id) {
+      console.warn('[API_KEY_SERVICE] Token not found for deletion');
       return false;
     }
     
@@ -156,10 +168,67 @@ export function deleteApiKey(token: string): boolean {
     delete tokenMap[token];
     localStorage.setItem(`${STORAGE_PREFIX}token_map`, JSON.stringify(tokenMap));
     
+    console.log('[API_KEY_SERVICE] API key deleted successfully');
     return true;
   } catch (error) {
-    console.error('Failed to delete API key:', error);
+    console.error('[API_KEY_SERVICE] Failed to delete API key:', error);
     return false;
+  }
+}
+
+/**
+ * Clear all stored API keys - diagnostic function
+ */
+export function clearAllApiKeys(): void {
+  try {
+    console.log('[API_KEY_SERVICE] Clearing all stored API keys...');
+    const tokenMap = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}token_map`) || '{}');
+    
+    // Remove all stored key entries
+    Object.values(tokenMap).forEach((id: any) => {
+      localStorage.removeItem(`${STORAGE_PREFIX}${id}`);
+    });
+    
+    // Clear token map
+    localStorage.removeItem(`${STORAGE_PREFIX}token_map`);
+    
+    // Clear session storage
+    sessionStorage.removeItem(ENC_KEY_STORAGE);
+    
+    console.log('[API_KEY_SERVICE] All API keys cleared');
+  } catch (error) {
+    console.error('[API_KEY_SERVICE] Failed to clear API keys:', error);
+  }
+}
+
+/**
+ * Get diagnostic information about stored keys
+ */
+export function getApiKeyDiagnostics(): {
+  hasTokenMap: boolean;
+  tokenCount: number;
+  tokens: string[];
+  hasEncryptionKey: boolean;
+} {
+  try {
+    const tokenMap = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}token_map`) || '{}');
+    const tokens = Object.keys(tokenMap);
+    const hasEncryptionKey = !!sessionStorage.getItem(ENC_KEY_STORAGE);
+    
+    return {
+      hasTokenMap: !!localStorage.getItem(`${STORAGE_PREFIX}token_map`),
+      tokenCount: tokens.length,
+      tokens: tokens.map(t => t.slice(-8)), // Only show last 8 chars for security
+      hasEncryptionKey
+    };
+  } catch (error) {
+    console.error('[API_KEY_SERVICE] Error getting diagnostics:', error);
+    return {
+      hasTokenMap: false,
+      tokenCount: 0,
+      tokens: [],
+      hasEncryptionKey: false
+    };
   }
 }
 
