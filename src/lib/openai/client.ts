@@ -1,3 +1,4 @@
+
 import { logger } from "../logger";
 
 import OpenAI from 'openai';
@@ -40,25 +41,35 @@ export async function initializeOpenAI(apiKey?: string, rememberKey?: boolean): 
   if (hasSavedApiKey()) {
     logger.info("Attempting to load saved OpenAI API key");
     
-    // Get all stored keys and try to find a valid one
-    const metadata = JSON.parse(localStorage.getItem('secure_api_key_token_map') || '{}');
-    for (const token of Object.keys(metadata)) {
-      try {
-        const savedKey = await getApiKey(token);
-        if (savedKey && savedKey.startsWith('sk-')) {
-          logger.info("Using saved OpenAI API key from secure storage");
-          currentToken = token;
-          
-          openaiClient = new OpenAI({
-            apiKey: savedKey,
-            dangerouslyAllowBrowser: true
-          });
-          return openaiClient;
+    try {
+      // Get all stored keys and try to find a valid one
+      const tokenMapData = localStorage.getItem('secure_api_key_token_map');
+      if (tokenMapData) {
+        const metadata = JSON.parse(tokenMapData);
+        const tokens = Object.keys(metadata);
+        
+        for (const token of tokens) {
+          try {
+            const savedKey = await getApiKey(token);
+            if (savedKey && savedKey.startsWith('sk-')) {
+              logger.info("Using saved OpenAI API key from secure storage");
+              currentToken = token;
+              
+              openaiClient = new OpenAI({
+                apiKey: savedKey,
+                dangerouslyAllowBrowser: true
+              });
+              return openaiClient;
+            }
+          } catch (error) {
+            logger.error("Failed to retrieve API key with token:", token, error);
+            // Try next token or clean up invalid token
+            deleteApiKey(token);
+          }
         }
-      } catch (error) {
-        logger.error("Failed to retrieve API key with token:", token, error);
-        // Try next token
       }
+    } catch (error) {
+      logger.error("Error accessing saved API keys:", error);
     }
   }
   

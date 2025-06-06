@@ -5,9 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { isOpenAIInitialized, initializeOpenAI, testOpenAIConnection } from "@/lib/openai/client";
+import { isOpenAIInitialized, initializeOpenAI, testOpenAIConnection, clearOpenAIKeys } from "@/lib/openai/client";
 import { useToast } from "@/components/ui/use-toast";
-import { CheckCircle, Key, Eye, EyeOff, Loader2 } from "lucide-react";
+import { CheckCircle, Key, Eye, EyeOff, Loader2, AlertTriangle } from "lucide-react";
 
 interface APIKeyInputProps {
   onApiKeySet: () => void;
@@ -20,16 +20,22 @@ const APIKeyInput = ({ onApiKeySet }: APIKeyInputProps) => {
   const [isValidating, setIsValidating] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(true);
   const [connectionWorking, setConnectionWorking] = useState(false);
+  const [hasConnectionError, setHasConnectionError] = useState(false);
   const { toast } = useToast();
 
   // Test if OpenAI is already working on component mount
   useEffect(() => {
     const testConnection = async () => {
+      console.log('[API_KEY_INPUT] Testing existing connection...');
+      
       if (isOpenAIInitialized()) {
         try {
           const isWorking = await testOpenAIConnection();
+          console.log('[API_KEY_INPUT] Connection test result:', isWorking);
+          
           if (isWorking) {
             setConnectionWorking(true);
+            setHasConnectionError(false);
             toast({
               title: "API Key Active",
               description: "OpenAI API connection is working correctly.",
@@ -37,10 +43,15 @@ const APIKeyInput = ({ onApiKeySet }: APIKeyInputProps) => {
             });
             onApiKeySet();
             return;
+          } else {
+            setHasConnectionError(true);
           }
         } catch (error) {
-          console.log("Connection test failed, need to set API key");
+          console.log('[API_KEY_INPUT] Connection test failed:', error);
+          setHasConnectionError(true);
         }
+      } else {
+        console.log('[API_KEY_INPUT] No API key initialized');
       }
       setIsTestingConnection(false);
     };
@@ -63,9 +74,11 @@ const APIKeyInput = ({ onApiKeySet }: APIKeyInputProps) => {
     setIsValidating(true);
     
     try {
+      console.log('[API_KEY_INPUT] Initializing with new API key...');
       await initializeOpenAI(apiKey.trim(), rememberKey);
       
       // Test the connection
+      console.log('[API_KEY_INPUT] Testing new connection...');
       const isWorking = await testOpenAIConnection();
       if (!isWorking) {
         throw new Error("API key test failed");
@@ -79,6 +92,7 @@ const APIKeyInput = ({ onApiKeySet }: APIKeyInputProps) => {
       });
       
       setConnectionWorking(true);
+      setHasConnectionError(false);
       onApiKeySet();
     } catch (error) {
       console.error("Error setting API key:", error);
@@ -87,9 +101,21 @@ const APIKeyInput = ({ onApiKeySet }: APIKeyInputProps) => {
         description: "Failed to initialize OpenAI client. Please check your API key.",
         variant: "destructive",
       });
+      setHasConnectionError(true);
     } finally {
       setIsValidating(false);
     }
+  };
+
+  const handleClearKeys = () => {
+    clearOpenAIKeys();
+    setConnectionWorking(false);
+    setHasConnectionError(false);
+    setApiKey("");
+    toast({
+      title: "API Keys Cleared",
+      description: "All saved API keys have been removed.",
+    });
   };
 
   // Show loading state while testing connection
@@ -133,13 +159,23 @@ const APIKeyInput = ({ onApiKeySet }: APIKeyInputProps) => {
               Your app is ready to use the OpenAI API for payee classification.
             </p>
             
-            <Button 
-              type="button" 
-              className="w-full" 
-              onClick={() => onApiKeySet()}
-            >
-              Continue
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                type="button" 
+                className="flex-1" 
+                onClick={() => onApiKeySet()}
+              >
+                Continue
+              </Button>
+              
+              <Button 
+                type="button" 
+                variant="outline"
+                onClick={handleClearKeys}
+              >
+                Clear Keys
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -159,6 +195,15 @@ const APIKeyInput = ({ onApiKeySet }: APIKeyInputProps) => {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {hasConnectionError && (
+          <Alert className="mb-4" variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              Previous API key failed connection test. Please enter a valid API key.
+            </AlertDescription>
+          </Alert>
+        )}
+        
         <Alert className="mb-4">
           <AlertDescription>
             Your API key will be stored securely using encrypted browser storage. 
@@ -214,6 +259,17 @@ const APIKeyInput = ({ onApiKeySet }: APIKeyInputProps) => {
               "Set API Key"
             )}
           </Button>
+
+          {hasConnectionError && (
+            <Button 
+              type="button" 
+              variant="outline" 
+              className="w-full"
+              onClick={handleClearKeys}
+            >
+              Clear All Saved Keys
+            </Button>
+          )}
         </form>
       </CardContent>
     </Card>
