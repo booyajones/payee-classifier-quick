@@ -19,8 +19,88 @@ const classificationCache = new Map<string, CachedResult>();
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 const MAX_CACHE_SIZE = 1000;
 
+// Key used for persistent cache storage
+const LOCAL_STORAGE_KEY = 'optimized_classification_cache';
+
+// Whether to persist cache to localStorage
+let persistCache = true;
+
 let cacheHits = 0;
 let cacheLookups = 0;
+
+/**
+ * Load cache from localStorage on initialization
+ */
+function loadCacheFromStorage(): void {
+  if (!persistCache || typeof localStorage === 'undefined') {
+    return;
+  }
+
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (!raw) {
+      return;
+    }
+
+    const stored = JSON.parse(raw) as Record<string, CachedResult>;
+    const now = Date.now();
+    const cleaned: Record<string, CachedResult> = {};
+
+    Object.entries(stored).forEach(([key, entry]) => {
+      if (now - entry.timestamp < CACHE_TTL) {
+        classificationCache.set(key, entry);
+        cleaned[key] = entry;
+      }
+    });
+
+    const entries = Object.entries(cleaned);
+    if (entries.length > MAX_CACHE_SIZE) {
+      entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+      entries.splice(0, entries.length - MAX_CACHE_SIZE);
+    }
+
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(Object.fromEntries(entries)));
+    console.log(`[CACHE] Loaded ${classificationCache.size} cached results from storage`);
+  } catch (error) {
+    console.warn('[CACHE] Failed to load cache from storage:', error);
+  }
+}
+
+/**
+ * Save current cache to localStorage
+ */
+function saveCacheToStorage(): void {
+  if (!persistCache || typeof localStorage === 'undefined') {
+    return;
+  }
+
+  try {
+    const entries: [string, CachedResult][] = [];
+    const now = Date.now();
+    for (const [key, value] of classificationCache.entries()) {
+      if (now - value.timestamp < CACHE_TTL) {
+        entries.push([key, value]);
+      }
+    }
+
+    if (entries.length > MAX_CACHE_SIZE) {
+      entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+      entries.splice(0, entries.length - MAX_CACHE_SIZE);
+    }
+
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(Object.fromEntries(entries)));
+  } catch (error) {
+    console.warn('[CACHE] Failed to save cache to storage:', error);
+  }
+}
+
+// Load cache immediately when module initializes
+loadCacheFromStorage();
+
+// Save cache before the page unloads
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', saveCacheToStorage);
+}
 
 /**
  * Normalize name for caching
@@ -404,6 +484,9 @@ ${batchNames.map((name, idx) => `${idx + 1}. "${name}"`).join('\n')}`;
  */
 export function clearClassificationCache(): void {
   classificationCache.clear();
+  if (persistCache && typeof localStorage !== 'undefined') {
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
+  }
   console.log('[CACHE] Classification cache cleared');
 }
 
@@ -416,4 +499,11 @@ export function getCacheStats(): { size: number; hitRate: number } {
     size: classificationCache.size,
     hitRate
   };
+}
+
+/**
+ * Enable or disable cache persistence
+ */
+export function setCachePersistence(enabled: boolean): void {
+  persistCache = enabled;
 }
