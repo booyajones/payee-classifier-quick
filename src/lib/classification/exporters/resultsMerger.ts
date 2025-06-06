@@ -16,9 +16,14 @@ export function createResultsMap(results: any[]): Map<number, any> {
 /**
  * Merges original row data with AI classification results
  */
-export function mergeRowWithResult(originalRow: any, result: any | undefined, index: number): ExportRow {
-  // Start with ALL original data
-  const exportRow: ExportRow = { ...originalRow };
+export function mergeRowWithResult(
+  originalRow: any,
+  result: any | undefined,
+  index: number,
+  includeAllColumns: boolean = true
+): ExportRow {
+  // Start with ALL original data when requested, otherwise begin with an empty object
+  const exportRow: ExportRow = includeAllColumns ? { ...originalRow } : {};
 
   if (!result) {
     console.error(`[MERGE] CRITICAL: No result found for row ${index} - this should NEVER happen with 1:1 correspondence`);

@@ -122,3 +122,13 @@ classifier will load it at runtime.
 
 API keys are stored using AES‑GCM encryption in `localStorage`, with the
 encryption key kept in `sessionStorage` for added security.
+
+## Exporting classification results
+
+Use `exportResultsWithOriginalDataV3` to combine processed results with the
+original uploaded rows. The function accepts an optional `includeAllColumns`
+boolean parameter.
+
+- When `true` (default), the exported rows contain every original field along
+  with additional AI columns.
+- When `false`, only the AI-related columns are included.

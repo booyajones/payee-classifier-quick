@@ -5,6 +5,9 @@ import { createFallbackExportData } from './fallbackExporter';
 
 /**
  * Main export function with perfect 1:1 correspondence
+ *
+ * @param batchResult - Results plus original rows
+ * @param includeAllColumns - If false, exclude original row fields and output only AI columns
  */
 export function exportResultsWithOriginalDataV3(
   batchResult: any,
@@ -29,6 +32,6 @@ export function exportResultsWithOriginalDataV3(
   return batchResult.originalFileData.map((originalRow: any, index: number) => {
     // Get the corresponding result by exact index match
     const result = resultsMap.get(index);
-    return mergeRowWithResult(originalRow, result, index);
+    return mergeRowWithResult(originalRow, result, index, includeAllColumns);
   });
 }
