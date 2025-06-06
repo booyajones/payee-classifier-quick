@@ -14,7 +14,7 @@ import { handleError, showErrorToast, showRetryableErrorToast } from "@/lib/erro
 import { useRetry } from "@/hooks/useRetry";
 
 interface FileUploadFormProps {
-  onBatchJobCreated: (batchJob: BatchJob, payeeNames: string[]) => void;
+  onBatchJobCreated: (batchJob: BatchJob, payeeNames: string[], originalFileData: any[]) => void;
   config?: ClassificationConfig;
 }
 
@@ -36,6 +36,7 @@ const FileUploadForm = ({
   const [fileError, setFileError] = useState<string | null>(null);
   const [validationStatus, setValidationStatus] = useState<'none' | 'validating' | 'valid' | 'error'>('none');
   const [fileInfo, setFileInfo] = useState<{ rowCount?: number; payeeCount?: number } | null>(null);
+  const [originalFileData, setOriginalFileData] = useState<any[]>([]);
   const { toast } = useToast();
 
   // Retry mechanism for batch job creation
@@ -52,6 +53,7 @@ const FileUploadForm = ({
     setFileError(null);
     setValidationStatus('none');
     setFileInfo(null);
+    setOriginalFileData([]);
     
     // Reset the file input
     const fileInput = document.getElementById('file-upload') as HTMLInputElement;
@@ -69,6 +71,7 @@ const FileUploadForm = ({
     setSelectedColumn("");
     setValidationStatus('none');
     setFileInfo(null);
+    setOriginalFileData([]);
     
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
@@ -96,6 +99,12 @@ const FileUploadForm = ({
 
       setColumns(headers);
       
+      // Also parse the full file data to store for later use
+      const fullData = await parseUploadedFile(selectedFile, false);
+      setOriginalFileData(fullData);
+      
+      console.log(`[FILE UPLOAD] Stored ${fullData.length} rows of original data with ${headers.length} columns`);
+      
       // Auto-select column if it contains "payee" or "name"
       const payeeColumn = headers.find(
         col => col.toLowerCase().includes('payee') || col.toLowerCase().includes('name')
@@ -109,7 +118,7 @@ const FileUploadForm = ({
       
       toast({
         title: "File Uploaded Successfully",
-        description: `Found ${headers.length} columns. ${payeeColumn ? `Auto-selected "${payeeColumn}" column.` : 'Please select the payee name column.'}`,
+        description: `Found ${headers.length} columns and ${fullData.length} rows. ${payeeColumn ? `Auto-selected "${payeeColumn}" column.` : 'Please select the payee name column.'}`,
       });
     } catch (error) {
       const appError = handleError(error, 'File Upload');
@@ -122,16 +131,13 @@ const FileUploadForm = ({
   };
 
   const validateSelectedData = async () => {
-    if (!file || !selectedColumn) return null;
+    if (!file || !selectedColumn || originalFileData.length === 0) return null;
 
     try {
       setValidationStatus('validating');
       
-      // Parse the full file
-      const data = await parseUploadedFile(file);
-      
-      // Validate payee data
-      const dataValidation = validatePayeeData(data, selectedColumn);
+      // Validate payee data using the stored original data
+      const dataValidation = validatePayeeData(originalFileData, selectedColumn);
       if (!dataValidation.isValid) {
         setValidationStatus('error');
         showErrorToast(dataValidation.error!, 'Data Validation');
@@ -139,14 +145,14 @@ const FileUploadForm = ({
       }
 
       // Extract and clean payee names
-      const rawPayeeNames = data
+      const rawPayeeNames = originalFileData
         .map(row => row[selectedColumn])
         .filter(name => name && typeof name === 'string' && name.trim() !== '');
       
       const cleanedPayeeNames = cleanPayeeNames(rawPayeeNames);
       
       setFileInfo({
-        rowCount: data.length,
+        rowCount: originalFileData.length,
         payeeCount: cleanedPayeeNames.length
       });
 
@@ -161,7 +167,7 @@ const FileUploadForm = ({
   };
 
   const handleProcess = async () => {
-    if (!file || !selectedColumn) {
+    if (!file || !selectedColumn || originalFileData.length === 0) {
       toast({
         title: "Error",
         description: "Please upload a file and select a column",
@@ -179,20 +185,26 @@ const FileUploadForm = ({
         return;
       }
 
-      console.log(`[FILE UPLOAD] Creating batch job for ${payeeNames.length} names from column "${selectedColumn}"`);
+      console.log(`[FILE UPLOAD] Creating batch job for ${payeeNames.length} names from column "${selectedColumn}" with ${originalFileData.length} original data rows`);
 
       const batchJob = await createBatchJobWithRetry(
         payeeNames, 
         `File upload batch: ${file.name}, ${payeeNames.length} payees`
       );
       
-      console.log(`[FILE UPLOAD] Batch job created:`, batchJob);
+      console.log(`[FILE UPLOAD] Batch job created with original data:`, {
+        jobId: batchJob.id,
+        payeeCount: payeeNames.length,
+        originalDataRows: originalFileData.length,
+        originalDataSample: originalFileData.slice(0, 2)
+      });
 
-      onBatchJobCreated(batchJob, payeeNames);
+      // Pass both payee names AND original file data
+      onBatchJobCreated(batchJob, payeeNames, originalFileData);
       
       toast({
         title: "Batch Job Created Successfully",
-        description: `Submitted ${payeeNames.length} payees from ${file.name} for processing. Job ID: ${batchJob.id.slice(-8)}`,
+        description: `Submitted ${payeeNames.length} payees from ${file.name} for processing with original data preserved. Job ID: ${batchJob.id.slice(-8)}`,
       });
     } catch (error) {
       const appError = handleError(error, 'Batch Job Creation');
@@ -221,14 +233,14 @@ const FileUploadForm = ({
     }
   };
 
-  const isProcessButtonDisabled = !file || !selectedColumn || isLoading || validationStatus === 'validating' || validationStatus === 'error';
+  const isProcessButtonDisabled = !file || !selectedColumn || isLoading || validationStatus === 'validating' || validationStatus === 'error' || originalFileData.length === 0;
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Upload File for Classification</CardTitle>
         <CardDescription>
-          Upload an Excel or CSV file containing payee names for classification processing
+          Upload an Excel or CSV file containing payee names for classification processing. All original data will be preserved in the export.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -268,7 +280,7 @@ const FileUploadForm = ({
             onChange={handleFileChange}
           />
           <p className="text-xs text-muted-foreground">
-            Accepted formats: Excel (.xlsx, .xls) or CSV files (max 50MB, 50,000 rows)
+            Accepted formats: Excel (.xlsx, .xls) or CSV files (max 50MB, 50,000 rows). All original columns will be preserved in the export.
           </p>
         </div>
         
@@ -289,7 +301,7 @@ const FileUploadForm = ({
             </Select>
             {fileInfo && selectedColumn && (
               <p className="text-xs text-muted-foreground">
-                Found {fileInfo.rowCount} rows, {fileInfo.payeeCount} unique payee names
+                Found {fileInfo.rowCount} rows, {fileInfo.payeeCount} unique payee names. Original data with {columns.length} columns will be preserved.
               </p>
             )}
           </div>

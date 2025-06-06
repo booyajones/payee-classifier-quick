@@ -3,6 +3,7 @@ import { BatchProcessingResult } from '../types';
 
 /**
  * Export results with original file data for V3 - COMPREHENSIVE VERSION
+ * This ensures ALL original data is preserved plus classification and exclusion information
  */
 export function exportResultsWithOriginalDataV3(
   batchResult: BatchProcessingResult,
@@ -11,37 +12,33 @@ export function exportResultsWithOriginalDataV3(
   console.log('[BATCH EXPORTER] Processing batch result:', {
     hasOriginalData: !!batchResult.originalFileData,
     originalDataLength: batchResult.originalFileData?.length || 0,
-    resultsLength: batchResult.results.length
+    resultsLength: batchResult.results.length,
+    sampleOriginalData: batchResult.originalFileData?.slice(0, 1)
   });
 
   if (!batchResult.originalFileData || batchResult.originalFileData.length === 0) {
     console.log('[BATCH EXPORTER] No original file data, creating comprehensive export from results only');
     // If no original file data, create a comprehensive export from results
-    return batchResult.results.map(result => {
-      const exportRow = {
-        'Original_Payee_Name': result.payeeName,
-        'Classification': result.result.classification,
-        'Confidence_%': result.result.confidence,
-        'Processing_Tier': result.result.processingTier,
-        'Reasoning': result.result.reasoning,
-        'Processing_Method': result.result.processingMethod || 'Unknown',
-        'Matched_Keywords': result.result.keywordExclusion?.matchedKeywords?.join('; ') || '',
-        'Keyword_Exclusion': result.result.keywordExclusion?.isExcluded ? 'Yes' : 'No',
-        'Keyword_Confidence': result.result.keywordExclusion?.confidence?.toString() || '0',
-        'Keyword_Reasoning': result.result.keywordExclusion?.reasoning || 'No keyword exclusion applied',
-        'Matching_Rules': result.result.matchingRules?.join('; ') || '',
-        'Levenshtein_Score': result.result.similarityScores?.levenshtein?.toString() || '',
-        'Jaro_Winkler_Score': result.result.similarityScores?.jaroWinkler?.toString() || '',
-        'Dice_Coefficient': result.result.similarityScores?.dice?.toString() || '',
-        'Token_Sort_Ratio': result.result.similarityScores?.tokenSort?.toString() || '',
-        'Combined_Similarity': result.result.similarityScores?.combined?.toString() || '',
-        'Classification_Timestamp': result.timestamp.toISOString(),
-        'Row_Index': result.rowIndex || 0
-      };
-
-      console.log('[BATCH EXPORTER] Created comprehensive row:', exportRow);
-      return exportRow;
-    });
+    return batchResult.results.map(result => ({
+      'Payee_Name': result.payeeName,
+      'Classification': result.result.classification,
+      'Confidence_%': result.result.confidence,
+      'Processing_Tier': result.result.processingTier,
+      'Reasoning': result.result.reasoning,
+      'Processing_Method': result.result.processingMethod || 'Unknown',
+      'Keyword_Exclusion': result.result.keywordExclusion?.isExcluded ? 'Yes' : 'No',
+      'Matched_Keywords': result.result.keywordExclusion?.matchedKeywords?.join('; ') || '',
+      'Keyword_Confidence_%': result.result.keywordExclusion?.confidence || 0,
+      'Keyword_Reasoning': result.result.keywordExclusion?.reasoning || 'No keyword exclusion applied',
+      'Matching_Rules': result.result.matchingRules?.join('; ') || '',
+      'Levenshtein_Score': result.result.similarityScores?.levenshtein || '',
+      'Jaro_Winkler_Score': result.result.similarityScores?.jaroWinkler || '',
+      'Dice_Coefficient': result.result.similarityScores?.dice || '',
+      'Token_Sort_Ratio': result.result.similarityScores?.tokenSort || '',
+      'Combined_Similarity': result.result.similarityScores?.combined || '',
+      'Classification_Timestamp': result.timestamp.toISOString(),
+      'Row_Index': result.rowIndex || 0
+    }));
   }
 
   console.log('[BATCH EXPORTER] Merging original data with classification results');
@@ -52,63 +49,71 @@ export function exportResultsWithOriginalDataV3(
     // Start with ALL original data - this preserves every column from the original file
     const exportRow = { ...originalRow };
 
+    console.log(`[BATCH EXPORTER] Processing row ${index}:`, {
+      hasResult: !!result,
+      originalRowKeys: Object.keys(originalRow),
+      resultPayeeName: result?.payeeName
+    });
+
     if (!result) {
       console.log('[BATCH EXPORTER] No result found for row index:', index, 'using fallback');
-      // Emergency fallback with proper typing
-      exportRow['Classification'] = 'Individual';
-      exportRow['Confidence_%'] = 50;
-      exportRow['Processing_Tier'] = 'Failed';
-      exportRow['Reasoning'] = 'Result not found - emergency fallback';
-      exportRow['Processing_Method'] = 'Emergency fallback';
-      exportRow['Matched_Keywords'] = '';
+      // Add classification columns with fallback values
+      exportRow['AI_Classification'] = 'Individual';
+      exportRow['AI_Confidence_%'] = 50;
+      exportRow['AI_Processing_Tier'] = 'Failed';
+      exportRow['AI_Reasoning'] = 'Result not found - processing failed';
+      exportRow['AI_Processing_Method'] = 'Emergency fallback';
       exportRow['Keyword_Exclusion'] = 'No';
-      exportRow['Keyword_Confidence'] = '0';
+      exportRow['Matched_Keywords'] = '';
+      exportRow['Keyword_Confidence_%'] = 0;
       exportRow['Keyword_Reasoning'] = 'No result found';
       exportRow['Matching_Rules'] = '';
-      exportRow['Levenshtein_Score'] = '';
-      exportRow['Jaro_Winkler_Score'] = '';
-      exportRow['Dice_Coefficient'] = '';
-      exportRow['Token_Sort_Ratio'] = '';
-      exportRow['Combined_Similarity'] = '';
+      exportRow['Similarity_Scores'] = '';
       exportRow['Classification_Timestamp'] = new Date().toISOString();
-      exportRow['Row_Index'] = index;
+      exportRow['Processing_Row_Index'] = index;
       return exportRow;
     }
 
-    console.log('[BATCH EXPORTER] Processing result for row', index, ':', {
-      payeeName: result.payeeName,
-      hasKeywordExclusion: !!result.result.keywordExclusion,
-      originalRowKeys: Object.keys(originalRow)
-    });
-
-    // Add all classification data as NEW columns (preserving original structure)
-    exportRow['Classification'] = result.result.classification;
-    exportRow['Confidence_%'] = result.result.confidence;
-    exportRow['Processing_Tier'] = result.result.processingTier;
-    exportRow['Reasoning'] = result.result.reasoning;
-    exportRow['Processing_Method'] = result.result.processingMethod || 'Unknown';
+    // Add all AI classification data as NEW columns (preserving original structure)
+    exportRow['AI_Classification'] = result.result.classification;
+    exportRow['AI_Confidence_%'] = result.result.confidence;
+    exportRow['AI_Processing_Tier'] = result.result.processingTier;
+    exportRow['AI_Reasoning'] = result.result.reasoning;
+    exportRow['AI_Processing_Method'] = result.result.processingMethod || 'OpenAI Batch API';
     
-    // Keyword exclusion details
-    exportRow['Matched_Keywords'] = result.result.keywordExclusion?.matchedKeywords?.join('; ') || '';
+    // Keyword exclusion details - CRITICAL INFORMATION
     exportRow['Keyword_Exclusion'] = result.result.keywordExclusion?.isExcluded ? 'Yes' : 'No';
-    exportRow['Keyword_Confidence'] = result.result.keywordExclusion?.confidence?.toString() || '0';
+    exportRow['Matched_Keywords'] = result.result.keywordExclusion?.matchedKeywords?.join('; ') || '';
+    exportRow['Keyword_Confidence_%'] = result.result.keywordExclusion?.confidence || 0;
     exportRow['Keyword_Reasoning'] = result.result.keywordExclusion?.reasoning || 'No keyword exclusion applied';
     
-    // Matching rules
+    // Enhanced classification details
     exportRow['Matching_Rules'] = result.result.matchingRules?.join('; ') || '';
     
-    // Similarity scores (if available)
-    exportRow['Levenshtein_Score'] = result.result.similarityScores?.levenshtein?.toString() || '';
-    exportRow['Jaro_Winkler_Score'] = result.result.similarityScores?.jaroWinkler?.toString() || '';
-    exportRow['Dice_Coefficient'] = result.result.similarityScores?.dice?.toString() || '';
-    exportRow['Token_Sort_Ratio'] = result.result.similarityScores?.tokenSort?.toString() || '';
-    exportRow['Combined_Similarity'] = result.result.similarityScores?.combined?.toString() || '';
+    // Similarity scores (if available) - combined into readable format
+    const similarityDetails = [];
+    if (result.result.similarityScores?.levenshtein) {
+      similarityDetails.push(`Levenshtein: ${result.result.similarityScores.levenshtein}`);
+    }
+    if (result.result.similarityScores?.jaroWinkler) {
+      similarityDetails.push(`Jaro-Winkler: ${result.result.similarityScores.jaroWinkler}`);
+    }
+    if (result.result.similarityScores?.dice) {
+      similarityDetails.push(`Dice: ${result.result.similarityScores.dice}`);
+    }
+    if (result.result.similarityScores?.tokenSort) {
+      similarityDetails.push(`Token Sort: ${result.result.similarityScores.tokenSort}`);
+    }
+    if (result.result.similarityScores?.combined) {
+      similarityDetails.push(`Combined: ${result.result.similarityScores.combined}`);
+    }
+    exportRow['Similarity_Scores'] = similarityDetails.join(' | ') || '';
     
     // Timestamps and metadata
     exportRow['Classification_Timestamp'] = result.timestamp.toISOString();
-    exportRow['Row_Index'] = result.rowIndex || index;
+    exportRow['Processing_Row_Index'] = result.rowIndex || index;
 
-    console.log('[BATCH EXPORTER] Final merged row with', Object.keys(exportRow).length, 'columns');
+    console.log(`[BATCH EXPORTER] Final merged row ${index} with ${Object.keys(exportRow).length} columns`);
     return exportRow;
   });
 }

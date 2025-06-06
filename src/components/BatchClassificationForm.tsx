@@ -23,8 +23,9 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
   const [processingSummary, setProcessingSummary] = useState<BatchProcessingResult | null>(null);
   const { toast } = useToast();
 
-  const handleBatchJobCreated = (batchJob: BatchJob, payeeNames: string[], originalFileData?: any[]) => {
-    console.log(`[BATCH FORM] Batch job created with ${payeeNames.length} payees and ${originalFileData?.length || 0} original data rows`);
+  const handleBatchJobCreated = (batchJob: BatchJob, payeeNames: string[], originalFileData: any[]) => {
+    console.log(`[BATCH FORM] Batch job created with ${payeeNames.length} payees and ${originalFileData.length} original data rows`);
+    console.log(`[BATCH FORM] Original data sample:`, originalFileData.slice(0, 2));
     
     // Store payee names for this job
     setPayeeNamesMap(prev => ({
@@ -32,26 +33,29 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
       [batchJob.id]: payeeNames
     }));
     
-    // Store original file data for this job
-    if (originalFileData && originalFileData.length > 0) {
-      setOriginalFileDataMap(prev => ({
-        ...prev,
-        [batchJob.id]: originalFileData
-      }));
-      console.log(`[BATCH FORM] Stored ${originalFileData.length} original data rows for job ${batchJob.id}`);
-    }
+    // Store original file data for this job - CRITICAL for export
+    setOriginalFileDataMap(prev => ({
+      ...prev,
+      [batchJob.id]: originalFileData
+    }));
+    
+    console.log(`[BATCH FORM] Stored original file data for job ${batchJob.id}:`, {
+      rowCount: originalFileData.length,
+      columnCount: originalFileData[0] ? Object.keys(originalFileData[0]).length : 0,
+      columns: originalFileData[0] ? Object.keys(originalFileData[0]) : []
+    });
     
     // Add to batch jobs list
     setBatchJobs(prev => [batchJob, ...prev]);
     
     toast({
       title: "Batch Job Created",
-      description: `Created batch job ${batchJob.id.slice(-8)} with ${payeeNames.length} payees. Use "Check Status" to monitor progress.`,
+      description: `Created batch job ${batchJob.id.slice(-8)} with ${payeeNames.length} payees and ${originalFileData.length} rows of original data preserved. Use "Check Status" to monitor progress.`,
     });
   };
 
   const handleJobComplete = (results: PayeeClassification[], summary: BatchProcessingResult, jobId: string) => {
-    console.log(`[BATCH FORM] Job ${jobId} completed with ${results.length} results`);
+    console.log(`[BATCH FORM] Job ${jobId} completed with ${results.length} results and original data included`);
     setBatchResults(results);
     setProcessingSummary(summary);
     onComplete(results, summary);
@@ -93,7 +97,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Upload a file to create an OpenAI batch job. Processing typically takes 10-15 minutes but can take up to 24 hours. Results will include original file data and keyword exclusions.
+              Upload a file to create an OpenAI batch job. Processing typically takes 10-15 minutes but can take up to 24 hours. Results will include ALL original file data, keyword exclusions, and AI classification details.
             </AlertDescription>
           </Alert>
 
