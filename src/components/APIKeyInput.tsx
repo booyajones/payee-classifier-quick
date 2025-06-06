@@ -2,60 +2,219 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { hasSavedOpenAIKey } from "@/lib/openai/client";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { isOpenAIInitialized, initializeOpenAI, testOpenAIConnection } from "@/lib/openai/client";
 import { useToast } from "@/components/ui/use-toast";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, Key, Eye, EyeOff, Loader2 } from "lucide-react";
 
 interface APIKeyInputProps {
   onApiKeySet: () => void;
 }
 
 const APIKeyInput = ({ onApiKeySet }: APIKeyInputProps) => {
-  const [keyIsSaved, setKeyIsSaved] = useState(true);
+  const [apiKey, setApiKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [rememberKey, setRememberKey] = useState(true);
+  const [isValidating, setIsValidating] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(true);
+  const [connectionWorking, setConnectionWorking] = useState(false);
   const { toast } = useToast();
 
-  // Check if API key is already set on component mount
+  // Test if OpenAI is already working on component mount
   useEffect(() => {
-    // The key is always available in the background
-    setKeyIsSaved(true);
-    onApiKeySet();
-    
-    // Inform the user that the API key is pre-configured
-    toast({
-      title: "API Key Pre-Configured",
-      description: "OpenAI API key is already configured in the background. No additional setup needed.",
-      variant: "default",
-    });
+    const testConnection = async () => {
+      if (isOpenAIInitialized()) {
+        try {
+          const isWorking = await testOpenAIConnection();
+          if (isWorking) {
+            setConnectionWorking(true);
+            toast({
+              title: "API Key Active",
+              description: "OpenAI API connection is working correctly.",
+              variant: "default",
+            });
+            onApiKeySet();
+            return;
+          }
+        } catch (error) {
+          console.log("Connection test failed, need to set API key");
+        }
+      }
+      setIsTestingConnection(false);
+    };
+
+    testConnection();
   }, [onApiKeySet, toast]);
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!apiKey.trim()) {
+      toast({
+        title: "Invalid API Key",
+        description: "Please enter a valid OpenAI API key.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsValidating(true);
+    
+    try {
+      await initializeOpenAI(apiKey.trim(), rememberKey);
+      
+      // Test the connection
+      const isWorking = await testOpenAIConnection();
+      if (!isWorking) {
+        throw new Error("API key test failed");
+      }
+      
+      toast({
+        title: "API Key Set Successfully",
+        description: rememberKey 
+          ? "OpenAI integration is ready and your key has been securely saved." 
+          : "OpenAI integration is ready for this session.",
+      });
+      
+      setConnectionWorking(true);
+      onApiKeySet();
+    } catch (error) {
+      console.error("Error setting API key:", error);
+      toast({
+        title: "API Key Error",
+        description: "Failed to initialize OpenAI client. Please check your API key.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  // Show loading state while testing connection
+  if (isTestingConnection) {
+    return (
+      <Card className="w-full max-w-md mx-auto">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Checking API Status
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Testing OpenAI API connection...
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // If connection is working, show success state
+  if (connectionWorking) {
+    return (
+      <Card className="w-full max-w-md mx-auto">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">API Key Status</CardTitle>
+          <CardDescription>
+            OpenAI API is connected and ready to use.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900 rounded-md">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                <span className="text-sm font-medium">API key is active and working</span>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Your app is ready to use the OpenAI API for payee classification.
+            </p>
+            
+            <Button 
+              type="button" 
+              className="w-full" 
+              onClick={() => onApiKeySet()}
+            >
+              Continue
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show API key input form
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">API Key Status</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <Key className="h-5 w-5" />
+          OpenAI API Key Required
+        </CardTitle>
         <CardDescription>
-          OpenAI API key is pre-configured in the background.
+          Enter your OpenAI API key to enable AI-powered payee classification.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900 rounded-md">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-              <span className="text-sm font-medium">API key is pre-configured and active</span>
+        <Alert className="mb-4">
+          <AlertDescription>
+            Your API key will be stored securely using encrypted browser storage. 
+            Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline">OpenAI Platform</a>.
+          </AlertDescription>
+        </Alert>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="apiKey">OpenAI API Key</Label>
+            <div className="relative">
+              <Input
+                id="apiKey"
+                type={showKey ? "text" : "password"}
+                placeholder="sk-..."
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                disabled={isValidating}
+                className="pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3"
+                onClick={() => setShowKey(!showKey)}
+              >
+                {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
             </div>
           </div>
-          <p className="text-sm text-muted-foreground">
-            No action required. Your app is ready to use the OpenAI API.
-          </p>
           
-          <Button 
-            type="button" 
-            className="w-full" 
-            onClick={() => onApiKeySet()}
-          >
-            Continue
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="rememberKey"
+              checked={rememberKey}
+              onChange={(e) => setRememberKey(e.target.checked)}
+              className="rounded border-gray-300"
+            />
+            <Label htmlFor="rememberKey" className="text-sm">
+              Securely save this API key
+            </Label>
+          </div>
+          
+          <Button type="submit" className="w-full" disabled={isValidating}>
+            {isValidating ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Testing API Key...
+              </>
+            ) : (
+              "Set API Key"
+            )}
           </Button>
-        </div>
+        </form>
       </CardContent>
     </Card>
   );
