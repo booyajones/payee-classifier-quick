@@ -1,3 +1,4 @@
+
 import { v4 as uuidv4 } from 'uuid';
 
 const ENC_KEY_STORAGE = 'api_key_enc_key';
@@ -7,15 +8,21 @@ async function getCryptoKey(): Promise<CryptoKey> {
   if (stored) {
     try {
       const raw = Uint8Array.from(atob(stored), c => c.charCodeAt(0));
-      return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+      const key = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+      console.log('[API_KEY_SERVICE] Successfully imported existing crypto key');
+      return key;
     } catch (error) {
       console.error('[API_KEY_SERVICE] Failed to import stored crypto key, generating new one:', error);
       sessionStorage.removeItem(ENC_KEY_STORAGE);
     }
   }
+  
+  console.log('[API_KEY_SERVICE] Generating new crypto key...');
   const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
   const raw = await crypto.subtle.exportKey('raw', key);
-  sessionStorage.setItem(ENC_KEY_STORAGE, btoa(String.fromCharCode(...new Uint8Array(raw))));
+  const encoded = btoa(String.fromCharCode(...new Uint8Array(raw)));
+  sessionStorage.setItem(ENC_KEY_STORAGE, encoded);
+  console.log('[API_KEY_SERVICE] New crypto key generated and stored');
   return key;
 }
 
@@ -89,6 +96,14 @@ export async function getApiKey(token: string): Promise<string | null> {
   try {
     console.log('[API_KEY_SERVICE] Retrieving API key for token:', token.slice(-8));
     
+    // Check if we have an encryption key first
+    const hasEncryptionKey = !!sessionStorage.getItem(ENC_KEY_STORAGE);
+    if (!hasEncryptionKey) {
+      console.warn('[API_KEY_SERVICE] No encryption key found in session storage');
+      // Try to regenerate the encryption key - this will fail for existing encrypted data
+      // but we'll handle that gracefully
+    }
+    
     // Look up the ID from the token map
     const tokenMap = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}token_map`) || '{}');
     const id = tokenMap[token];
@@ -120,10 +135,12 @@ export async function getApiKey(token: string): Promise<string | null> {
     try {
       const { iv, data } = JSON.parse(entry.apiKey);
       const decryptedKey = await decryptValue(iv, data);
-      console.log('[API_KEY_SERVICE] API key retrieved successfully');
+      console.log('[API_KEY_SERVICE] API key retrieved and decrypted successfully');
       return decryptedKey;
     } catch (decryptError) {
-      console.error('[API_KEY_SERVICE] Failed to decrypt API key:', decryptError);
+      console.error('[API_KEY_SERVICE] Failed to decrypt API key - encryption key may be missing:', decryptError);
+      // If decryption fails due to missing encryption key, delete the invalid entry
+      deleteApiKey(token);
       return null;
     }
   } catch (error) {
@@ -209,17 +226,26 @@ export function getApiKeyDiagnostics(): {
   tokenCount: number;
   tokens: string[];
   hasEncryptionKey: boolean;
+  encryptionKeyStatus: string;
 } {
   try {
     const tokenMap = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}token_map`) || '{}');
     const tokens = Object.keys(tokenMap);
     const hasEncryptionKey = !!sessionStorage.getItem(ENC_KEY_STORAGE);
     
+    let encryptionKeyStatus = 'Missing';
+    if (hasEncryptionKey) {
+      encryptionKeyStatus = 'Present';
+    } else if (tokens.length > 0) {
+      encryptionKeyStatus = 'Missing (Stored keys cannot be decrypted)';
+    }
+    
     return {
       hasTokenMap: !!localStorage.getItem(`${STORAGE_PREFIX}token_map`),
       tokenCount: tokens.length,
       tokens: tokens.map(t => t.slice(-8)), // Only show last 8 chars for security
-      hasEncryptionKey
+      hasEncryptionKey,
+      encryptionKeyStatus
     };
   } catch (error) {
     console.error('[API_KEY_SERVICE] Error getting diagnostics:', error);
@@ -227,7 +253,8 @@ export function getApiKeyDiagnostics(): {
       hasTokenMap: false,
       tokenCount: 0,
       tokens: [],
-      hasEncryptionKey: false
+      hasEncryptionKey: false,
+      encryptionKeyStatus: 'Error'
     };
   }
 }

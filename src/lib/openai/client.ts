@@ -63,6 +63,14 @@ export async function initializeOpenAI(apiKey?: string, rememberKey?: boolean): 
       const diagnostics = getApiKeyDiagnostics();
       logger.info("[OPENAI_CLIENT] Storage diagnostics:", diagnostics);
       
+      // Check if encryption key is missing
+      if (!diagnostics.hasEncryptionKey && diagnostics.tokenCount > 0) {
+        logger.warn("[OPENAI_CLIENT] Encryption key missing - stored keys cannot be decrypted");
+        // Clear invalid stored data since it can't be decrypted
+        clearAllApiKeys();
+        throw new Error("Stored API key data is corrupted and has been cleared. Please re-enter your API key.");
+      }
+      
       // Get all stored keys and try to find a valid one
       const tokenMapData = localStorage.getItem('secure_api_key_token_map');
       if (tokenMapData) {
@@ -100,6 +108,9 @@ export async function initializeOpenAI(apiKey?: string, rememberKey?: boolean): 
                 // Delete invalid key and continue to next
                 deleteApiKey(token);
               }
+            } else if (savedKey === null) {
+              logger.warn(`[OPENAI_CLIENT] Could not decrypt API key for token ${token.slice(-8)} - deleting`);
+              deleteApiKey(token);
             }
           } catch (error) {
             logger.error(`[OPENAI_CLIENT] Failed to retrieve API key with token ${token.slice(-8)}:`, error);
@@ -116,6 +127,9 @@ export async function initializeOpenAI(apiKey?: string, rememberKey?: boolean): 
       }
     } catch (error) {
       logger.error("[OPENAI_CLIENT] Error accessing saved API keys:", error);
+      if (error instanceof Error && error.message.includes("corrupted")) {
+        throw error; // Re-throw corruption errors
+      }
     }
   } else {
     logger.info("[OPENAI_CLIENT] No saved API keys found");

@@ -136,6 +136,17 @@ const OpenAIDiagnostics = ({ onReset }: OpenAIDiagnosticsProps) => {
               </AlertDescription>
             </Alert>
 
+            {/* Show encryption key warning if missing */}
+            {!diagnostics.storage.hasEncryptionKey && diagnostics.storage.tokenCount > 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Encryption Key Missing:</strong> {diagnostics.storage.encryptionKeyStatus}. 
+                  Stored API keys cannot be decrypted. Click "Clear All Data" to reset and re-enter your API key.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <h4 className="font-medium">Client Status</h4>
@@ -174,6 +185,11 @@ const OpenAIDiagnostics = ({ onReset }: OpenAIDiagnosticsProps) => {
                     <span className="text-sm">Encryption Key</span>
                     {getStatusBadge(diagnostics.storage.hasEncryptionKey, "Ready", "Missing")}
                   </div>
+                  {diagnostics.storage.encryptionKeyStatus && (
+                    <div className="text-xs text-muted-foreground">
+                      Status: {diagnostics.storage.encryptionKeyStatus}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
