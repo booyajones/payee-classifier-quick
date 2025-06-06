@@ -220,6 +220,9 @@ const BatchJobManager = ({
     }
   };
 
+  // Sort jobs by creation date in descending order (most recent first)
+  const sortedJobs = [...jobs].sort((a, b) => b.created_at - a.created_at);
+
   if (jobs.length === 0) {
     return (
       <Alert>
@@ -235,7 +238,7 @@ const BatchJobManager = ({
       <div className="space-y-4">
         <h3 className="text-lg font-medium">Batch Jobs</h3>
         
-        {jobs.map((job) => {
+        {sortedJobs.map((job) => {
           const pollingState = pollingStates[job.id];
           const isJobRefreshing = refreshingJobs.has(job.id);
           const isJobDownloading = downloadingJobs.has(job.id);
