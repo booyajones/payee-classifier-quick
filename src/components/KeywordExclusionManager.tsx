@@ -11,8 +11,10 @@ import { Plus, Edit, Trash } from "lucide-react";
 import {
   getComprehensiveExclusionKeywords,
   validateExclusionKeywords,
-  checkKeywordExclusion
+  checkKeywordExclusion,
+  ExclusionResult
 } from "@/lib/classification/keywordExclusion";
+import { EXCLUDED_KEYWORDS_STORAGE_KEY } from "@/lib/classification/enhancedKeywordExclusion";
 import {
   Table,
   TableBody,
@@ -28,13 +30,35 @@ const KeywordExclusionManager = () => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingValue, setEditingValue] = useState("");
   const [testPayeeName, setTestPayeeName] = useState("");
-  const [testResult, setTestResult] = useState<any>(null);
+  const [testResult, setTestResult] = useState<ExclusionResult | null>(null);
   const { toast } = useToast();
 
+  const loadKeywordsFromStorage = (): string[] => {
+    try {
+      const stored = localStorage.getItem(EXCLUDED_KEYWORDS_STORAGE_KEY);
+      return stored ? validateExclusionKeywords(JSON.parse(stored)) : [];
+    } catch (error) {
+      console.warn("Failed to load exclusion keywords", error);
+      return [];
+    }
+  };
+
+  const saveKeywordsToStorage = (list: string[]) => {
+    try {
+      localStorage.setItem(EXCLUDED_KEYWORDS_STORAGE_KEY, JSON.stringify(list));
+    } catch (error) {
+      console.warn("Failed to save exclusion keywords", error);
+    }
+  };
+
   useEffect(() => {
-    // Load initial keywords
-    const initialKeywords = getComprehensiveExclusionKeywords();
-    setKeywords(initialKeywords);
+    const stored = loadKeywordsFromStorage();
+    if (stored.length > 0) {
+      setKeywords(stored);
+    } else {
+      const initialKeywords = getComprehensiveExclusionKeywords();
+      setKeywords(initialKeywords);
+    }
   }, []);
 
   const handleAddKeyword = () => {
@@ -59,6 +83,7 @@ const KeywordExclusionManager = () => {
 
     const updatedKeywords = [...keywords, trimmedKeyword];
     setKeywords(updatedKeywords);
+    saveKeywordsToStorage(updatedKeywords);
     setNewKeyword("");
     
     toast({
@@ -87,8 +112,9 @@ const KeywordExclusionManager = () => {
     const trimmedValue = editingValue.trim();
     const updatedKeywords = [...keywords];
     updatedKeywords[editingIndex] = trimmedValue;
-    
+
     setKeywords(updatedKeywords);
+    saveKeywordsToStorage(updatedKeywords);
     setEditingIndex(null);
     setEditingValue("");
 
@@ -107,6 +133,7 @@ const KeywordExclusionManager = () => {
     const deletedKeyword = keywords[index];
     const updatedKeywords = keywords.filter((_, i) => i !== index);
     setKeywords(updatedKeywords);
+    saveKeywordsToStorage(updatedKeywords);
 
     toast({
       title: "Keyword Deleted",
@@ -127,6 +154,7 @@ const KeywordExclusionManager = () => {
   const resetToDefaults = () => {
     const defaultKeywords = getComprehensiveExclusionKeywords();
     setKeywords(defaultKeywords);
+    saveKeywordsToStorage(defaultKeywords);
     
     toast({
       title: "Reset Complete",

@@ -2,10 +2,15 @@
 import { KeywordExclusionResult, SimilarityScores } from '../types';
 import { calculateCombinedSimilarity, advancedNormalization } from './stringMatching';
 
+/**
+ * Key used to store exclusion keywords in localStorage
+ */
+export const EXCLUDED_KEYWORDS_STORAGE_KEY = 'excludedKeywords';
+
 // Load exclusion keywords from localStorage
 function getExclusionKeywords(): string[] {
   try {
-    const stored = localStorage.getItem('excludedKeywords');
+    const stored = localStorage.getItem(EXCLUDED_KEYWORDS_STORAGE_KEY);
     return stored ? JSON.parse(stored) : [];
   } catch (error) {
     console.warn('Failed to load exclusion keywords:', error);
