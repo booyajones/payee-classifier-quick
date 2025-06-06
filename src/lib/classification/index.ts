@@ -33,7 +33,7 @@ export { enhancedProcessBatchV2, exportResultsWithOriginalData } from './enhance
 
 // Export new V3 functions (no failures, intelligent escalation)
 export { enhancedClassifyPayeeV3 } from './enhancedClassificationV3';
-export { enhancedProcessBatchV3, exportResultsWithOriginalDataV3 } from './enhancedBatchProcessorV3';
+export { enhancedProcessBatchV3 } from './enhancedBatchProcessorV3';
 
 // Export new enhanced keyword exclusion (avoid conflict with old one)
 export { 
@@ -49,3 +49,4 @@ export * from './batchStatistics';
 export * from './batchDeduplication';
 export * from './batchRetryHandler';
 export * from './batchExporter';
+export * from './exporters';

@@ -25,3 +25,7 @@ export interface DataValidationResult {
   rowCount?: number;
   payeeCount?: number;
 }
+
+export interface AppError extends Error {
+  code: string;
+}
