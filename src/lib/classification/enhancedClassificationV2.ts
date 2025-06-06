@@ -1,4 +1,3 @@
-
 import { ClassificationResult, ClassificationConfig } from '../types';
 import { DEFAULT_CLASSIFICATION_CONFIG } from './config';
 import { applyRuleBasedClassification } from './ruleBasedClassification';
@@ -30,7 +29,7 @@ export async function enhancedClassifyPayeeV2(
       classification: 'Individual',
       confidence: 95,
       reasoning: `Excluded by keyword filter: ${exclusionResult.matchedKeywords?.join(", ")}`,
-      processingTier: 'Keyword-Exclusion',
+      processingTier: 'Excluded',
       keywordExclusion: exclusionResult
     };
   }
