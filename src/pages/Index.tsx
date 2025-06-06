@@ -8,6 +8,7 @@ import OpenAIKeySetup from "@/components/OpenAIKeySetup";
 import KeywordExclusionManager from "@/components/KeywordExclusionManager";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import ClassificationErrorBoundary from "@/components/ClassificationErrorBoundary";
+import ChatWidget from "@/components/chat/ChatWidget";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import { isOpenAIInitialized } from "@/lib/openai/client";
 import { logMemoryUsage } from "@/lib/openai/apiUtils";
@@ -127,6 +128,9 @@ const Index = () => {
             <p>Payee Classification System &copy; {new Date().getFullYear()}</p>
           </div>
         </footer>
+
+        {/* Chat Widget */}
+        <ChatWidget />
       </div>
     </ErrorBoundary>
   );
