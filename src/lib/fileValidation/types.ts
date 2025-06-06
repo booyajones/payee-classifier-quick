@@ -1,8 +1,8 @@
-
 export interface ValidationResult {
   payeeNames: string[];
   originalData: any[];
   payeeColumnName?: string;
+  error?: Error;
 }
 
 export interface FileValidationResult {

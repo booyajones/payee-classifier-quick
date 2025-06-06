@@ -1,7 +1,7 @@
-
 import { useState } from "react";
 import { parseUploadedFile } from "@/lib/fileValidation";
 import { validateFile, validatePayeeData } from "@/lib/fileValidation";
+import { ValidationResult } from "@/lib/fileValidation/types";
 import { handleError, showErrorToast } from "@/lib/errorHandler";
 import { useToast } from "@/components/ui/use-toast";
 

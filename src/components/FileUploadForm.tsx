@@ -7,17 +7,18 @@ import { AppError } from "@/lib/fileValidation/types";
 import FileUploadInput from "./file-upload/FileUploadInput";
 import ColumnSelector from "./file-upload/ColumnSelector";
 import FileUploadActions from "./file-upload/FileUploadActions";
+import { BatchJob } from "@/lib/openai/trueBatchAPI";
 
 interface FileUploadFormProps {
-  onSubmit: (payeeNames: string[], originalData: any[], selectedColumn: string) => void;
-  isLoading: boolean;
-  isRetrying: boolean;
-  retryCount: number;
+  onBatchJobCreated: (batchJob: BatchJob, payeeNames: string[], originalFileData: any[]) => void;
 }
 
-const FileUploadForm = ({ onSubmit, isLoading, isRetrying, retryCount }: FileUploadFormProps) => {
+const FileUploadForm = ({ onBatchJobCreated }: FileUploadFormProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [selectedColumn, setSelectedColumn] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const { toast } = useToast();
 
   const {
@@ -36,6 +37,11 @@ const FileUploadForm = ({ onSubmit, isLoading, isRetrying, retryCount }: FileUpl
     
     try {
       await validateFile(selectedFile);
+      
+      // Auto-select column if payeeColumnName was detected
+      if (validationResult?.payeeColumnName) {
+        setSelectedColumn(validationResult.payeeColumnName);
+      }
     } catch (error) {
       console.error('File validation error:', error);
       toast({
@@ -65,6 +71,8 @@ const FileUploadForm = ({ onSubmit, isLoading, isRetrying, retryCount }: FileUpl
       return;
     }
 
+    setIsLoading(true);
+    
     try {
       console.log('[FileUploadForm] Submitting with perfect row correspondence:', {
         payeeCount: validationResult.payeeNames.length,
@@ -73,10 +81,19 @@ const FileUploadForm = ({ onSubmit, isLoading, isRetrying, retryCount }: FileUpl
         perfectAlignment: validationResult.payeeNames.length === (validationResult.originalData?.length || 0)
       });
 
-      await onSubmit(
+      // Here we would create the batch job - for now just call the callback
+      // This would normally integrate with the batch job creation logic
+      const mockBatchJob = {
+        id: `batch_${Date.now()}`,
+        status: 'validating' as const,
+        created_at: Date.now(),
+        request_counts: { total: validationResult.payeeNames.length, completed: 0, failed: 0 }
+      };
+
+      await onBatchJobCreated(
+        mockBatchJob,
         validationResult.payeeNames,
-        validationResult.originalData || [],
-        selectedColumn
+        validationResult.originalData || []
       );
     } catch (error) {
       console.error('Submit error:', error);
@@ -89,6 +106,8 @@ const FileUploadForm = ({ onSubmit, isLoading, isRetrying, retryCount }: FileUpl
         description: appError.message || "Failed to submit file for processing",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
