@@ -14,15 +14,20 @@ interface FileUploadFormProps {
 }
 
 const FileUploadForm = ({ onBatchJobCreated }: FileUploadFormProps) => {
-  const [file, setFile] = useState<File | null>(null);
-  const [selectedColumn, setSelectedColumn] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const { toast } = useToast();
 
   const {
+    file,
+    columns,
+    selectedColumn,
+    setSelectedColumn,
     validationStatus,
+    fileInfo,
+    originalFileData,
+    fileError,
     validationResult,
     validateFile,
     reset: resetValidation
@@ -32,9 +37,6 @@ const FileUploadForm = ({ onBatchJobCreated }: FileUploadFormProps) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
-    setFile(selectedFile);
-    setSelectedColumn("");
-    
     try {
       await validateFile(selectedFile);
       
@@ -81,13 +83,31 @@ const FileUploadForm = ({ onBatchJobCreated }: FileUploadFormProps) => {
         perfectAlignment: validationResult.payeeNames.length === (validationResult.originalData?.length || 0)
       });
 
-      // Here we would create the batch job - for now just call the callback
-      // This would normally integrate with the batch job creation logic
-      const mockBatchJob = {
+      // Create a proper mock BatchJob with all required properties
+      const mockBatchJob: BatchJob = {
         id: `batch_${Date.now()}`,
-        status: 'validating' as const,
-        created_at: Date.now(),
-        request_counts: { total: validationResult.payeeNames.length, completed: 0, failed: 0 }
+        object: 'batch',
+        endpoint: '/v1/chat/completions',
+        errors: null,
+        input_file_id: `file_${Date.now()}`,
+        completion_window: '24h',
+        status: 'validating',
+        output_file_id: null,
+        error_file_id: null,
+        created_at: Math.floor(Date.now() / 1000),
+        in_progress_at: null,
+        expires_at: Math.floor(Date.now() / 1000) + (24 * 60 * 60),
+        finalizing_at: null,
+        completed_at: null,
+        failed_at: null,
+        expired_at: null,
+        cancelling_at: null,
+        cancelled_at: null,
+        request_counts: { 
+          total: validationResult.payeeNames.length, 
+          completed: 0, 
+          failed: 0 
+        }
       };
 
       await onBatchJobCreated(
@@ -112,8 +132,6 @@ const FileUploadForm = ({ onBatchJobCreated }: FileUploadFormProps) => {
   };
 
   const handleReset = () => {
-    setFile(null);
-    setSelectedColumn("");
     resetValidation();
     
     // Clear the file input
@@ -131,15 +149,6 @@ const FileUploadForm = ({ onBatchJobCreated }: FileUploadFormProps) => {
     !validationResult?.payeeNames?.length ||
     isLoading;
 
-  const columns = validationResult?.originalData?.[0] 
-    ? Object.keys(validationResult.originalData[0]) 
-    : [];
-
-  const fileInfo = validationResult ? {
-    rowCount: validationResult.originalData?.length || 0,
-    payeeCount: validationResult.payeeNames?.length || 0
-  } : null;
-
   return (
     <Card>
       <CardHeader>
@@ -155,11 +164,11 @@ const FileUploadForm = ({ onBatchJobCreated }: FileUploadFormProps) => {
           onFileChange={handleFileChange}
         />
 
-        {validationStatus === 'error' && validationResult?.error && (
+        {validationStatus === 'error' && fileError && (
           <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
             <p className="text-sm text-destructive font-medium">Validation Error</p>
             <p className="text-sm text-destructive/80 mt-1">
-              {validationResult.error.message}
+              {fileError}
             </p>
           </div>
         )}

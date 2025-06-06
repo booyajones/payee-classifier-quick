@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { parseUploadedFile } from "@/lib/fileValidation";
 import { validateFile, validatePayeeData } from "@/lib/fileValidation";
@@ -13,6 +14,7 @@ export const useFileValidation = () => {
   const [fileInfo, setFileInfo] = useState<{ rowCount?: number; payeeCount?: number } | null>(null);
   const [originalFileData, setOriginalFileData] = useState<any[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const { toast } = useToast();
 
   const resetValidation = () => {
@@ -23,6 +25,7 @@ export const useFileValidation = () => {
     setValidationStatus('none');
     setFileInfo(null);
     setOriginalFileData([]);
+    setValidationResult(null);
   };
 
   const validateFileUpload = async (selectedFile: File) => {
@@ -32,6 +35,7 @@ export const useFileValidation = () => {
     setValidationStatus('none');
     setFileInfo(null);
     setOriginalFileData([]);
+    setValidationResult(null);
     
     setValidationStatus('validating');
 
@@ -71,6 +75,17 @@ export const useFileValidation = () => {
       if (payeeColumn) {
         setSelectedColumn(payeeColumn);
       }
+
+      // Create validation result
+      const result: ValidationResult = {
+        payeeNames: fullData.map(row => {
+          const name = row[payeeColumn || headers[0]];
+          return String(name || '').trim() || '[Empty]';
+        }),
+        originalData: fullData,
+        payeeColumnName: payeeColumn
+      };
+      setValidationResult(result);
 
       setValidationStatus('valid');
       
@@ -114,6 +129,14 @@ export const useFileValidation = () => {
       
       console.log(`[FILE VALIDATION] Maintaining exact 1:1 correspondence: ${originalFileData.length} rows = ${payeeNames.length} payees`);
       
+      // Update validation result with new column selection
+      const result: ValidationResult = {
+        payeeNames,
+        originalData: originalFileData,
+        payeeColumnName: selectedColumn
+      };
+      setValidationResult(result);
+      
       setFileInfo({
         rowCount: originalFileData.length,
         payeeCount: payeeNames.length
@@ -138,8 +161,12 @@ export const useFileValidation = () => {
     fileInfo,
     originalFileData,
     fileError,
+    validationResult,
     resetValidation,
     validateFileUpload,
-    validateSelectedData
+    validateSelectedData,
+    // Aliases for compatibility
+    validateFile: validateFileUpload,
+    reset: resetValidation
   };
 };
