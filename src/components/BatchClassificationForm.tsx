@@ -1,11 +1,9 @@
 import { useState, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
 import { Upload, FileText, Zap, AlertCircle, Loader2 } from "lucide-react";
-import FileUploadForm from "./FileUploadForm";
-import BatchTextInput from "./BatchTextInput";
 import BatchJobManager from "./BatchJobManager";
 import BatchResultsDisplay from "./BatchResultsDisplay";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
