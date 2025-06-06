@@ -71,3 +71,33 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## Classification configuration
+
+The payee classifier exposes several options through the `ClassificationConfig`
+interface defined in `src/lib/types.ts`. Default values are provided in
+`src/lib/classification/config.ts`.
+
+| Option | Description |
+| ------ | ----------- |
+| `aiThreshold` | Minimum confidence required for rule‑based or NLP results before AI processing is triggered. |
+| `bypassRuleNLP` | Skip rule‑based and NLP checks and go straight to AI. |
+| `useEnhanced` | Enable advanced classification logic. |
+| `offlineMode` | Disable API calls and rely solely on local heuristics. |
+| `useFuzzyMatching` | Apply fuzzy name matching when deduplicating batch input. |
+| `useCacheForDuplicates` | Cache results for repeated names in a batch. |
+| `similarityThreshold` | Threshold used by fuzzy matching utilities. |
+| `retryFailedClassifications` | Attempt retries for failed AI calls. |
+| `maxRetries` | Maximum number of retry attempts. |
+
+Additional constants in `config.ts` include `MAX_CONCURRENCY` for controlling
+the number of concurrent classification requests and `MAX_BATCH_SIZE` for
+limiting batch size. The OpenAI client settings in `openai/config.ts` expose
+`DEFAULT_API_TIMEOUT` (20&nbsp;seconds by default) which defines how long the
+system waits for each API response.
+
+Increasing `aiThreshold` means rule‑based and NLP results must be more confident
+before the AI model is called. A higher threshold typically improves accuracy at
+the cost of additional API usage and slower processing. Likewise, extending
+`DEFAULT_API_TIMEOUT` allows more time for the API to respond, reducing timeout
+errors but making each classification call take longer if the service is slow.
