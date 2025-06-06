@@ -17,6 +17,10 @@ interface CachedResult {
 // In-memory cache for session-based deduplication
 const classificationCache = new Map<string, CachedResult>();
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+const MAX_CACHE_SIZE = 1000;
+
+let cacheHits = 0;
+let cacheLookups = 0;
 
 /**
  * Normalize name for caching
@@ -46,15 +50,17 @@ function getCachedResult(name: string): CachedResult | null {
   if (!name || typeof name !== 'string') {
     return null;
   }
-  
+
   const normalized = normalizeForCache(name);
   if (!normalized) {
     return null;
   }
-  
+
+  cacheLookups++;
   const cached = classificationCache.get(normalized);
-  
+
   if (cached && isCacheValid(cached)) {
+    cacheHits++;
     console.log(`[CACHE] Using cached result for "${name}"`);
     return cached;
   }
@@ -79,7 +85,14 @@ function setCachedResult(name: string, result: CachedResult): void {
   if (!normalized) {
     return;
   }
-  
+
+  if (classificationCache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = classificationCache.keys().next().value;
+    if (oldestKey) {
+      classificationCache.delete(oldestKey);
+    }
+  }
+
   classificationCache.set(normalized, {
     ...result,
     timestamp: Date.now()
@@ -393,8 +406,9 @@ export function clearClassificationCache(): void {
  * Get cache statistics
  */
 export function getCacheStats(): { size: number; hitRate: number } {
+  const hitRate = cacheLookups === 0 ? 0 : cacheHits / cacheLookups;
   return {
     size: classificationCache.size,
-    hitRate: 0
+    hitRate
   };
 }
