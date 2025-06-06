@@ -1,3 +1,4 @@
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 const levelOrder: Record<LogLevel, number> = {
@@ -7,7 +8,15 @@ const levelOrder: Record<LogLevel, number> = {
   error: 3
 };
 
-const currentLevel: LogLevel = (process.env.LOG_LEVEL as LogLevel) || 'info';
+// Safe environment variable access for browser compatibility
+function getEnvVar(key: string, defaultValue: string): string {
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env[key] || defaultValue;
+  }
+  return defaultValue;
+}
+
+const currentLevel: LogLevel = (getEnvVar('LOG_LEVEL', 'info') as LogLevel);
 
 function shouldLog(level: LogLevel): boolean {
   return levelOrder[level] >= levelOrder[currentLevel];
