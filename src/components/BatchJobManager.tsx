@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,7 +44,7 @@ const BatchJobManager = ({
   });
   const { toast } = useToast();
 
-  // Use the enhanced polling hook
+  // Use the polling hook (no auto-start)
   const { pollingStates, manualRefresh } = useBatchJobPolling(jobs, onJobUpdate);
 
   // Retry mechanism for operations
@@ -77,14 +76,13 @@ const BatchJobManager = ({
     return `${seconds}s ago`;
   };
 
-  // Single manual refresh - only pings once
+  // Manual refresh - triggers single check + starts auto-polling
   const handleManualRefresh = async (jobId: string) => {
     setRefreshingJobs(prev => new Set(prev).add(jobId));
     try {
-      console.log(`[BATCH MANAGER] Single manual refresh for job ${jobId}`);
+      console.log(`[BATCH MANAGER] Manual refresh for job ${jobId}`);
       await manualRefresh(jobId);
     } catch (error) {
-      // Error already handled by manualRefresh
       console.error(`[BATCH MANAGER] Manual refresh failed for job ${jobId}:`, error);
     } finally {
       setRefreshingJobs(prev => {
@@ -251,12 +249,7 @@ const BatchJobManager = ({
                       Job {job.id.slice(-8)}
                       {pollingState?.isPolling && (
                         <span className="ml-2 text-xs text-blue-600">
-                          (Auto-refreshing #{pollingState.pollCount})
-                        </span>
-                      )}
-                      {pollingState?.isRateLimited && (
-                        <span className="ml-2 text-xs text-orange-600">
-                          (Rate Limited)
+                          (Auto-checking every minute)
                         </span>
                       )}
                     </CardTitle>
@@ -344,7 +337,7 @@ const BatchJobManager = ({
                 </div>
 
                 <div className="flex gap-2 flex-wrap">
-                  {/* Single Manual Refresh Button */}
+                  {/* Manual Refresh Button */}
                   <Button
                     size="sm"
                     variant="outline"
