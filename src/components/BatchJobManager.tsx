@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
-import { CheckCircle, XCircle, Clock, Download, RefreshCw, Trash, Loader2, Calendar } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Download, RefreshCw, Trash, Loader2, Calendar, AlertTriangle } from "lucide-react";
 import { BatchJob, checkBatchJobStatus, getBatchJobResults, cancelBatchJob } from "@/lib/openai/trueBatchAPI";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import { createPayeeClassification } from "@/lib/utils";
@@ -44,8 +44,8 @@ const BatchJobManager = ({
   });
   const { toast } = useToast();
 
-  // Use the centralized polling hook
-  const { pollingStates } = useBatchJobPolling(jobs, onJobUpdate);
+  // Use the enhanced polling hook
+  const { pollingStates, manualRefresh } = useBatchJobPolling(jobs, onJobUpdate);
 
   // Retry mechanism for operations
   const {
@@ -68,6 +68,17 @@ const BatchJobManager = ({
     const minutes = Math.floor(duration / 60);
     const seconds = duration % 60;
     return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+  };
+
+  const formatLastPollTime = (timestamp?: number) => {
+    if (!timestamp) return 'Never';
+    const now = Date.now();
+    const diff = now - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const seconds = Math.floor((diff % 60000) / 1000);
+    
+    if (minutes > 0) return `${minutes}m ${seconds}s ago`;
+    return `${seconds}s ago`;
   };
 
   const handleRefreshJob = async (jobId: string) => {
@@ -96,6 +107,14 @@ const BatchJobManager = ({
         newSet.delete(jobId);
         return newSet;
       });
+    }
+  };
+
+  const handleManualRefresh = async (jobId: string) => {
+    try {
+      await manualRefresh(jobId);
+    } catch (error) {
+      // Error already handled by manualRefresh
     }
   };
 
@@ -258,13 +277,26 @@ const BatchJobManager = ({
                           (Auto-refreshing #{pollingState.pollCount})
                         </span>
                       )}
+                      {pollingState?.isRateLimited && (
+                        <span className="ml-2 text-xs text-orange-600">
+                          (Rate Limited)
+                        </span>
+                      )}
                     </CardTitle>
                     <CardDescription>
                       {job.metadata?.description || 'Payee classification batch'} • {payeeCount} payees
                     </CardDescription>
                     {pollingState?.lastError && (
-                      <p className="text-xs text-red-600 mt-1">
-                        Polling error: {pollingState.lastError}
+                      <div className="flex items-center gap-1 mt-1">
+                        <AlertTriangle className="h-3 w-3 text-red-500" />
+                        <p className="text-xs text-red-600">
+                          {pollingState.lastError}
+                        </p>
+                      </div>
+                    )}
+                    {pollingState?.lastSuccessfulPoll && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Last checked: {formatLastPollTime(pollingState.lastSuccessfulPoll)}
                       </p>
                     )}
                   </div>
@@ -348,6 +380,18 @@ const BatchJobManager = ({
                     )}
                     {isJobRefreshing ? 'Refreshing...' : 'Refresh'}
                   </Button>
+
+                  {pollingState?.lastError && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleManualRefresh(job.id)}
+                      className="border-orange-200 text-orange-700 hover:bg-orange-50"
+                    >
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      Manual Check
+                    </Button>
+                  )}
 
                   {job.status === 'completed' && (
                     <Button
