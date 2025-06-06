@@ -262,11 +262,11 @@ export async function getBatchJobResults(
       
       logger.info(`[BATCH API] Processing result for customId: ${customId}, originalRow: ${originalRowIndex}, arrayIndex: ${arrayIndex}`);
       
-      if (arrayIndex >= 0 && arrayIndex < payeeNames.length) {
+      if (originalRowIndex >= 0 && originalRowIndex < payeeNames.length) {
         if (result.response?.body?.choices?.[0]?.message?.content) {
           try {
             const content = JSON.parse(result.response.body.choices[0].message.content);
-            results[arrayIndex] = {
+            results[originalRowIndex] = {
               status: 'success',
               classification: content.classification,
               confidence: content.confidence,
@@ -275,20 +275,20 @@ export async function getBatchJobResults(
             };
           } catch (parseError) {
             logger.error(`[BATCH API] Failed to parse response for ${customId}:`, parseError);
-            results[arrayIndex] = {
+            results[originalRowIndex] = {
               status: 'error',
               error: 'Failed to parse classification result',
               originalRowIndex: originalRowIndex
             };
           }
         } else if (result.error) {
-          results[arrayIndex] = {
+          results[originalRowIndex] = {
             status: 'error',
             error: result.error.message,
             originalRowIndex: originalRowIndex
           };
         } else {
-          results[arrayIndex] = {
+          results[originalRowIndex] = {
             status: 'error',
             error: 'No response data',
             originalRowIndex: originalRowIndex
