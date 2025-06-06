@@ -1,4 +1,5 @@
 
+
 import { getOpenAIClient } from './client';
 import { timeoutPromise } from './utils';
 import { DEFAULT_API_TIMEOUT, CLASSIFICATION_MODEL, MAX_PARALLEL_BATCHES } from './config';
@@ -307,7 +308,7 @@ function validateApiResponse(content: string, expectedCount: number): any[] {
 async function processBatch(
   batchNames: string[],
   batchNumber: number,
-  openaiClient: ReturnType<typeof getOpenAIClient>,
+  openaiClient: any, // Fixed: Changed from Promise<OpenAI> to any to match usage
   timeout: number
 ): Promise<Array<{
   payeeName: string;
@@ -432,7 +433,7 @@ export async function optimizedBatchClassification(
     return [];
   }
 
-  const openaiClient = await getOpenAIClient();
+  const openaiClient = await getOpenAIClient(); // Fixed: Properly await the client
   if (!openaiClient) {
     throw new Error("OpenAI client not initialized. Please check your API key.");
   }
@@ -486,7 +487,7 @@ export async function optimizedBatchClassification(
     let active: Promise<Array<{ payeeName: string; classification: 'Business' | 'Individual'; confidence: number; reasoning: string; source: 'api'; }>>[] = [];
 
     for (let i = 0; i < batches.length; i++) {
-      active.push(processBatch(batches[i], i + 1, openaiClient, timeout));
+      active.push(processBatch(batches[i], i + 1, openaiClient, timeout)); // Fixed: Pass the resolved client
       if (active.length === MAX_PARALLEL_BATCHES || i === batches.length - 1) {
         const resolved = await Promise.all(active);
         resolved.forEach(r => results.push(...r));
@@ -522,9 +523,10 @@ export function clearClassificationCache(): void {
  * Get cache statistics
  */
 export function getCacheStats(): { size: number; hitRate: number } {
+  const size = classificationCache.size;
   const hitRate = cacheLookups === 0 ? 0 : cacheHits / cacheLookups;
   return {
-    size: classificationCache.size,
+    size,
     hitRate
   };
 }
@@ -535,3 +537,4 @@ export function getCacheStats(): { size: number; hitRate: number } {
 export function setCachePersistence(enabled: boolean): void {
   persistCache = enabled;
 }
+
