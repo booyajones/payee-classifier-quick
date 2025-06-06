@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,11 +12,13 @@ import { createPayeeClassification } from "@/lib/utils";
 import { useBatchJobPolling } from "@/hooks/useBatchJobPolling";
 import { handleError, showErrorToast, showRetryableErrorToast } from "@/lib/errorHandler";
 import { useRetry } from "@/hooks/useRetry";
+import { checkKeywordExclusion } from "@/lib/classification/enhancedKeywordExclusion";
 import ConfirmationDialog from "./ConfirmationDialog";
 
 interface BatchJobManagerProps {
   jobs: BatchJob[];
   payeeNamesMap: Record<string, string[]>;
+  originalFileDataMap: Record<string, any[]>; // Add original file data mapping
   onJobUpdate: (job: BatchJob) => void;
   onJobComplete: (results: PayeeClassification[], summary: BatchProcessingResult, jobId: string) => void;
   onJobDelete: (jobId: string) => void;
@@ -24,6 +27,7 @@ interface BatchJobManagerProps {
 const BatchJobManager = ({ 
   jobs, 
   payeeNamesMap, 
+  originalFileDataMap, // Add this prop
   onJobUpdate, 
   onJobComplete, 
   onJobDelete 
@@ -99,37 +103,70 @@ const BatchJobManager = ({
     try {
       console.log(`[BATCH MANAGER] Downloading results for job ${job.id}`);
       const payeeNames = payeeNamesMap[job.id] || [];
+      const originalFileData = originalFileDataMap[job.id] || [];
       
       if (payeeNames.length === 0) {
         throw new Error('No payee names found for this job. The job data may be corrupted.');
       }
 
-      const results = await downloadResultsWithRetry(job, payeeNames);
+      // Get raw results from OpenAI
+      const rawResults = await downloadResultsWithRetry(job, payeeNames);
       
+      // Process results with keyword exclusions and enhanced data
       const classifications = payeeNames.map((name, index) => {
-        const result = results[index];
+        const rawResult = rawResults[index];
+        const originalRowData = originalFileData[index] || {};
+        
+        // Apply keyword exclusion check
+        const keywordExclusion = checkKeywordExclusion(name);
+        
+        // Create enhanced classification result
+        let classification: 'Business' | 'Individual' = 'Individual';
+        let confidence = 0;
+        let reasoning = 'No result available';
+        let processingTier: any = 'Failed';
+        
+        if (keywordExclusion.isExcluded) {
+          // Override with keyword exclusion
+          classification = 'Business'; // Excluded items are typically businesses
+          confidence = keywordExclusion.confidence;
+          reasoning = keywordExclusion.reasoning;
+          processingTier = 'Excluded';
+        } else if (rawResult?.status === 'success') {
+          // Use OpenAI result
+          classification = rawResult.classification || 'Individual';
+          confidence = rawResult.confidence || 0;
+          reasoning = rawResult.reasoning || 'AI classification';
+          processingTier = 'AI-Powered';
+        }
+        
         return createPayeeClassification(name, {
-          classification: result?.classification || 'Individual',
-          confidence: result?.confidence || 0,
-          reasoning: result?.reasoning || 'No result available',
-          processingTier: result?.status === 'success' ? 'AI-Powered' : 'Failed'
-        });
+          classification,
+          confidence,
+          reasoning,
+          processingTier,
+          keywordExclusion,
+          processingMethod: keywordExclusion.isExcluded ? 'Keyword Exclusion' : 'OpenAI Batch API'
+        }, originalRowData, index);
       });
 
-      const successCount = results.filter(r => r.status === 'success').length;
-      const failureCount = results.length - successCount;
+      const successCount = classifications.filter(c => 
+        c.result.processingTier !== 'Failed'
+      ).length;
+      const failureCount = classifications.length - successCount;
 
       const summary: BatchProcessingResult = {
         results: classifications,
         successCount,
-        failureCount
+        failureCount,
+        originalFileData // Include original file data in summary
       };
 
       onJobComplete(classifications, summary, job.id);
 
       toast({
         title: "Results Downloaded Successfully",
-        description: `Downloaded ${successCount} successful classifications${failureCount > 0 ? ` and ${failureCount} failed attempts` : ''}.`,
+        description: `Downloaded ${successCount} successful classifications${failureCount > 0 ? ` and ${failureCount} failed attempts` : ''} with original file data and keyword exclusions.`,
       });
     } catch (error) {
       const appError = handleError(error, 'Results Download');
