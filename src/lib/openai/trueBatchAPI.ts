@@ -88,6 +88,7 @@ export async function createBatchJob(
             content: `Classify this payee name: "${name}"\n\nReturn ONLY a JSON object like: {"classification": "Business", "confidence": 95, "reasoning": "Contains LLC suffix indicating business entity"}`
           }
         ],
+        response_format: { type: 'json_object' },
         temperature: 0.1,
         max_tokens: 200
       }
