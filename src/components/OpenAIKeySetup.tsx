@@ -36,7 +36,7 @@ const OpenAIKeySetup = ({ onKeySet }: OpenAIKeySetupProps) => {
     
     try {
       // Initialize the OpenAI client with secure storage
-      initializeOpenAI(apiKey.trim(), rememberKey);
+      await initializeOpenAI(apiKey.trim(), rememberKey);
       
       toast({
         title: "API Key Set Successfully",

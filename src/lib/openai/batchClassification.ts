@@ -1,3 +1,4 @@
+import { logger } from "../logger";
 
 import { getOpenAIClient } from './client';
 import { timeoutPromise } from './utils';
@@ -20,7 +21,7 @@ export async function classifyPayeesBatchWithAI(
   confidence: number;
   reasoning: string;
 }>> {
-  const openaiClient = getOpenAIClient();
+  const openaiClient = await getOpenAIClient();
   if (!openaiClient) {
     throw new Error("OpenAI client not initialized. Please check your API key.");
   }
@@ -29,7 +30,7 @@ export async function classifyPayeesBatchWithAI(
     return [];
   }
 
-  console.log(`[BATCH] Starting classification of ${payeeNames.length} payees`);
+  logger.info(`[BATCH] Starting classification of ${payeeNames.length} payees`);
 
   const results: Array<{
     payeeName: string;
@@ -41,7 +42,7 @@ export async function classifyPayeesBatchWithAI(
   // Process in smaller batches with limited concurrency
   for (let i = 0; i < payeeNames.length; i += MAX_BATCH_SIZE) {
     const batchNames = payeeNames.slice(i, i + MAX_BATCH_SIZE);
-    console.log(`[BATCH] Processing batch ${Math.floor(i/MAX_BATCH_SIZE) + 1} with ${batchNames.length} payees`);
+    logger.info(`[BATCH] Processing batch ${Math.floor(i/MAX_BATCH_SIZE) + 1} with ${batchNames.length} payees`);
 
     try {
       const batchResults: Array<{
@@ -59,7 +60,7 @@ export async function classifyPayeesBatchWithAI(
               const result = await classifyPayeeWithAI(name, timeout);
               return { payeeName: name, ...result };
             } catch (error) {
-              console.error(`[INDIVIDUAL] Failed to classify ${name}:`, error);
+              logger.error(`[INDIVIDUAL] Failed to classify ${name}:`, error);
               throw new Error(`Classification failed for ${name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
             }
           })
@@ -69,14 +70,14 @@ export async function classifyPayeesBatchWithAI(
 
       results.push(...batchResults);
 
-      console.log(`[BATCH] Successfully processed batch ${Math.floor(i/MAX_BATCH_SIZE) + 1}`);
+      logger.info(`[BATCH] Successfully processed batch ${Math.floor(i/MAX_BATCH_SIZE) + 1}`);
 
     } catch (error) {
-      console.error(`[BATCH] Error with batch ${Math.floor(i/MAX_BATCH_SIZE) + 1}:`, error);
+      logger.error(`[BATCH] Error with batch ${Math.floor(i/MAX_BATCH_SIZE) + 1}:`, error);
       throw error;
     }
   }
   
-  console.log(`[BATCH] Completed classification of ${results.length} payees`);
+  logger.info(`[BATCH] Completed classification of ${results.length} payees`);
   return results;
 }

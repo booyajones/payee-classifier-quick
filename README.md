@@ -115,5 +115,10 @@ the cost of additional API usage and slower processing. Likewise, extending
 errors but making each classification call take longer if the service is slow.
 
 The optional `probablepeople` dependency enhances the NLP-based tier by
-providing detailed personal and business name parsing. Installing it will yield
-more accurate classifications when local heuristics are used.
+providing detailed personal and business name parsing. Because this package is
+not published to the npm registry, it is no longer listed in `package.json`.
+If you have a local build available you can install it manually and the
+classifier will load it at runtime.
+
+API keys are stored using AES‑GCM encryption in `localStorage`, with the
+encryption key kept in `sessionStorage` for added security.

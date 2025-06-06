@@ -1,3 +1,4 @@
+import { logger } from "../logger";
 
 import OpenAI from 'openai';
 import { storeApiKey, getApiKey, hasSavedApiKey, deleteApiKey } from '@/lib/backend/apiKeyService';
@@ -8,9 +9,9 @@ let currentToken: string | null = null;
 /**
  * Initialize the OpenAI client with the provided API key
  */
-export function initializeOpenAI(apiKey?: string, rememberKey?: boolean): OpenAI {
+export async function initializeOpenAI(apiKey?: string, rememberKey?: boolean): Promise<OpenAI> {
   if (apiKey && apiKey.trim() !== '') {
-    console.log("Initializing OpenAI client with provided API key");
+    logger.info("Initializing OpenAI client with provided API key");
     
     // Validate API key format
     if (!apiKey.startsWith('sk-')) {
@@ -24,10 +25,10 @@ export function initializeOpenAI(apiKey?: string, rememberKey?: boolean): OpenAI
     
     if (rememberKey) {
       try {
-        currentToken = storeApiKey(apiKey.trim());
-        console.log("API key saved to secure storage");
+        currentToken = await storeApiKey(apiKey.trim());
+        logger.info("API key saved to secure storage");
       } catch (error) {
-        console.error("Failed to save API key:", error);
+        logger.error("Failed to save API key:", error);
         // Continue without saving if storage fails
       }
     }
@@ -37,15 +38,15 @@ export function initializeOpenAI(apiKey?: string, rememberKey?: boolean): OpenAI
   
   // Try to get from secure storage
   if (hasSavedApiKey()) {
-    console.log("Attempting to load saved OpenAI API key");
+    logger.info("Attempting to load saved OpenAI API key");
     
     // Get all stored keys and try to find a valid one
     const metadata = JSON.parse(localStorage.getItem('secure_api_key_token_map') || '{}');
     for (const token of Object.keys(metadata)) {
       try {
-        const savedKey = getApiKey(token);
+        const savedKey = await getApiKey(token);
         if (savedKey && savedKey.startsWith('sk-')) {
-          console.log("Using saved OpenAI API key from secure storage");
+          logger.info("Using saved OpenAI API key from secure storage");
           currentToken = token;
           
           openaiClient = new OpenAI({
@@ -55,7 +56,7 @@ export function initializeOpenAI(apiKey?: string, rememberKey?: boolean): OpenAI
           return openaiClient;
         }
       } catch (error) {
-        console.error("Failed to retrieve API key with token:", token, error);
+        logger.error("Failed to retrieve API key with token:", token, error);
         // Try next token
       }
     }
@@ -67,13 +68,13 @@ export function initializeOpenAI(apiKey?: string, rememberKey?: boolean): OpenAI
 /**
  * Get the current OpenAI client
  */
-export function getOpenAIClient(): OpenAI {
+export async function getOpenAIClient(): Promise<OpenAI> {
   if (!openaiClient) {
     // Try to initialize from saved key
     try {
-      return initializeOpenAI();
+      return await initializeOpenAI();
     } catch (error) {
-      console.error("Failed to initialize from saved key:", error);
+      logger.error("Failed to initialize from saved key:", error);
       throw new Error("OpenAI client not initialized. Please set your API key first.");
     }
   }
@@ -111,7 +112,7 @@ export function clearOpenAIKeys(): void {
   localStorage.removeItem('openai_api_key');
   
   openaiClient = null;
-  console.log("OpenAI client and saved keys cleared");
+  logger.info("OpenAI client and saved keys cleared");
 }
 
 /**
@@ -119,7 +120,7 @@ export function clearOpenAIKeys(): void {
  */
 export async function testOpenAIConnection(): Promise<boolean> {
   try {
-    const client = getOpenAIClient();
+    const client = await getOpenAIClient();
     // Make a simple API call to test the connection
     await client.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -128,7 +129,7 @@ export async function testOpenAIConnection(): Promise<boolean> {
     });
     return true;
   } catch (error) {
-    console.error("OpenAI connection test failed:", error);
+    logger.error("OpenAI connection test failed:", error);
     return false;
   }
 }

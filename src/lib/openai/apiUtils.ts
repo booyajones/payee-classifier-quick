@@ -1,3 +1,4 @@
+import { logger } from "../logger";
 
 import { timeoutPromise } from './utils';
 
@@ -39,19 +40,19 @@ export async function makeAPIRequest<T>(
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      console.log(`[API] Attempt ${attempt + 1}/${retries + 1}${isStatusCheck ? ' (status check)' : ''}`);
+      logger.info(`[API] Attempt ${attempt + 1}/${retries + 1}${isStatusCheck ? ' (status check)' : ''}`);
       
       // Apply rate limit backoff
       if (consecutiveRateLimits > 0) {
         const rateLimitDelay = Math.min(5000 * Math.pow(2, consecutiveRateLimits - 1), 60000);
-        console.log(`[API] Rate limit backoff: waiting ${rateLimitDelay}ms`);
+        logger.info(`[API] Rate limit backoff: waiting ${rateLimitDelay}ms`);
         await new Promise(resolve => setTimeout(resolve, rateLimitDelay));
       }
       
       const result = await timeoutPromise(requestFn(), timeout);
       
       if (attempt > 0) {
-        console.log(`[API] Request succeeded after ${attempt + 1} attempts`);
+        logger.info(`[API] Request succeeded after ${attempt + 1} attempts`);
       }
       
       return result;
@@ -66,14 +67,14 @@ export async function makeAPIRequest<T>(
                          errorMessage.includes('quota exceeded');
       
       if (isTimeout) {
-        console.error(`[API] Request timed out after ${timeout}ms (attempt ${attempt + 1})`);
+        logger.error(`[API] Request timed out after ${timeout}ms (attempt ${attempt + 1})`);
         lastError = new APIError(`Request timed out after ${timeout}ms`, undefined, true, false);
       } else if (isRateLimit) {
         consecutiveRateLimits++;
-        console.error(`[API] Rate limit hit (attempt ${attempt + 1}, consecutive: ${consecutiveRateLimits})`);
+        logger.error(`[API] Rate limit hit (attempt ${attempt + 1}, consecutive: ${consecutiveRateLimits})`);
         lastError = new APIError('Rate limit exceeded', 429, false, true);
       } else {
-        console.error(`[API] Request failed on attempt ${attempt + 1}:`, error);
+        logger.error(`[API] Request failed on attempt ${attempt + 1}:`, error);
         consecutiveRateLimits = 0; // Reset rate limit counter for non-rate-limit errors
       }
 
@@ -89,7 +90,7 @@ export async function makeAPIRequest<T>(
         // Add jitter
         delay = delay * (0.8 + Math.random() * 0.4);
         
-        console.log(`[API] Retrying in ${Math.round(delay)}ms...`);
+        logger.info(`[API] Retrying in ${Math.round(delay)}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -115,7 +116,7 @@ export async function checkServerHealth(): Promise<boolean> {
     clearTimeout(timeoutId);
     return response.ok;
   } catch (error) {
-    console.error('[API] Server health check failed:', error);
+    logger.error('[API] Server health check failed:', error);
     return false;
   }
 }
@@ -143,8 +144,8 @@ export function logMemoryUsage(context: string): void {
   const memory = getMemoryUsage();
   
   if (memory.percentage > 80) {
-    console.warn(`[MEMORY] High memory usage in ${context}: ${memory.percentage.toFixed(1)}%`);
+    logger.warn(`[MEMORY] High memory usage in ${context}: ${memory.percentage.toFixed(1)}%`);
   } else if (memory.percentage > 0) {
-    console.log(`[MEMORY] Memory usage in ${context}: ${memory.percentage.toFixed(1)}%`);
+    logger.info(`[MEMORY] Memory usage in ${context}: ${memory.percentage.toFixed(1)}%`);
   }
 }
