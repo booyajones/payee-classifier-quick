@@ -1,4 +1,3 @@
-
 import { ClassificationResult } from '../types';
 import { BUSINESS_KEYWORDS, LEGAL_SUFFIXES } from './config';
 import { probablepeople } from './probablepeople';
@@ -6,12 +5,12 @@ import { probablepeople } from './probablepeople';
 /**
  * NLP-based classification using probablepeople for entity recognition
  */
-export function applyNLPClassification(payeeName: string): ClassificationResult | null {
+export async function applyNLPClassification(payeeName: string): Promise<ClassificationResult | null> {
   const matchingPatterns: string[] = [];
   
   try {
     // Try to get detailed parsing from probablepeople
-    const [parsed, nameType] = probablepeople.parse(payeeName);
+    const [parsed, nameType] = await probablepeople.parse(payeeName);
     
     // If we get a confident result but it wasn't strong enough for rule-based tier
     if (nameType === 'person') {

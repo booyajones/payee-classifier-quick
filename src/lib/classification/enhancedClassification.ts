@@ -82,13 +82,13 @@ export async function enhancedClassifyPayee(
   // Regular tiered approach
   
   // Tier 1: Apply rule-based classification
-  const ruleBasedResult = applyRuleBasedClassification(payeeName);
+  const ruleBasedResult = await applyRuleBasedClassification(payeeName);
   if (ruleBasedResult && ruleBasedResult.confidence >= config.aiThreshold) {
     return ruleBasedResult;
   }
   
   // Tier 2: Apply NLP-based classification
-  const nlpResult = applyNLPClassification(payeeName);
+  const nlpResult = await applyNLPClassification(payeeName);
   if (nlpResult && nlpResult.confidence >= config.aiThreshold) {
     return nlpResult;
   }

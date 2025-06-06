@@ -1,4 +1,3 @@
-
 import { ClassificationResult } from '../types';
 import { LEGAL_SUFFIXES, BUSINESS_KEYWORDS, INDUSTRY_IDENTIFIERS, GOVERNMENT_PATTERNS, PROFESSIONAL_TITLES } from './config';
 import { probablepeople } from './probablepeople';
@@ -7,7 +6,7 @@ import { probablepeople } from './probablepeople';
  * Rule-based classification using probablepeople library and custom rules
  * Enhanced to better detect business names
  */
-export function applyRuleBasedClassification(payeeName: string): ClassificationResult | null {
+export async function applyRuleBasedClassification(payeeName: string): Promise<ClassificationResult | null> {
   // Convert to uppercase for consistent matching
   const name = payeeName.toUpperCase();
   const words = name.split(/\s+/);
@@ -17,7 +16,7 @@ export function applyRuleBasedClassification(payeeName: string): ClassificationR
 
   // Use probablepeople to parse the name
   try {
-    const [parsed, nameType] = probablepeople.parse(payeeName);
+    const [parsed, nameType] = await probablepeople.parse(payeeName);
     
     // If probablepeople confidently identifies the type
     if (nameType === 'person') {
