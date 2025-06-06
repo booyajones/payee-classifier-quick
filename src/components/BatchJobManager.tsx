@@ -105,6 +105,12 @@ const BatchJobManager = ({
       const payeeNames = payeeNamesMap[job.id] || [];
       const originalFileData = originalFileDataMap[job.id] || [];
       
+      console.log(`[BATCH MANAGER] Original file data for job ${job.id}:`, {
+        hasData: originalFileData.length > 0,
+        dataLength: originalFileData.length,
+        sampleData: originalFileData.slice(0, 2)
+      });
+      
       if (payeeNames.length === 0) {
         throw new Error('No payee names found for this job. The job data may be corrupted.');
       }
@@ -155,11 +161,17 @@ const BatchJobManager = ({
       ).length;
       const failureCount = classifications.length - successCount;
 
+      console.log(`[BATCH MANAGER] Creating summary with original file data:`, {
+        classificationsLength: classifications.length,
+        originalFileDataLength: originalFileData.length,
+        hasOriginalData: originalFileData.length > 0
+      });
+
       const summary: BatchProcessingResult = {
         results: classifications,
         successCount,
         failureCount,
-        originalFileData // Include original file data in summary
+        originalFileData // CRITICAL: Include original file data in summary
       };
 
       onJobComplete(classifications, summary, job.id);

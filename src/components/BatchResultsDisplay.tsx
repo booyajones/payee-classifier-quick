@@ -34,8 +34,13 @@ const BatchResultsDisplay = ({
     }
 
     try {
+      console.log('[EXPORT] Processing summary:', processingSummary);
+      console.log('[EXPORT] Has original file data:', !!processingSummary.originalFileData);
+      
       // Use the enhanced export function that preserves original data
       const exportData = exportResultsWithOriginalDataV3(processingSummary, true);
+      
+      console.log('[EXPORT] Export data sample:', exportData.slice(0, 2));
       
       const workbook = XLSX.utils.book_new();
       const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -71,7 +76,7 @@ const BatchResultsDisplay = ({
 
       {batchResults.length > 0 ? (
         <div>
-          <h3 className="text-lg font-medium mb-2">Batch Classification Results</h3>
+          <h3 className="text-lg font-medium mb-2">Latest Batch Classification Results</h3>
           <ClassificationResultTable results={batchResults} />
           
           <div className="mt-4 flex gap-2">
@@ -90,7 +95,7 @@ const BatchResultsDisplay = ({
               disabled={isProcessing}
             >
               <RotateCcw className="h-4 w-4 mr-2" />
-              Start Over
+              Clear Latest Results
             </Button>
           </div>
         </div>

@@ -23,14 +23,23 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
   const [processingSummary, setProcessingSummary] = useState<BatchProcessingResult | null>(null);
   const { toast } = useToast();
 
-  const handleBatchJobCreated = (batchJob: BatchJob, payeeNames: string[]) => {
-    console.log(`[BATCH FORM] Batch job created with ${payeeNames.length} payees`);
+  const handleBatchJobCreated = (batchJob: BatchJob, payeeNames: string[], originalFileData?: any[]) => {
+    console.log(`[BATCH FORM] Batch job created with ${payeeNames.length} payees and ${originalFileData?.length || 0} original data rows`);
     
     // Store payee names for this job
     setPayeeNamesMap(prev => ({
       ...prev,
       [batchJob.id]: payeeNames
     }));
+    
+    // Store original file data for this job
+    if (originalFileData && originalFileData.length > 0) {
+      setOriginalFileDataMap(prev => ({
+        ...prev,
+        [batchJob.id]: originalFileData
+      }));
+      console.log(`[BATCH FORM] Stored ${originalFileData.length} original data rows for job ${batchJob.id}`);
+    }
     
     // Add to batch jobs list
     setBatchJobs(prev => [batchJob, ...prev]);

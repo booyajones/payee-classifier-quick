@@ -15,8 +15,7 @@ import { logMemoryUsage } from "@/lib/openai/apiUtils";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("batch");
-  const [batchResults, setBatchResults] = useState<PayeeClassification[]>([]);
-  const [batchSummary, setBatchSummary] = useState<BatchProcessingResult | null>(null);
+  const [allBatchSummaries, setAllBatchSummaries] = useState<BatchProcessingResult[]>([]);
   const [allResults, setAllResults] = useState<PayeeClassification[]>([]);
   const [hasApiKey, setHasApiKey] = useState(false);
 
@@ -34,8 +33,9 @@ const Index = () => {
     results: PayeeClassification[],
     summary: BatchProcessingResult
   ) => {
-    setBatchResults(results);
-    setBatchSummary(summary);
+    // Add to historical summaries instead of replacing
+    setAllBatchSummaries(prev => [summary, ...prev]);
+    // Add to all results instead of replacing
     setAllResults(prev => [...results, ...prev]);
     setActiveTab("results");
     logMemoryUsage('Batch processing complete');
@@ -85,7 +85,9 @@ const Index = () => {
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="batch">File Processing</TabsTrigger>
               <TabsTrigger value="keywords">Keyword Management</TabsTrigger>
-              <TabsTrigger value="results">Results</TabsTrigger>
+              <TabsTrigger value="results">
+                Results {allResults.length > 0 && `(${allResults.length})`}
+              </TabsTrigger>
             </TabsList>
             
             <TabsContent value="batch" className="mt-6">
@@ -102,21 +104,25 @@ const Index = () => {
             
             <TabsContent value="results" className="mt-6">
               <ClassificationErrorBoundary context="Results Display">
-                {batchSummary && batchResults.length > 0 && (
-                  <BatchProcessingSummary summary={batchSummary} />
-                )}
-                
-                <div className="mt-6">
-                  <h2 className="text-xl font-bold mb-4">Classification Results</h2>
-                  {allResults.length > 0 ? (
-                    <ClassificationResultTable results={allResults} />
-                  ) : (
-                    <div className="text-center py-8 border rounded-md">
-                      <p className="text-muted-foreground">
-                        No classification results yet. Upload a file to see results here.
-                      </p>
+                <div className="space-y-6">
+                  {allBatchSummaries.map((summary, index) => (
+                    <div key={index} className="space-y-4">
+                      <BatchProcessingSummary summary={summary} />
                     </div>
-                  )}
+                  ))}
+                  
+                  <div>
+                    <h2 className="text-xl font-bold mb-4">All Classification Results</h2>
+                    {allResults.length > 0 ? (
+                      <ClassificationResultTable results={allResults} />
+                    ) : (
+                      <div className="text-center py-8 border rounded-md">
+                        <p className="text-muted-foreground">
+                          No classification results yet. Upload a file to see results here.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </ClassificationErrorBoundary>
             </TabsContent>
