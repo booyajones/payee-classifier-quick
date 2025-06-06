@@ -12,10 +12,14 @@ export const DEFAULT_CLASSIFICATION_CONFIG: ClassificationConfig = {
 };
 
 // Increased concurrency limits for better parallel processing
-export const MAX_CONCURRENCY = 20; // Doubled from 10
+const envConcurrency = parseInt(process.env.CLASSIFIER_MAX_CONCURRENCY || '', 10);
+export const MAX_CONCURRENCY =
+  Number.isFinite(envConcurrency) && envConcurrency > 0 ? envConcurrency : 20; // Doubled from 10
 
 // Maximum batch size for AI classification
-export const MAX_BATCH_SIZE = 15; // Increased from 5
+const envBatchSize = parseInt(process.env.CLASSIFIER_MAX_BATCH_SIZE || '', 10);
+export const MAX_BATCH_SIZE =
+  Number.isFinite(envBatchSize) && envBatchSize > 0 ? envBatchSize : 15; // Increased from 5
 
 // Extended name similarity threshold (Levenshtein distance %)
 export const NAME_SIMILARITY_THRESHOLD = 85; // 85% similar names treated as same
