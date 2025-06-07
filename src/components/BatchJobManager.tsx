@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
@@ -81,6 +80,7 @@ const BatchJobManager = ({
   });
 
   const showCancelConfirmation = (jobId: string) => {
+    const job = validJobs.find(j => j.id === jobId);
     setConfirmDialog({
       isOpen: true,
       title: 'Cancel Batch Job',
@@ -91,11 +91,20 @@ const BatchJobManager = ({
   };
 
   const showDeleteConfirmation = (jobId: string) => {
+    const job = validJobs.find(j => j.id === jobId);
+    const jobStatus = job?.status || 'unknown';
+    
     setConfirmDialog({
       isOpen: true,
-      title: 'Remove Job',
-      description: `Are you sure you want to remove job ${jobId.slice(-8)} from the list? This will only remove it from your view, not delete the actual job.`,
-      onConfirm: () => onJobDelete(jobId),
+      title: 'Remove Job from List',
+      description: `Are you sure you want to remove job ${jobId.slice(-8)} (${jobStatus}) from your list? This will only remove it from your view and local storage, not delete the actual OpenAI batch job.`,
+      onConfirm: () => {
+        onJobDelete(jobId);
+        toast({
+          title: "Job Removed",
+          description: `Job ${jobId.slice(-8)} has been removed from your list.`,
+        });
+      },
       variant: 'destructive'
     });
   };
@@ -162,7 +171,7 @@ const BatchJobManager = ({
         description={confirmDialog.description}
         onConfirm={confirmDialog.onConfirm}
         variant={confirmDialog.variant}
-        confirmText={confirmDialog.variant === 'destructive' ? 'Delete' : 'Continue'}
+        confirmText={confirmDialog.variant === 'destructive' ? 'Yes, Remove' : 'Continue'}
       />
     </>
   );

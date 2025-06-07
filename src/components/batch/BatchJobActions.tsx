@@ -22,9 +22,18 @@ const BatchJobActions = ({
   onCancelJob,
   onDeleteJob
 }: BatchJobActionsProps) => {
+  // Jobs that can be cancelled (only in progress states)
+  const canCancel = ['validating', 'in_progress', 'finalizing'].includes(job.status);
+  
+  // Jobs that can be deleted (finished states)
+  const canDelete = ['completed', 'failed', 'expired', 'cancelled'].includes(job.status);
+  
+  // Jobs that can be downloaded
+  const canDownload = job.status === 'completed';
+
   return (
     <div className="flex gap-2 flex-wrap">
-      {/* Manual Refresh Button */}
+      {/* Manual Refresh Button - always available */}
       <Button
         size="sm"
         variant="outline"
@@ -39,7 +48,8 @@ const BatchJobActions = ({
         {isRefreshing ? 'Checking...' : 'Check Status'}
       </Button>
 
-      {job.status === 'completed' && (
+      {/* Download Results Button - only for completed jobs */}
+      {canDownload && (
         <Button
           size="sm"
           onClick={() => onDownloadResults(job)}
@@ -54,7 +64,8 @@ const BatchJobActions = ({
         </Button>
       )}
 
-      {['validating', 'in_progress'].includes(job.status) && (
+      {/* Cancel Job Button - only for jobs that can be cancelled */}
+      {canCancel && (
         <Button
           size="sm"
           variant="destructive"
@@ -64,7 +75,8 @@ const BatchJobActions = ({
         </Button>
       )}
 
-      {['completed', 'failed', 'expired', 'cancelled'].includes(job.status) && (
+      {/* Delete/Remove Button - only for finished jobs */}
+      {canDelete && (
         <Button
           size="sm"
           variant="outline"
