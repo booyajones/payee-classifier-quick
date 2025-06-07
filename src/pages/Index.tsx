@@ -1,208 +1,143 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle, Zap, User, FileText, Settings } from "lucide-react";
+import SingleClassificationForm from "@/components/SingleClassificationForm";
 import BatchClassificationForm from "@/components/BatchClassificationForm";
-import ClassificationResultTable from "@/components/ClassificationResultTable";
-import BatchProcessingSummary from "@/components/BatchProcessingSummary";
+import FixedBatchClassificationForm from "@/components/FixedBatchClassificationForm";
 import APIKeyInput from "@/components/APIKeyInput";
-import KeywordExclusionManager from "@/components/KeywordExclusionManager";
 import OpenAIDiagnostics from "@/components/OpenAIDiagnostics";
-import ErrorBoundary from "@/components/ErrorBoundary";
-import ClassificationErrorBoundary from "@/components/ClassificationErrorBoundary";
-import ChatWidget from "@/components/chat/ChatWidget";
+import KeywordExclusionManager from "@/components/KeywordExclusionManager";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
-import { isOpenAIInitialized, testOpenAIConnection } from "@/lib/openai/client";
-import { logMemoryUsage } from "@/lib/openai/apiUtils";
+import { isOpenAIInitialized } from "@/lib/openai/client";
 
 const Index = () => {
-  const [activeTab, setActiveTab] = useState("batch");
-  const [allBatchSummaries, setAllBatchSummaries] = useState<BatchProcessingResult[]>([]);
-  const [allResults, setAllResults] = useState<PayeeClassification[]>([]);
-  const [hasApiKey, setHasApiKey] = useState(false);
-  const [isCheckingApiKey, setIsCheckingApiKey] = useState(true);
+  const [classificationResults, setClassificationResults] = useState<PayeeClassification[]>([]);
+  const [lastProcessingSummary, setLastProcessingSummary] = useState<BatchProcessingResult | null>(null);
+  const [isApiKeySet, setIsApiKeySet] = useState(isOpenAIInitialized());
 
-  useEffect(() => {
-    const checkApiKey = async () => {
-      console.log('[INDEX] Checking API key initialization...');
-      setIsCheckingApiKey(true);
-      
-      try {
-        if (isOpenAIInitialized()) {
-          console.log('[INDEX] OpenAI appears to be initialized, testing connection...');
-          const isWorking = await testOpenAIConnection();
-          console.log('[INDEX] Connection test result:', isWorking);
-          setHasApiKey(isWorking);
-        } else {
-          console.log('[INDEX] OpenAI not initialized');
-          setHasApiKey(false);
-        }
-      } catch (error) {
-        console.error('[INDEX] Error checking API key:', error);
-        setHasApiKey(false);
-      } finally {
-        setIsCheckingApiKey(false);
-      }
-    };
-
-    checkApiKey();
-    logMemoryUsage('Index component mount');
-  }, []);
-
-  // Log memory usage on tab changes
-  useEffect(() => {
-    logMemoryUsage(`Tab change to ${activeTab}`);
-  }, [activeTab]);
-
-  const handleBatchComplete = (
-    results: PayeeClassification[],
-    summary: BatchProcessingResult
-  ) => {
-    console.log('[INDEX] Batch complete - adding to persistent results:', {
-      newResultsCount: results.length,
-      currentResultsCount: allResults.length,
-      totalAfterAdd: allResults.length + results.length
-    });
-    
-    // Add to historical summaries instead of replacing
-    setAllBatchSummaries(prev => [summary, ...prev]);
-    // Add to all results instead of replacing - accumulate all results
-    setAllResults(prev => [...prev, ...results]);
-    setActiveTab("results");
-    logMemoryUsage('Batch processing complete');
-  };
-
-  const handleKeySet = async () => {
-    console.log('[INDEX] API key set, testing connection...');
-    try {
-      const isWorking = await testOpenAIConnection();
-      console.log('[INDEX] Connection test after key set:', isWorking);
-      setHasApiKey(isWorking);
-    } catch (error) {
-      console.error('[INDEX] Error testing connection after key set:', error);
-      setHasApiKey(false);
+  const handleClassificationComplete = (results: PayeeClassification[], summary?: BatchProcessingResult) => {
+    setClassificationResults(results);
+    if (summary) {
+      setLastProcessingSummary(summary);
     }
   };
 
-  const handleDiagnosticsReset = () => {
-    console.log('[INDEX] Diagnostics reset - clearing API key');
-    setHasApiKey(false);
+  const handleApiKeyChange = () => {
+    setIsApiKeySet(isOpenAIInitialized());
   };
 
-  if (isCheckingApiKey) {
-    return (
-      <ErrorBoundary>
-        <div className="min-h-screen bg-background flex items-center justify-center">
-          <div className="text-center">
-            <h2 className="text-xl font-semibold mb-2">Initializing...</h2>
-            <p className="text-muted-foreground">Checking API configuration</p>
-          </div>
-        </div>
-      </ErrorBoundary>
-    );
-  }
-
-  if (!hasApiKey) {
-    return (
-      <ErrorBoundary>
-        <div className="min-h-screen bg-background">
-          <header className="bg-primary text-white py-6 mb-6">
-            <div className="container px-4">
-              <h1 className="text-2xl font-bold">Payee Classification System</h1>
-              <p className="opacity-90">
-                Efficient file-based payee classification processing
-              </p>
-            </div>
-          </header>
-
-          <main className="container px-4 pb-8">
-            <div className="max-w-2xl mx-auto space-y-6">
-              <APIKeyInput onApiKeySet={handleKeySet} />
-              <OpenAIDiagnostics onReset={handleDiagnosticsReset} />
-            </div>
-          </main>
-        </div>
-      </ErrorBoundary>
-    );
-  }
-
   return (
-    <ErrorBoundary>
-      <div className="min-h-screen bg-background">
-        <header className="bg-primary text-white py-6 mb-6">
-          <div className="container px-4">
-            <h1 className="text-2xl font-bold">Payee Classification System</h1>
-            <p className="opacity-90">
-              File-based payee classification processing
-            </p>
-          </div>
-        </header>
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto py-8 px-4">
+        <div className="mb-8 text-center">
+          <h1 className="text-4xl font-bold text-foreground mb-2">
+            AI Payee Classification System
+          </h1>
+          <p className="text-xl text-muted-foreground">
+            Classify payees as Business or Individual using advanced AI
+          </p>
+        </div>
 
-        <main className="container px-4 pb-8">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="batch">File Processing</TabsTrigger>
-              <TabsTrigger value="keywords">Keyword Management</TabsTrigger>
-              <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
-              <TabsTrigger value="results">
-                Results {allResults.length > 0 && `(${allResults.length})`}
-              </TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="batch" className="mt-6">
-              <ClassificationErrorBoundary context="File Processing">
-                <BatchClassificationForm onComplete={handleBatchComplete} />
-              </ClassificationErrorBoundary>
-            </TabsContent>
-            
-            <TabsContent value="keywords" className="mt-6">
-              <ClassificationErrorBoundary context="Keyword Management">
-                <KeywordExclusionManager />
-              </ClassificationErrorBoundary>
-            </TabsContent>
-            
-            <TabsContent value="diagnostics" className="mt-6">
-              <ClassificationErrorBoundary context="Diagnostics">
-                <OpenAIDiagnostics onReset={handleDiagnosticsReset} />
-              </ClassificationErrorBoundary>
-            </TabsContent>
-            
-            <TabsContent value="results" className="mt-6">
-              <ClassificationErrorBoundary context="Results Display">
-                <div className="space-y-6">
-                  {allBatchSummaries.map((summary, index) => (
-                    <div key={index} className="space-y-4">
-                      <BatchProcessingSummary summary={summary} />
-                    </div>
-                  ))}
-                  
-                  <div>
-                    <h2 className="text-xl font-bold mb-4">All Classification Results</h2>
-                    {allResults.length > 0 ? (
-                      <ClassificationResultTable results={allResults} />
-                    ) : (
-                      <div className="text-center py-8 border rounded-md">
-                        <p className="text-muted-foreground">
-                          No classification results yet. Upload a file to see results here.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </ClassificationErrorBoundary>
-            </TabsContent>
-          </Tabs>
-        </main>
+        {!isApiKeySet && (
+          <Alert className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Please set your OpenAI API key in the Diagnostics tab to begin classification.
+            </AlertDescription>
+          </Alert>
+        )}
 
-        <footer className="bg-muted py-4 text-center text-sm text-muted-foreground">
-          <div className="container">
-            <p>Payee Classification System &copy; {new Date().getFullYear()}</p>
-          </div>
-        </footer>
+        <Tabs defaultValue="fixed-batch" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="fixed-batch" className="flex items-center gap-2">
+              <Zap className="h-4 w-4" />
+              Fixed Batch
+            </TabsTrigger>
+            <TabsTrigger value="batch" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              OpenAI Batch
+            </TabsTrigger>
+            <TabsTrigger value="single" className="flex items-center gap-2">
+              <User className="h-4 w-4" />
+              Single
+            </TabsTrigger>
+            <TabsTrigger value="keywords" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Keywords
+            </TabsTrigger>
+            <TabsTrigger value="diagnostics" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Diagnostics
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Chat Widget */}
-        <ChatWidget />
+          <TabsContent value="fixed-batch">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5" />
+                  Fixed Batch Processing
+                </CardTitle>
+                <CardDescription>
+                  Improved batch processing with balanced classification, no duplicates, and perfect data alignment.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <FixedBatchClassificationForm onComplete={handleClassificationComplete} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="batch">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  OpenAI Batch Processing
+                </CardTitle>
+                <CardDescription>
+                  Original OpenAI batch processing (may have issues with duplicates and bias).
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <BatchClassificationForm onComplete={handleClassificationComplete} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="single">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  Single Classification
+                </CardTitle>
+                <CardDescription>
+                  Classify individual payee names one at a time for testing and validation.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <SingleClassificationForm onComplete={handleClassificationComplete} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="keywords">
+            <KeywordExclusionManager />
+          </TabsContent>
+
+          <TabsContent value="diagnostics">
+            <div className="space-y-6">
+              <APIKeyInput onApiKeyChange={handleApiKeyChange} />
+              <OpenAIDiagnostics />
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
-    </ErrorBoundary>
+    </div>
   );
 };
 
