@@ -57,8 +57,8 @@ const FileUploadForm = ({ onBatchJobCreated }: FileUploadFormProps) => {
   const generateValidBatchJobId = (): string => {
     const timestamp = Date.now().toString();
     const randomSuffix = Math.random().toString(36).substring(2, 15); // 13 random chars
-    const id = `batch_${timestamp}_${randomSuffix}`;
-    console.log(`[FILE UPLOAD] Generated batch job ID: ${id} (length: ${id.length})`);
+    const id = `batch_mock_${timestamp}_${randomSuffix}`;
+    console.log(`[FILE UPLOAD] Generated mock batch job ID: ${id} (length: ${id.length})`);
     return id;
   };
 
@@ -98,7 +98,7 @@ const FileUploadForm = ({ onBatchJobCreated }: FileUploadFormProps) => {
         object: 'batch',
         endpoint: '/v1/chat/completions',
         errors: null,
-        input_file_id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`,
+        input_file_id: `file_mock_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`,
         completion_window: '24h',
         status: 'validating',
         output_file_id: null,

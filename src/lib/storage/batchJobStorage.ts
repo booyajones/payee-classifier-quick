@@ -8,6 +8,7 @@ export interface StoredBatchJob extends BatchJob {
   payeeNames: string[];
   originalFileData: any[];
   createdAt: number;
+  isMockJob?: boolean; // Flag to identify mock jobs
 }
 
 /**
@@ -45,13 +46,14 @@ export function loadBatchJobs(): StoredBatchJob[] {
 /**
  * Add a new batch job to storage
  */
-export function addBatchJob(job: BatchJob, payeeNames: string[], originalFileData: any[]): void {
+export function addBatchJob(job: BatchJob, payeeNames: string[], originalFileData: any[], isMockJob: boolean = false): void {
   const jobs = loadBatchJobs();
   const storedJob: StoredBatchJob = {
     ...job,
     payeeNames,
     originalFileData,
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    isMockJob
   };
   
   jobs.unshift(storedJob); // Add to beginning
@@ -84,7 +86,7 @@ export function removeBatchJob(jobId: string): void {
 
 /**
  * Validate that a job ID looks like a real OpenAI batch job ID
- * Made more lenient to handle various ID formats during development
+ * More lenient for development scenarios
  */
 export function isValidBatchJobId(jobId: string): boolean {
   if (!jobId || typeof jobId !== 'string') {
@@ -92,13 +94,24 @@ export function isValidBatchJobId(jobId: string): boolean {
     return false;
   }
   
-  // Real OpenAI batch IDs start with "batch_" followed by alphanumeric characters
-  // But we'll be more lenient for development scenarios
-  const isValidFormat = /^batch_[a-zA-Z0-9_-]{20,}$/.test(jobId);
+  // Check if it starts with "batch_"
+  if (!jobId.startsWith('batch_')) {
+    console.log(`[BATCH STORAGE] Job ID ${jobId} doesn't start with "batch_"`);
+    return false;
+  }
+  
+  // More lenient length check - allow shorter IDs for development
+  if (jobId.length < 15) {
+    console.log(`[BATCH STORAGE] Job ID ${jobId} is too short (${jobId.length} characters, minimum 15)`);
+    return false;
+  }
+  
+  // Check for valid characters after "batch_"
+  const suffix = jobId.substring(6); // Remove "batch_" prefix
+  const isValidFormat = /^[a-zA-Z0-9_-]+$/.test(suffix);
   
   if (!isValidFormat) {
-    console.log(`[BATCH STORAGE] Job ID ${jobId} doesn't match expected format`);
-    console.log(`[BATCH STORAGE] Expected format: batch_[alphanumeric chars 20+ length]`);
+    console.log(`[BATCH STORAGE] Job ID ${jobId} contains invalid characters`);
   }
   
   return isValidFormat;

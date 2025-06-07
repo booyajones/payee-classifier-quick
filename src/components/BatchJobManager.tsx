@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
@@ -50,12 +49,13 @@ const BatchJobManager = ({
       id: job.id,
       idLength: job.id?.length,
       isValidId: isValidBatchJobId(job.id),
+      isMockJob: job.isMockJob,
       status: job.status,
       payeeCount: job.payeeNames?.length
     });
   });
 
-  // Filter out invalid job IDs before polling
+  // Filter out invalid job IDs and separate mock jobs
   const validJobs = jobs.filter(job => {
     const isValid = isValidBatchJobId(job.id);
     if (!isValid) {
@@ -64,10 +64,13 @@ const BatchJobManager = ({
     return isValid;
   });
 
-  console.log(`[BATCH MANAGER] After filtering: ${validJobs.length} valid jobs out of ${jobs.length} total`);
+  const realJobs = validJobs.filter(job => !job.isMockJob);
+  const mockJobs = validJobs.filter(job => job.isMockJob);
 
-  // Use the polling hook (no auto-start)
-  const { pollingStates, manualRefresh } = useBatchJobPolling(validJobs, onJobUpdate);
+  console.log(`[BATCH MANAGER] After filtering: ${validJobs.length} valid jobs (${realJobs.length} real, ${mockJobs.length} mock) out of ${jobs.length} total`);
+
+  // Use the polling hook only for real jobs (not mock jobs)
+  const { pollingStates, manualRefresh } = useBatchJobPolling(realJobs, onJobUpdate);
 
   // Retry mechanism for operations
   const {
@@ -75,8 +78,19 @@ const BatchJobManager = ({
     isRetrying: isDownloadRetrying
   } = useRetry(getBatchJobResults, { maxRetries: 3, baseDelay: 2000 });
 
-  // Manual refresh - triggers single check + starts auto-polling
+  // Manual refresh - only for real jobs
   const handleManualRefresh = async (jobId: string) => {
+    const job = validJobs.find(j => j.id === jobId);
+    
+    if (job?.isMockJob) {
+      toast({
+        title: "Mock Job",
+        description: "This is a development mock job. It cannot be refreshed from OpenAI servers.",
+        variant: "default"
+      });
+      return;
+    }
+
     if (!isValidBatchJobId(jobId)) {
       toast({
         title: "Invalid Job ID",
@@ -89,7 +103,7 @@ const BatchJobManager = ({
 
     setRefreshingJobs(prev => new Set(prev).add(jobId));
     try {
-      console.log(`[BATCH MANAGER] Manual refresh for job ${jobId}`);
+      console.log(`[BATCH MANAGER] Manual refresh for real job ${jobId}`);
       await manualRefresh(jobId);
     } catch (error) {
       console.error(`[BATCH MANAGER] Manual refresh failed for job ${jobId}:`, error);
@@ -113,6 +127,15 @@ const BatchJobManager = ({
   };
 
   const handleDownloadResults = async (job: StoredBatchJob) => {
+    if (job.isMockJob) {
+      toast({
+        title: "Mock Job Results",
+        description: "This is a development mock job. Results download is not available for mock jobs.",
+        variant: "default"
+      });
+      return;
+    }
+
     if (!isValidBatchJobId(job.id)) {
       toast({
         title: "Invalid Job ID",
@@ -231,7 +254,7 @@ const BatchJobManager = ({
       if (error instanceof Error && error.message.includes('404')) {
         toast({
           title: "Job Not Found",
-          description: `Batch job ${job.id.slice(-8)} was not found on OpenAI's servers. It may have been deleted or expired. Removing from list.`,
+          description: `Batch job ${jobId.slice(-8)} was not found on OpenAI's servers. It may have been deleted or expired. Removing from list.`,
           variant: "destructive"
         });
         onJobDelete(job.id);
@@ -335,7 +358,7 @@ const BatchJobManager = ({
             <AlertDescription>
               {invalidJobsCount} invalid job(s) were filtered out. 
               Check console logs for details about job ID validation.
-              Expected format: batch_[alphanumeric characters, 20+ length]
+              Expected format: batch_[alphanumeric characters, 15+ length]
             </AlertDescription>
           </Alert>
         )}

@@ -43,15 +43,19 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
   const handleBatchJobCreated = (batchJob: BatchJob, payeeNames: string[], originalFileData: any[]) => {
     console.log(`[BATCH FORM] Batch job created with ${payeeNames.length} payees and ${originalFileData.length} original data rows`);
     
+    // Determine if this is a mock job based on ID
+    const isMockJob = batchJob.id.includes('mock');
+    
     // Add to localStorage
-    addBatchJob(batchJob, payeeNames, originalFileData);
+    addBatchJob(batchJob, payeeNames, originalFileData, isMockJob);
     
     // Create stored job for state
     const storedJob: StoredBatchJob = {
       ...batchJob,
       payeeNames,
       originalFileData,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      isMockJob
     };
     
     // Add to state
@@ -59,7 +63,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     
     toast({
       title: "Batch Job Created",
-      description: `Created batch job ${batchJob.id.slice(-8)} with ${payeeNames.length} payees. Job persisted and will survive page refreshes.`,
+      description: `Created ${isMockJob ? 'mock ' : ''}batch job ${batchJob.id.slice(-8)} with ${payeeNames.length} payees. Job persisted and will survive page refreshes.`,
     });
   };
 
