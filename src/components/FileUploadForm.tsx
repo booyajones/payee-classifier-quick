@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
@@ -54,6 +53,15 @@ const FileUploadForm = ({ onBatchJobCreated }: FileUploadFormProps) => {
     }
   };
 
+  // Generate a valid OpenAI-style batch job ID
+  const generateValidBatchJobId = (): string => {
+    const timestamp = Date.now().toString();
+    const randomSuffix = Math.random().toString(36).substring(2, 15); // 13 random chars
+    const id = `batch_${timestamp}_${randomSuffix}`;
+    console.log(`[FILE UPLOAD] Generated batch job ID: ${id} (length: ${id.length})`);
+    return id;
+  };
+
   const handleSubmit = async () => {
     if (!file || !validationResult || !selectedColumn) {
       toast({
@@ -83,13 +91,14 @@ const FileUploadForm = ({ onBatchJobCreated }: FileUploadFormProps) => {
         perfectAlignment: validationResult.payeeNames.length === (validationResult.originalData?.length || 0)
       });
 
-      // Create a proper mock BatchJob with all required properties
+      // Create a proper mock BatchJob with valid ID format
+      const validBatchJobId = generateValidBatchJobId();
       const mockBatchJob: BatchJob = {
-        id: `batch_${Date.now()}`,
+        id: validBatchJobId,
         object: 'batch',
         endpoint: '/v1/chat/completions',
         errors: null,
-        input_file_id: `file_${Date.now()}`,
+        input_file_id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`,
         completion_window: '24h',
         status: 'validating',
         output_file_id: null,
