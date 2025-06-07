@@ -49,8 +49,8 @@ export * from './batchStatistics';
 export * from './batchDeduplication';
 export * from './batchRetryHandler';
 
-// Export specific functions from batchExporter to avoid conflicts
-export { findResultByName, exportResultsWithOriginalDataV3 } from './batchExporter';
+// Export specific helper function from batchExporter (no conflicts)
+export { findResultByName } from './batchExporter';
 
-// Export from the new exporters module
+// Export from the new exporters module (includes the main export function)
 export * from './exporters';
