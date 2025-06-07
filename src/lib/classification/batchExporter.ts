@@ -1,4 +1,5 @@
 import { BatchProcessingResult } from '../types';
+import { normalizePayeeName } from './nameProcessing';
 
 /**
  * Validate that payee names match between results and original data
@@ -50,12 +51,14 @@ function validateDataAlignment(
  * Find matching result by payee name (fallback when index matching fails)
  */
 export function findResultByName(payeeName: string, results: any[], preferredIndex?: number): any | null {
-  const normalizedTargetName = payeeName.trim().toLowerCase();
+  const normalizedTargetName = normalizePayeeName(payeeName);
 
   // Gather all exact matches
-  const exactMatches = results.filter(result =>
-    result.payeeName && result.payeeName.trim().toLowerCase() === normalizedTargetName
-  );
+  const exactMatches = results.filter(result => {
+    if (!result.payeeName) return false;
+    const resultNorm = normalizePayeeName(result.payeeName);
+    return resultNorm === normalizedTargetName;
+  });
 
   if (exactMatches.length > 0) {
     if (preferredIndex !== undefined) {
@@ -68,8 +71,8 @@ export function findResultByName(payeeName: string, results: any[], preferredInd
   // Gather fuzzy matches (contains)
   const fuzzyMatches = results.filter(result => {
     if (!result.payeeName) return false;
-    const resultName = result.payeeName.trim().toLowerCase();
-    return resultName.includes(normalizedTargetName) || normalizedTargetName.includes(resultName);
+    const resultNorm = normalizePayeeName(result.payeeName);
+    return resultNorm.includes(normalizedTargetName) || normalizedTargetName.includes(resultNorm);
   });
 
   if (fuzzyMatches.length > 0) {

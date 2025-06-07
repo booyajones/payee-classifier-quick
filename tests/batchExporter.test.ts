@@ -16,4 +16,12 @@ describe('findResultByName', () => {
     const match = findResultByName('Acme', results, 5);
     expect(match?.rowIndex).toBe(0);
   });
+
+  it('matches names ignoring punctuation and spacing differences', () => {
+    const punctuationResults = [
+      { payeeName: 'Pepsi Cola', rowIndex: 0 }
+    ];
+    const match = findResultByName('Pepsi. Cola', punctuationResults);
+    expect(match?.rowIndex).toBe(0);
+  });
 });
