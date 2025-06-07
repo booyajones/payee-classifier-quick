@@ -97,6 +97,12 @@ export async function checkBatchJobStatus(jobId: string): Promise<BatchJob> {
     } as BatchJob;
   } catch (error) {
     logger.error(`[BATCH API] Failed to check status for job ${jobId}:`, error);
+    
+    // Handle 404 errors specifically
+    if (error instanceof Error && (error.message.includes('404') || error.message.includes('No batch found'))) {
+      throw new Error(`404 No batch found with id '${jobId}'. The job may have been deleted or expired.`);
+    }
+    
     throw error;
   }
 }
@@ -226,114 +232,136 @@ export async function getBatchJobResults(
     throw new Error('Batch job has no output file');
   }
 
-  const openaiClient = await getOpenAIClient();
-  if (!openaiClient) {
-    throw new Error("OpenAI client not initialized. Please check your API key.");
-  }
+  try {
+    const openaiClient = await getOpenAIClient();
+    if (!openaiClient) {
+      throw new Error("OpenAI client not initialized. Please check your API key.");
+    }
 
-  // Download results with retry
-  const fileContent = await makeAPIRequest(
-    () => openaiClient.files.content(job.output_file_id!),
-    { retries: 3, retryDelay: 2000 }
-  );
+    // Download results with retry
+    const fileContent = await makeAPIRequest(
+      () => openaiClient.files.content(job.output_file_id!),
+      { retries: 3, retryDelay: 2000 }
+    );
 
-  const text = await fileContent.text();
-  const lines = text.trim().split('\n').filter(line => line.trim());
-  
-  logger.info(`[BATCH API] Downloaded ${lines.length} result lines`);
-  
-  // Initialize results array with proper size
-  const results: ProcessedBatchResult[] = new Array(payeeNames.length).fill(null);
-  
-  for (const line of lines) {
-    try {
-      const result: BatchResult = JSON.parse(line);
-      const customId = result.custom_id;
-      
-      // Parse custom_id to extract both original row index and array index
-      const customIdMatch = customId.match(/^payee-(\d+)-(\d+)$/);
-      if (!customIdMatch) {
-        logger.warn(`[BATCH API] Invalid custom_id format: ${customId}`);
-        continue;
-      }
-      
-      const originalRowIndex = parseInt(customIdMatch[1]);
-      const arrayIndex = parseInt(customIdMatch[2]);
-      
-      logger.info(`[BATCH API] Processing result for customId: ${customId}, originalRow: ${originalRowIndex}, arrayIndex: ${arrayIndex}`);
-      
-      if (originalRowIndex >= 0 && originalRowIndex < payeeNames.length) {
-        if (result.response?.body?.choices?.[0]?.message?.content) {
-          try {
-            const content = JSON.parse(result.response.body.choices[0].message.content);
-            results[originalRowIndex] = {
-              status: 'success',
-              classification: content.classification,
-              confidence: content.confidence,
-              reasoning: content.reasoning,
-              originalRowIndex: originalRowIndex
-            };
-          } catch (parseError) {
-            logger.error(`[BATCH API] Failed to parse response for ${customId}:`, parseError);
+    const text = await fileContent.text();
+    const lines = text.trim().split('\n').filter(line => line.trim());
+    
+    logger.info(`[BATCH API] Downloaded ${lines.length} result lines`);
+    
+    // Initialize results array with proper size
+    const results: ProcessedBatchResult[] = new Array(payeeNames.length).fill(null);
+    
+    for (const line of lines) {
+      try {
+        const result: BatchResult = JSON.parse(line);
+        const customId = result.custom_id;
+        
+        // Parse custom_id to extract both original row index and array index
+        const customIdMatch = customId.match(/^payee-(\d+)-(\d+)$/);
+        if (!customIdMatch) {
+          logger.warn(`[BATCH API] Invalid custom_id format: ${customId}`);
+          continue;
+        }
+        
+        const originalRowIndex = parseInt(customIdMatch[1]);
+        const arrayIndex = parseInt(customIdMatch[2]);
+        
+        logger.info(`[BATCH API] Processing result for customId: ${customId}, originalRow: ${originalRowIndex}, arrayIndex: ${arrayIndex}`);
+        
+        if (originalRowIndex >= 0 && originalRowIndex < payeeNames.length) {
+          if (result.response?.body?.choices?.[0]?.message?.content) {
+            try {
+              const content = JSON.parse(result.response.body.choices[0].message.content);
+              results[originalRowIndex] = {
+                status: 'success',
+                classification: content.classification,
+                confidence: content.confidence,
+                reasoning: content.reasoning,
+                originalRowIndex: originalRowIndex
+              };
+            } catch (parseError) {
+              logger.error(`[BATCH API] Failed to parse response for ${customId}:`, parseError);
+              results[originalRowIndex] = {
+                status: 'error',
+                error: 'Failed to parse classification result',
+                originalRowIndex: originalRowIndex
+              };
+            }
+          } else if (result.error) {
             results[originalRowIndex] = {
               status: 'error',
-              error: 'Failed to parse classification result',
+              error: result.error.message,
+              originalRowIndex: originalRowIndex
+            };
+          } else {
+            results[originalRowIndex] = {
+              status: 'error',
+              error: 'No response data',
               originalRowIndex: originalRowIndex
             };
           }
-        } else if (result.error) {
-          results[originalRowIndex] = {
-            status: 'error',
-            error: result.error.message,
-            originalRowIndex: originalRowIndex
-          };
         } else {
-          results[originalRowIndex] = {
-            status: 'error',
-            error: 'No response data',
-            originalRowIndex: originalRowIndex
-          };
+          logger.warn(`[BATCH API] Array index ${arrayIndex} out of bounds for ${payeeNames.length} payees`);
         }
-      } else {
-        logger.warn(`[BATCH API] Array index ${arrayIndex} out of bounds for ${payeeNames.length} payees`);
+      } catch (error) {
+        logger.error('[BATCH API] Failed to parse result line:', error);
       }
-    } catch (error) {
-      logger.error('[BATCH API] Failed to parse result line:', error);
     }
-  }
-  
-  // Fill any null results with error status
-  for (let i = 0; i < results.length; i++) {
-    if (!results[i]) {
-      const originalRowIndex = originalRowIndexes?.[i] ?? i;
-      results[i] = {
-        status: 'error',
-        error: 'No result found',
-        originalRowIndex: originalRowIndex
-      };
+    
+    // Fill any null results with error status
+    for (let i = 0; i < results.length; i++) {
+      if (!results[i]) {
+        const originalRowIndex = originalRowIndexes?.[i] ?? i;
+        results[i] = {
+          status: 'error',
+          error: 'No result found',
+          originalRowIndex: originalRowIndex
+        };
+      }
     }
+    
+    logger.info(`[BATCH API] Processed ${results.length} results`);
+    return results;
+  } catch (error) {
+    logger.error(`[BATCH API] Failed to get results for job ${job.id}:`, error);
+    
+    // Handle 404 errors specifically
+    if (error instanceof Error && (error.message.includes('404') || error.message.includes('No batch found'))) {
+      throw new Error(`404 No batch found with id '${job.id}'. The job may have been deleted or expired.`);
+    }
+    
+    throw error;
   }
-  
-  logger.info(`[BATCH API] Processed ${results.length} results`);
-  return results;
 }
 
 export async function cancelBatchJob(jobId: string): Promise<BatchJob> {
   logger.info(`[BATCH API] Cancelling job: ${jobId}`);
   
-  const openaiClient = await getOpenAIClient();
-  if (!openaiClient) {
-    throw new Error("OpenAI client not initialized. Please check your API key.");
+  try {
+    const openaiClient = await getOpenAIClient();
+    if (!openaiClient) {
+      throw new Error("OpenAI client not initialized. Please check your API key.");
+    }
+
+    const result = await makeAPIRequest(
+      () => openaiClient.batches.cancel(jobId),
+      { retries: 2, retryDelay: 2000 }
+    );
+
+    // Ensure the result matches our BatchJob interface
+    return {
+      ...result,
+      errors: result.errors || null
+    } as BatchJob;
+  } catch (error) {
+    logger.error(`[BATCH API] Failed to cancel job ${jobId}:`, error);
+    
+    // Handle 404 errors specifically
+    if (error instanceof Error && (error.message.includes('404') || error.message.includes('No batch found'))) {
+      throw new Error(`404 No batch found with id '${jobId}'. The job may have been deleted or expired.`);
+    }
+    
+    throw error;
   }
-
-  const result = await makeAPIRequest(
-    () => openaiClient.batches.cancel(jobId),
-    { retries: 2, retryDelay: 2000 }
-  );
-
-  // Ensure the result matches our BatchJob interface
-  return {
-    ...result,
-    errors: result.errors || null
-  } as BatchJob;
 }

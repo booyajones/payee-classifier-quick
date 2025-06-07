@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
@@ -8,13 +9,12 @@ import { useBatchJobPolling } from "@/hooks/useBatchJobPolling";
 import { handleError, showErrorToast, showRetryableErrorToast } from "@/lib/errorHandler";
 import { useRetry } from "@/hooks/useRetry";
 import { checkKeywordExclusion } from "@/lib/classification/enhancedKeywordExclusion";
+import { StoredBatchJob, isValidBatchJobId } from "@/lib/storage/batchJobStorage";
 import ConfirmationDialog from "./ConfirmationDialog";
 import BatchJobCard from "./batch/BatchJobCard";
 
 interface BatchJobManagerProps {
-  jobs: BatchJob[];
-  payeeNamesMap: Record<string, string[]>;
-  originalFileDataMap: Record<string, any[]>;
+  jobs: StoredBatchJob[];
   onJobUpdate: (job: BatchJob) => void;
   onJobComplete: (results: PayeeClassification[], summary: BatchProcessingResult, jobId: string) => void;
   onJobDelete: (jobId: string) => void;
@@ -22,8 +22,6 @@ interface BatchJobManagerProps {
 
 const BatchJobManager = ({ 
   jobs, 
-  payeeNamesMap, 
-  originalFileDataMap,
   onJobUpdate, 
   onJobComplete, 
   onJobDelete 
@@ -44,8 +42,11 @@ const BatchJobManager = ({
   });
   const { toast } = useToast();
 
+  // Filter out invalid job IDs before polling
+  const validJobs = jobs.filter(job => isValidBatchJobId(job.id));
+
   // Use the polling hook (no auto-start)
-  const { pollingStates, manualRefresh } = useBatchJobPolling(jobs, onJobUpdate);
+  const { pollingStates, manualRefresh } = useBatchJobPolling(validJobs, onJobUpdate);
 
   // Retry mechanism for operations
   const {
@@ -55,12 +56,32 @@ const BatchJobManager = ({
 
   // Manual refresh - triggers single check + starts auto-polling
   const handleManualRefresh = async (jobId: string) => {
+    if (!isValidBatchJobId(jobId)) {
+      toast({
+        title: "Invalid Job ID",
+        description: `Job ID ${jobId} is not a valid OpenAI batch job ID. Removing from list.`,
+        variant: "destructive"
+      });
+      onJobDelete(jobId);
+      return;
+    }
+
     setRefreshingJobs(prev => new Set(prev).add(jobId));
     try {
       console.log(`[BATCH MANAGER] Manual refresh for job ${jobId}`);
       await manualRefresh(jobId);
     } catch (error) {
       console.error(`[BATCH MANAGER] Manual refresh failed for job ${jobId}:`, error);
+      
+      // Handle 404 errors specifically
+      if (error instanceof Error && error.message.includes('404')) {
+        toast({
+          title: "Job Not Found",
+          description: `Batch job ${jobId.slice(-8)} was not found on OpenAI's servers. It may have been deleted or expired. Removing from list.`,
+          variant: "destructive"
+        });
+        onJobDelete(jobId);
+      }
     } finally {
       setRefreshingJobs(prev => {
         const newSet = new Set(prev);
@@ -70,13 +91,22 @@ const BatchJobManager = ({
     }
   };
 
-  const handleDownloadResults = async (job: BatchJob) => {
+  const handleDownloadResults = async (job: StoredBatchJob) => {
+    if (!isValidBatchJobId(job.id)) {
+      toast({
+        title: "Invalid Job ID",
+        description: "Cannot download results for invalid job ID.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setDownloadingJobs(prev => new Set(prev).add(job.id));
     
     try {
       console.log(`[BATCH MANAGER] Downloading results for job ${job.id} with GUARANTEED alignment`);
-      const payeeNames = payeeNamesMap[job.id] || [];
-      const originalFileData = originalFileDataMap[job.id] || [];
+      const payeeNames = job.payeeNames || [];
+      const originalFileData = job.originalFileData || [];
       
       console.log(`[BATCH MANAGER] Data verification:`, {
         payeeNamesLength: payeeNames.length,
@@ -170,17 +200,27 @@ const BatchJobManager = ({
 
       toast({
         title: "Results Downloaded Successfully", 
-        description: `Downloaded ${successCount} successful classifications${failureCount > 0 ? ` and ${failureCount} failed attempts` : ''} with GUARANTEED 1:1 data alignment. No fallback mismatches possible.`,
+        description: `Downloaded ${successCount} successful classifications${failureCount > 0 ? ` and ${failureCount} failed attempts` : ''} with GUARANTEED 1:1 data alignment.`,
       });
     } catch (error) {
       const appError = handleError(error, 'Results Download');
       console.error(`[BATCH MANAGER] Error downloading results for job ${job.id}:`, error);
       
-      showRetryableErrorToast(
-        appError, 
-        () => handleDownloadResults(job),
-        'Results Download'
-      );
+      // Handle 404 errors specifically
+      if (error instanceof Error && error.message.includes('404')) {
+        toast({
+          title: "Job Not Found",
+          description: `Batch job ${job.id.slice(-8)} was not found on OpenAI's servers. It may have been deleted or expired. Removing from list.`,
+          variant: "destructive"
+        });
+        onJobDelete(job.id);
+      } else {
+        showRetryableErrorToast(
+          appError, 
+          () => handleDownloadResults(job),
+          'Results Download'
+        );
+      }
     } finally {
       setDownloadingJobs(prev => {
         const newSet = new Set(prev);
@@ -191,6 +231,15 @@ const BatchJobManager = ({
   };
 
   const handleCancelJob = async (jobId: string) => {
+    if (!isValidBatchJobId(jobId)) {
+      toast({
+        title: "Invalid Job ID",
+        description: "Cannot cancel job with invalid ID.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       console.log(`[BATCH MANAGER] Cancelling job ${jobId}`);
       const cancelledJob = await cancelBatchJob(jobId);
@@ -203,7 +252,18 @@ const BatchJobManager = ({
     } catch (error) {
       const appError = handleError(error, 'Job Cancellation');
       console.error(`[BATCH MANAGER] Error cancelling job ${jobId}:`, error);
-      showErrorToast(appError, 'Job Cancellation');
+      
+      // Handle 404 errors specifically
+      if (error instanceof Error && error.message.includes('404')) {
+        toast({
+          title: "Job Not Found",
+          description: `Batch job ${jobId.slice(-8)} was not found on OpenAI's servers. Removing from list.`,
+          variant: "destructive"
+        });
+        onJobDelete(jobId);
+      } else {
+        showErrorToast(appError, 'Job Cancellation');
+      }
     }
   };
 
@@ -228,7 +288,7 @@ const BatchJobManager = ({
   };
 
   // Sort jobs by creation date in descending order (most recent first)
-  const sortedJobs = [...jobs].sort((a, b) => b.created_at - a.created_at);
+  const sortedJobs = [...validJobs].sort((a, b) => b.created_at - a.created_at);
 
   if (jobs.length === 0) {
     return (
@@ -240,16 +300,28 @@ const BatchJobManager = ({
     );
   }
 
+  // Show warning if some jobs were filtered out
+  const invalidJobsCount = jobs.length - validJobs.length;
+
   return (
     <>
       <div className="space-y-4">
         <h3 className="text-lg font-medium">Batch Jobs</h3>
         
+        {invalidJobsCount > 0 && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              {invalidJobsCount} invalid job(s) were filtered out. Only valid OpenAI batch job IDs are displayed.
+            </AlertDescription>
+          </Alert>
+        )}
+        
         {sortedJobs.map((job) => {
           const pollingState = pollingStates[job.id];
           const isJobRefreshing = refreshingJobs.has(job.id);
           const isJobDownloading = downloadingJobs.has(job.id);
-          const payeeCount = payeeNamesMap[job.id]?.length || 0;
+          const payeeCount = job.payeeNames?.length || 0;
           
           return (
             <BatchJobCard
