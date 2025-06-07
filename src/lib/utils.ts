@@ -1,8 +1,7 @@
-
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { PayeeClassification, ClassificationResult, BatchProcessingResult } from "@/lib/types"
-import { exportResultsWithOriginalDataV3 } from "@/lib/classification/batchExporter"
+import { exportResultsWithOriginalDataV3 } from "@/lib/classification/exporters"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

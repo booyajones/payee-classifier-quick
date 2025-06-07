@@ -1,11 +1,10 @@
-
 import { Button } from "@/components/ui/button";
 import { RotateCcw } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import BatchProcessingSummary from "./BatchProcessingSummary";
 import ClassificationResultTable from "./ClassificationResultTable";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
-import { exportResultsWithOriginalDataV3 } from "@/lib/classification/batchExporter";
+import { exportResultsWithOriginalDataV3 } from "@/lib/classification/exporters";
 import * as XLSX from 'xlsx';
 
 interface BatchResultsDisplayProps {

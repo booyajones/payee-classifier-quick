@@ -1,3 +1,4 @@
+
 // This file is maintained for backward compatibility
 // It re-exports all functionality from the new module structure
 
@@ -32,8 +33,8 @@ export { enhancedProcessBatchV2, exportResultsWithOriginalData } from './classif
 export { enhancedClassifyPayeeV3 } from './classification/enhancedClassificationV3';
 export { enhancedProcessBatchV3 } from './classification/enhancedBatchProcessorV3';
 
-// Export comprehensive data exporter
-export { exportResultsWithOriginalDataV3 } from './classification/batchExporter';
+// Export comprehensive data exporter - updated to use exporters module
+export { exportResultsWithOriginalDataV3 } from './classification/exporters';
 
 // Export string matching functions explicitly to avoid conflicts
 export { 

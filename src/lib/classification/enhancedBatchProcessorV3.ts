@@ -1,11 +1,10 @@
-
 import { PayeeClassification, BatchProcessingResult, ClassificationConfig } from '../types';
 import { enhancedClassifyPayeeV3 } from './enhancedClassificationV3';
 import { DEFAULT_CLASSIFICATION_CONFIG, MAX_CONCURRENCY } from './config';
 import { processPayeeDeduplication } from './batchDeduplication';
 import { handleBatchRetries } from './batchRetryHandler';
 import { calculateBatchStatistics, logBatchStatistics } from './batchStatistics';
-import { exportResultsWithOriginalDataV3 } from './batchExporter';
+import { exportResultsWithOriginalDataV3 } from './exporters';
 
 /**
  * Enhanced V3 batch processor with no failures and intelligent processing
