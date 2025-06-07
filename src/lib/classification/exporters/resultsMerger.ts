@@ -2,19 +2,42 @@
 import { ExportRow, ExportContext } from './types';
 
 /**
- * Creates a results map for efficient lookup by row index
+ * Creates a results map for efficient lookup by row index with validation
  */
 export function createResultsMap(results: any[]): Map<number, any> {
   const resultsMap = new Map<number, any>();
-  results.forEach(result => {
-    const rowIndex = result.rowIndex ?? 0;
+  const seenIndices = new Set<number>();
+  
+  console.log('[RESULTS MERGER] Creating results map with validation');
+  
+  results.forEach((result, arrayIndex) => {
+    const rowIndex = result.rowIndex;
+    
+    if (rowIndex === undefined || rowIndex === null) {
+      console.error(`[RESULTS MERGER] CRITICAL: Result at array position ${arrayIndex} has undefined rowIndex:`, result);
+      throw new Error(`Result at array position ${arrayIndex} missing rowIndex`);
+    }
+    
+    if (seenIndices.has(rowIndex)) {
+      console.error(`[RESULTS MERGER] CRITICAL: Duplicate rowIndex ${rowIndex} found`);
+      throw new Error(`Duplicate rowIndex ${rowIndex} detected in results`);
+    }
+    
+    if (rowIndex !== arrayIndex) {
+      console.error(`[RESULTS MERGER] CRITICAL: Index mismatch - array position ${arrayIndex} has rowIndex ${rowIndex}`);
+      throw new Error(`Index mismatch: array position ${arrayIndex} has rowIndex ${rowIndex}`);
+    }
+    
+    seenIndices.add(rowIndex);
     resultsMap.set(rowIndex, result);
   });
+  
+  console.log(`[RESULTS MERGER] Successfully created results map with ${resultsMap.size} entries, all perfectly aligned`);
   return resultsMap;
 }
 
 /**
- * Merges original row data with AI classification results
+ * Merges original row data with AI classification results with perfect alignment
  */
 export function mergeRowWithResult(
   originalRow: any,
@@ -26,24 +49,17 @@ export function mergeRowWithResult(
   const exportRow: ExportRow = includeAllColumns ? { ...originalRow } : {};
 
   if (!result) {
-    console.error(`[MERGE] CRITICAL: No result found for row ${index} - this should NEVER happen with 1:1 correspondence`);
-    // Use default values instead of fallback
-    exportRow['AI_Classification'] = 'Individual';
-    exportRow['AI_Confidence_%'] = 0;
-    exportRow['AI_Processing_Tier'] = 'Missing';
-    exportRow['AI_Reasoning'] = 'ERROR: Result missing for this row';
-    exportRow['AI_Processing_Method'] = 'Error';
-    exportRow['Keyword_Exclusion'] = 'No';
-    exportRow['Matched_Keywords'] = '';
-    exportRow['Keyword_Confidence_%'] = 0;
-    exportRow['Keyword_Reasoning'] = 'No result found';
-    exportRow['Matching_Rules'] = '';
-    exportRow['Similarity_Scores'] = '';
-    exportRow['Classification_Timestamp'] = new Date().toISOString();
-    exportRow['Processing_Row_Index'] = index;
-    exportRow['Data_Alignment_Status'] = 'ERROR: Missing Result';
-    return exportRow;
+    console.error(`[MERGE] CRITICAL: No result found for row ${index} - this indicates perfect alignment has failed`);
+    throw new Error(`Missing result for row ${index} - data alignment corrupted`);
   }
+
+  // Verify perfect alignment
+  if (result.rowIndex !== index) {
+    console.error(`[MERGE] CRITICAL: Alignment error - expected rowIndex ${index}, got ${result.rowIndex}`);
+    throw new Error(`Data alignment error at row ${index}: expected rowIndex ${index}, got ${result.rowIndex}`);
+  }
+
+  console.log(`[MERGE] Perfect alignment confirmed for row ${index}: "${result.payeeName}"`);
 
   // Add all AI classification data as NEW columns
   exportRow['AI_Classification'] = result.result.classification;
@@ -82,7 +98,7 @@ export function mergeRowWithResult(
   
   // Timestamps and metadata
   exportRow['Classification_Timestamp'] = result.timestamp.toISOString();
-  exportRow['Processing_Row_Index'] = result.rowIndex || index;
+  exportRow['Processing_Row_Index'] = result.rowIndex;
   
   // Data alignment status - should always be perfect now
   exportRow['Data_Alignment_Status'] = 'Perfect 1:1 Match';
