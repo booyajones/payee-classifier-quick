@@ -185,9 +185,9 @@ export function clearOpenAIKeys(): void {
  * Test the current OpenAI connection with caching
  */
 export async function testOpenAIConnection(): Promise<boolean> {
+  const now = Date.now();
   try {
     // Use cached result if recent (within 30 seconds)
-    const now = Date.now();
     if (now - lastConnectionTest < 30000 && connectionTestCache) {
       logger.info("[OPENAI_CLIENT] Using cached connection test result");
       return connectionTestCache;
