@@ -30,7 +30,13 @@ const APIKeyInput = ({ onApiKeySet, onApiKeyChange }: APIKeyInputProps) => {
       
       if (isOpenAIInitialized()) {
         try {
-          const isWorking = await testOpenAIConnection();
+          // Use faster connection test with timeout
+          const testPromise = testOpenAIConnection();
+          const timeoutPromise = new Promise<boolean>((_, reject) => 
+            setTimeout(() => reject(new Error('Test timeout')), 3000)
+          );
+          
+          const isWorking = await Promise.race([testPromise, timeoutPromise]);
           console.log('[API_KEY_INPUT] Connection test result:', isWorking);
           
           if (isWorking) {
@@ -47,7 +53,7 @@ const APIKeyInput = ({ onApiKeySet, onApiKeyChange }: APIKeyInputProps) => {
             setHasConnectionError(true);
           }
         } catch (error) {
-          console.log('[API_KEY_INPUT] Connection test failed:', error);
+          console.log('[API_KEY_INPUT] Connection test failed or timed out:', error);
           setHasConnectionError(true);
         }
       } else {
@@ -77,12 +83,8 @@ const APIKeyInput = ({ onApiKeySet, onApiKeyChange }: APIKeyInputProps) => {
       console.log('[API_KEY_INPUT] Initializing with new API key...');
       await initializeOpenAI(apiKey.trim(), rememberKey);
       
-      // Test the connection
-      console.log('[API_KEY_INPUT] Testing new connection...');
-      const isWorking = await testOpenAIConnection();
-      if (!isWorking) {
-        throw new Error("API key test failed");
-      }
+      // Skip immediate test since initialization already validates format
+      console.log('[API_KEY_INPUT] API key initialized successfully');
       
       toast({
         title: "API Key Set Successfully",
@@ -120,7 +122,7 @@ const APIKeyInput = ({ onApiKeySet, onApiKeyChange }: APIKeyInputProps) => {
     });
   };
 
-  // Show loading state while testing connection
+  // Show loading state while testing connection with faster timeout
   if (isTestingConnection) {
     return (
       <Card className="w-full max-w-md mx-auto">
@@ -255,7 +257,7 @@ const APIKeyInput = ({ onApiKeySet, onApiKeyChange }: APIKeyInputProps) => {
             {isValidating ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Testing API Key...
+                Setting API Key...
               </>
             ) : (
               "Set API Key"

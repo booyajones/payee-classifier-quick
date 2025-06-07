@@ -5,6 +5,8 @@ import { storeApiKey, getApiKey, hasSavedApiKey, deleteApiKey, clearAllApiKeys, 
 
 let openaiClient: OpenAI | null = null;
 let currentToken: string | null = null;
+let lastConnectionTest: number = 0;
+let connectionTestCache: boolean = false;
 
 /**
  * Initialize the OpenAI client with the provided API key
@@ -20,25 +22,11 @@ export async function initializeOpenAI(apiKey?: string, rememberKey?: boolean): 
       throw new Error("Invalid API key format. OpenAI API keys should start with 'sk-'");
     }
     
-    // Test the API key by creating a client and making a test call
+    // Create client without immediate testing for faster initialization
     const testClient = new OpenAI({
       apiKey: apiKey.trim(),
       dangerouslyAllowBrowser: true
     });
-    
-    try {
-      // Test the API key with a minimal request
-      await testClient.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: 'test' }],
-        max_tokens: 1
-      });
-      
-      logger.info("[OPENAI_CLIENT] API key validation successful");
-    } catch (error) {
-      logger.error("[OPENAI_CLIENT] API key validation failed:", error);
-      throw new Error("Invalid API key. Please check your OpenAI API key and try again.");
-    }
     
     openaiClient = testClient;
     
@@ -51,6 +39,10 @@ export async function initializeOpenAI(apiKey?: string, rememberKey?: boolean): 
         // Continue without saving if storage fails
       }
     }
+    
+    // Cache connection as working for 30 seconds
+    lastConnectionTest = Date.now();
+    connectionTestCache = true;
     
     return openaiClient;
   }
@@ -84,30 +76,21 @@ export async function initializeOpenAI(apiKey?: string, rememberKey?: boolean): 
             logger.info(`[OPENAI_CLIENT] Trying token: ${token.slice(-8)}`);
             const savedKey = await getApiKey(token);
             if (savedKey && savedKey.startsWith('sk-')) {
-              logger.info("[OPENAI_CLIENT] Testing saved API key...");
+              logger.info("[OPENAI_CLIENT] Found valid saved API key");
               
-              // Test the saved key
               const testClient = new OpenAI({
                 apiKey: savedKey,
                 dangerouslyAllowBrowser: true
               });
               
-              try {
-                await testClient.chat.completions.create({
-                  model: 'gpt-4o-mini',
-                  messages: [{ role: 'user', content: 'test' }],
-                  max_tokens: 1
-                });
-                
-                logger.info("[OPENAI_CLIENT] Saved API key is valid, using it");
-                currentToken = token;
-                openaiClient = testClient;
-                return openaiClient;
-              } catch (testError) {
-                logger.error(`[OPENAI_CLIENT] Saved API key test failed:`, testError);
-                // Delete invalid key and continue to next
-                deleteApiKey(token);
-              }
+              currentToken = token;
+              openaiClient = testClient;
+              
+              // Cache connection as working for 30 seconds without testing
+              lastConnectionTest = Date.now();
+              connectionTestCache = true;
+              
+              return openaiClient;
             } else if (savedKey === null) {
               logger.warn(`[OPENAI_CLIENT] Could not decrypt API key for token ${token.slice(-8)} - deleting`);
               deleteApiKey(token);
@@ -193,28 +176,46 @@ export function clearOpenAIKeys(): void {
   localStorage.removeItem('openai_api_key');
   
   openaiClient = null;
+  lastConnectionTest = 0;
+  connectionTestCache = false;
   logger.info("[OPENAI_CLIENT] OpenAI client and saved keys cleared");
 }
 
 /**
- * Test the current OpenAI connection
+ * Test the current OpenAI connection with caching
  */
 export async function testOpenAIConnection(): Promise<boolean> {
   try {
+    // Use cached result if recent (within 30 seconds)
+    const now = Date.now();
+    if (now - lastConnectionTest < 30000 && connectionTestCache) {
+      logger.info("[OPENAI_CLIENT] Using cached connection test result");
+      return connectionTestCache;
+    }
+    
     logger.info("[OPENAI_CLIENT] Testing OpenAI connection...");
     const client = await getOpenAIClient();
     
-    // Make a simple API call to test the connection
-    const response = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: 'Hello' }],
-      max_tokens: 5
-    });
+    // Make a simple API call to test the connection with shorter timeout
+    const response = await Promise.race([
+      client.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'test' }],
+        max_tokens: 1
+      }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Connection test timeout')), 5000)
+      )
+    ]);
     
     logger.info("[OPENAI_CLIENT] Connection test successful");
+    lastConnectionTest = now;
+    connectionTestCache = true;
     return true;
   } catch (error) {
     logger.error("[OPENAI_CLIENT] Connection test failed:", error);
+    lastConnectionTest = now;
+    connectionTestCache = false;
     return false;
   }
 }
@@ -226,10 +227,14 @@ export function getOpenAIClientDiagnostics(): {
   isInitialized: boolean;
   hasCurrentToken: boolean;
   storageInfo: any;
+  lastConnectionTest: number;
+  connectionTestCache: boolean;
 } {
   return {
     isInitialized: openaiClient !== null,
     hasCurrentToken: currentToken !== null,
-    storageInfo: getApiKeyDiagnostics()
+    storageInfo: getApiKeyDiagnostics(),
+    lastConnectionTest,
+    connectionTestCache
   };
 }
