@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -10,7 +9,7 @@ import FileUploadForm from "./FileUploadForm";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import { BatchJob } from "@/lib/openai/trueBatchAPI";
 import { isOpenAIInitialized, testOpenAIConnection } from "@/lib/openai/client";
-import { fixedProcessBatch } from "@/lib/classification/fixedBatchProcessor";
+import { cleanProcessBatch } from "@/lib/classification/cleanBatchProcessor";
 import { exportResultsFixed } from "@/lib/classification/fixedExporter";
 import { 
   loadBatchJobs, 
@@ -84,17 +83,17 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     }
   }, []);
 
-  const handleDirectProcessing = async (payeeNames: string[], originalFileData: any[]) => {
-    console.log(`[BATCH FORM] Starting direct processing of ${payeeNames.length} payees`);
+  const handleDirectProcessing = async (originalFileData: any[], selectedColumn: string) => {
+    console.log(`[BATCH FORM] Starting clean processing of ${originalFileData.length} rows using column: ${selectedColumn}`);
     setIsProcessing(true);
     
     try {
-      const result = await fixedProcessBatch(payeeNames, {
+      const result = await cleanProcessBatch(originalFileData, selectedColumn, {
         aiThreshold: 75,
         bypassRuleNLP: false,
         useEnhanced: true,
         offlineMode: false
-      }, originalFileData);
+      });
       
       setBatchResults(result.results);
       setProcessingSummary(result);
@@ -102,11 +101,11 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
       
       toast({
         title: "Processing Complete",
-        description: `Successfully processed ${result.results.length} payees.`,
+        description: `Successfully processed ${result.results.length} payees using the selected column "${selectedColumn}".`,
       });
       
     } catch (error) {
-      console.error('[BATCH FORM] Direct processing failed:', error);
+      console.error('[BATCH FORM] Clean processing failed:', error);
       toast({
         title: "Processing Failed",
         description: error instanceof Error ? error.message : "Unknown error occurred",
@@ -214,7 +213,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
       <Alert>
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
-          Upload a CSV or Excel file to classify payees. Processing typically takes a few minutes for immediate results, or you can use OpenAI's batch API for larger files (takes 10-15 minutes but may take up to 24 hours).
+          Upload a CSV or Excel file to classify payees. Each row will be processed individually using the column you select, with keyword exclusions applied before AI processing.
         </AlertDescription>
       </Alert>
 

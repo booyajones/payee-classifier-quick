@@ -12,7 +12,7 @@ import { useToast } from "@/components/ui/use-toast";
 
 interface FileUploadFormProps {
   onBatchJobCreated: (batchJob: BatchJob, payeeNames: string[], originalFileData: any[]) => void;
-  onDirectProcessing?: (payeeNames: string[], originalFileData: any[]) => Promise<void>;
+  onDirectProcessing?: (originalFileData: any[], selectedColumn: string) => Promise<void>;
   isProcessing?: boolean;
 }
 
@@ -63,12 +63,27 @@ const FileUploadForm = ({ onBatchJobCreated, onDirectProcessing, isProcessing = 
   };
 
   const handleSubmit = async () => {
-    if (onDirectProcessing && validationResult) {
-      // Use direct processing if available - fix the property name
-      await onDirectProcessing(validationResult.payeeNames, validationResult.originalData);
+    if (!validationResult || !selectedColumn) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a valid column to process",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (onDirectProcessing) {
+      // Use direct processing with original file data and selected column
+      console.log(`[FILE UPLOAD] Starting direct processing with column: ${selectedColumn}`);
+      await onDirectProcessing(validationResult.originalData, selectedColumn);
     } else {
-      // Fall back to batch job creation
-      await submitFileForProcessing(validationResult, selectedColumn);
+      // Fall back to batch job creation (extract names for batch API)
+      const payeeNames: string[] = [];
+      for (const row of validationResult.originalData) {
+        const payeeName = String(row[selectedColumn] || '').trim();
+        payeeNames.push(payeeName || '[Empty]');
+      }
+      await submitFileForProcessing({ ...validationResult, payeeNames }, selectedColumn);
     }
   };
 
@@ -87,7 +102,7 @@ const FileUploadForm = ({ onBatchJobCreated, onDirectProcessing, isProcessing = 
     validationStatus === 'validating' || 
     validationStatus === 'error' || 
     !selectedColumn || 
-    !validationResult?.payeeNames?.length ||
+    !validationResult?.originalData?.length ||
     actualIsLoading;
 
   return (

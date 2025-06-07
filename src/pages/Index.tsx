@@ -3,8 +3,7 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, FileText, User, Settings } from "lucide-react";
-import SingleClassificationForm from "@/components/SingleClassificationForm";
+import { AlertCircle, FileText, Settings } from "lucide-react";
 import BatchClassificationForm from "@/components/BatchClassificationForm";
 import APIKeyInput from "@/components/APIKeyInput";
 import OpenAIDiagnostics from "@/components/OpenAIDiagnostics";
@@ -54,14 +53,10 @@ const Index = () => {
         )}
 
         <Tabs defaultValue="batch" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="batch" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Batch Processing
-            </TabsTrigger>
-            <TabsTrigger value="single" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Single Classification
             </TabsTrigger>
             <TabsTrigger value="settings" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
@@ -82,23 +77,6 @@ const Index = () => {
               </CardHeader>
               <CardContent>
                 <BatchClassificationForm onComplete={handleClassificationComplete} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="single">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  Single Classification
-                </CardTitle>
-                <CardDescription>
-                  Test individual payee names for quick validation and testing.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <SingleClassificationForm onComplete={handleClassificationComplete} />
               </CardContent>
             </Card>
           </TabsContent>
