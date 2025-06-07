@@ -1,15 +1,17 @@
+
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
-import { Zap, AlertCircle } from "lucide-react";
+import { FileText, AlertCircle } from "lucide-react";
 import BatchJobManager from "./BatchJobManager";
 import BatchResultsDisplay from "./BatchResultsDisplay";
 import FileUploadForm from "./FileUploadForm";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import { BatchJob } from "@/lib/openai/trueBatchAPI";
-import { handleError, showErrorToast } from "@/lib/errorHandler";
 import { isOpenAIInitialized, testOpenAIConnection } from "@/lib/openai/client";
+import { fixedProcessBatch } from "@/lib/classification/fixedBatchProcessor";
+import { exportResultsFixed } from "@/lib/classification/fixedExporter";
 import { 
   loadBatchJobs, 
   addBatchJob, 
@@ -29,6 +31,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
   const [processingSummary, setProcessingSummary] = useState<BatchProcessingResult | null>(null);
   const [isApiKeyValid, setIsApiKeyValid] = useState(false);
   const [isCheckingApiKey, setIsCheckingApiKey] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
 
   // Check API key validity on component mount
@@ -46,7 +49,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
           if (!isWorking) {
             toast({
               title: "API Key Issue",
-              description: "OpenAI API key test failed. Please check your API key in diagnostics.",
+              description: "OpenAI API key test failed. Please check your API key in settings.",
               variant: "destructive"
             });
           }
@@ -73,7 +76,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
   // Load persisted jobs on component mount
   useEffect(() => {
     const storedJobs = loadBatchJobs();
-    cleanupBatchJobs(); // Clean up old/invalid jobs
+    cleanupBatchJobs();
     setBatchJobs(storedJobs);
     
     if (storedJobs.length > 0) {
@@ -81,10 +84,42 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     }
   }, []);
 
-  const handleBatchJobCreated = async (batchJob: BatchJob, payeeNames: string[], originalFileData: any[]) => {
-    console.log(`[BATCH FORM] Real batch job created with ${payeeNames.length} payees and ${originalFileData.length} original data rows`);
+  const handleDirectProcessing = async (payeeNames: string[], originalFileData: any[]) => {
+    console.log(`[BATCH FORM] Starting direct processing of ${payeeNames.length} payees`);
+    setIsProcessing(true);
     
-    // Verify API key is still valid before proceeding
+    try {
+      const result = await fixedProcessBatch(payeeNames, {
+        aiThreshold: 75,
+        bypassRuleNLP: false,
+        useEnhanced: true,
+        offlineMode: false
+      }, originalFileData);
+      
+      setBatchResults(result.results);
+      setProcessingSummary(result);
+      onComplete(result.results, result);
+      
+      toast({
+        title: "Processing Complete",
+        description: `Successfully processed ${result.results.length} payees.`,
+      });
+      
+    } catch (error) {
+      console.error('[BATCH FORM] Direct processing failed:', error);
+      toast({
+        title: "Processing Failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleBatchJobCreated = async (batchJob: BatchJob, payeeNames: string[], originalFileData: any[]) => {
+    console.log(`[BATCH FORM] Batch job created with ${payeeNames.length} payees and ${originalFileData.length} original data rows`);
+    
     if (!isApiKeyValid) {
       console.error('[BATCH FORM] API key not valid, cannot create batch job');
       toast({
@@ -95,10 +130,8 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
       return;
     }
     
-    // Add to localStorage - this is always a real job now
     addBatchJob(batchJob, payeeNames, originalFileData, false);
     
-    // Create stored job for state
     const storedJob: StoredBatchJob = {
       ...batchJob,
       payeeNames,
@@ -107,12 +140,11 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
       isMockJob: false
     };
     
-    // Add to state
     setBatchJobs(prev => [storedJob, ...prev]);
     
     toast({
       title: "Batch Job Created",
-      description: `Created batch job ${batchJob.id.slice(-8)} with ${payeeNames.length} payees. Job will be processed by OpenAI and persisted across page refreshes.`,
+      description: `Created batch job ${batchJob.id.slice(-8)} with ${payeeNames.length} payees.`,
     });
   };
 
@@ -124,20 +156,14 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
   };
 
   const handleJobUpdate = (updatedJob: BatchJob) => {
-    // Update in localStorage
     updateBatchJob(updatedJob);
-    
-    // Update in state
     setBatchJobs(prev => prev.map(job => 
       job.id === updatedJob.id ? { ...job, ...updatedJob } : job
     ));
   };
 
   const handleJobDelete = (jobId: string) => {
-    // Remove from localStorage
     removeBatchJob(jobId);
-    
-    // Remove from state
     setBatchJobs(prev => prev.filter(job => job.id !== jobId));
   };
 
@@ -174,7 +200,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                A valid OpenAI API key is required to use batch processing. Please set your API key in the Diagnostics tab first.
+                A valid OpenAI API key is required for batch processing. Please set your API key in the Settings tab first.
               </AlertDescription>
             </Alert>
           </CardContent>
@@ -185,24 +211,18 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5" />
-            OpenAI Batch Processing
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Upload a file to create an OpenAI batch job. Real jobs are automatically saved and will persist across page refreshes. Processing typically takes 10-15 minutes but can take up to 24 hours.
-            </AlertDescription>
-          </Alert>
+      <Alert>
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          Upload a CSV or Excel file to classify payees. Processing typically takes a few minutes for immediate results, or you can use OpenAI's batch API for larger files (takes 10-15 minutes but may take up to 24 hours).
+        </AlertDescription>
+      </Alert>
 
-          <FileUploadForm onBatchJobCreated={handleBatchJobCreated} />
-        </CardContent>
-      </Card>
+      <FileUploadForm 
+        onBatchJobCreated={handleBatchJobCreated}
+        onDirectProcessing={handleDirectProcessing}
+        isProcessing={isProcessing}
+      />
 
       {batchJobs.length > 0 && (
         <BatchJobManager
@@ -217,7 +237,8 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
         batchResults={batchResults}
         processingSummary={processingSummary}
         onReset={handleReset}
-        isProcessing={false}
+        isProcessing={isProcessing}
+        exportFunction={exportResultsFixed}
       />
     </div>
   );

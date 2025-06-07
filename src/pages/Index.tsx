@@ -3,10 +3,9 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Zap, User, FileText, Settings } from "lucide-react";
+import { AlertCircle, FileText, User, Settings } from "lucide-react";
 import SingleClassificationForm from "@/components/SingleClassificationForm";
 import BatchClassificationForm from "@/components/BatchClassificationForm";
-import FixedBatchClassificationForm from "@/components/FixedBatchClassificationForm";
 import APIKeyInput from "@/components/APIKeyInput";
 import OpenAIDiagnostics from "@/components/OpenAIDiagnostics";
 import KeywordExclusionManager from "@/components/KeywordExclusionManager";
@@ -29,6 +28,10 @@ const Index = () => {
     setIsApiKeySet(isOpenAIInitialized());
   };
 
+  const handleApiKeySet = () => {
+    setIsApiKeySet(true);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-8 px-4">
@@ -45,61 +48,36 @@ const Index = () => {
           <Alert className="mb-6">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Please set your OpenAI API key in the Diagnostics tab to begin classification.
+              Please set your OpenAI API key in the Settings tab to begin classification.
             </AlertDescription>
           </Alert>
         )}
 
-        <Tabs defaultValue="fixed-batch" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="fixed-batch" className="flex items-center gap-2">
-              <Zap className="h-4 w-4" />
-              Fixed Batch
-            </TabsTrigger>
+        <Tabs defaultValue="batch" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="batch" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
-              OpenAI Batch
+              Batch Processing
             </TabsTrigger>
             <TabsTrigger value="single" className="flex items-center gap-2">
               <User className="h-4 w-4" />
-              Single
+              Single Classification
             </TabsTrigger>
-            <TabsTrigger value="keywords" className="flex items-center gap-2">
+            <TabsTrigger value="settings" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
-              Keywords
-            </TabsTrigger>
-            <TabsTrigger value="diagnostics" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              Diagnostics
+              Settings
             </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="fixed-batch">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="h-5 w-5" />
-                  Fixed Batch Processing
-                </CardTitle>
-                <CardDescription>
-                  Improved batch processing with balanced classification, no duplicates, and perfect data alignment.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <FixedBatchClassificationForm onComplete={handleClassificationComplete} />
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="batch">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
-                  OpenAI Batch Processing
+                  Batch Processing
                 </CardTitle>
                 <CardDescription>
-                  Original OpenAI batch processing (may have issues with duplicates and bias).
+                  Upload a CSV or Excel file to classify multiple payees at once.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -116,7 +94,7 @@ const Index = () => {
                   Single Classification
                 </CardTitle>
                 <CardDescription>
-                  Classify individual payee names one at a time for testing and validation.
+                  Test individual payee names for quick validation and testing.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -125,14 +103,14 @@ const Index = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="keywords">
-            <KeywordExclusionManager />
-          </TabsContent>
-
-          <TabsContent value="diagnostics">
+          <TabsContent value="settings">
             <div className="space-y-6">
-              <APIKeyInput onApiKeyChange={handleApiKeyChange} />
+              <APIKeyInput 
+                onApiKeySet={handleApiKeySet}
+                onApiKeyChange={handleApiKeyChange} 
+              />
               <OpenAIDiagnostics />
+              <KeywordExclusionManager />
             </div>
           </TabsContent>
         </Tabs>
