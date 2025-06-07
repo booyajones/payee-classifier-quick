@@ -14,10 +14,10 @@ import { RotateCcw } from "lucide-react";
 import { Label } from "@/components/ui/label";
 
 interface SingleClassificationFormProps {
-  onClassify: (result: PayeeClassification) => void;
+  onComplete?: (results: PayeeClassification[], summary?: any) => void;
 }
 
-const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps) => {
+const SingleClassificationForm = ({ onComplete }: SingleClassificationFormProps) => {
   const [payeeName, setPayeeName] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentResult, setCurrentResult] = useState<PayeeClassification | null>(null);
@@ -63,7 +63,11 @@ const SingleClassificationForm = ({ onClassify }: SingleClassificationFormProps)
       console.log(`V3 Classification result:`, result);
       
       setCurrentResult(classification);
-      onClassify(classification);
+      
+      // Call onComplete if provided
+      if (onComplete) {
+        onComplete([classification]);
+      }
       
       toast({
         title: "Classification Complete",

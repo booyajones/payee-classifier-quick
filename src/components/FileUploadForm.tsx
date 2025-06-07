@@ -12,9 +12,11 @@ import { useToast } from "@/components/ui/use-toast";
 
 interface FileUploadFormProps {
   onBatchJobCreated: (batchJob: BatchJob, payeeNames: string[], originalFileData: any[]) => void;
+  onDirectProcessing?: (payeeNames: string[], originalFileData: any[]) => Promise<void>;
+  isProcessing?: boolean;
 }
 
-const FileUploadForm = ({ onBatchJobCreated }: FileUploadFormProps) => {
+const FileUploadForm = ({ onBatchJobCreated, onDirectProcessing, isProcessing = false }: FileUploadFormProps) => {
   const { toast } = useToast();
 
   const {
@@ -31,11 +33,13 @@ const FileUploadForm = ({ onBatchJobCreated }: FileUploadFormProps) => {
   } = useFileValidation();
 
   const {
-    isLoading,
+    isLoading: uploadIsLoading,
     isRetrying,
     retryCount,
     submitFileForProcessing
   } = useFileUpload({ onBatchJobCreated });
+
+  const actualIsLoading = uploadIsLoading || isProcessing;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -59,7 +63,13 @@ const FileUploadForm = ({ onBatchJobCreated }: FileUploadFormProps) => {
   };
 
   const handleSubmit = async () => {
-    await submitFileForProcessing(validationResult, selectedColumn);
+    if (onDirectProcessing && validationResult) {
+      // Use direct processing if available
+      await onDirectProcessing(validationResult.payeeNames, validationResult.originalFileData);
+    } else {
+      // Fall back to batch job creation
+      await submitFileForProcessing(validationResult, selectedColumn);
+    }
   };
 
   const handleReset = () => {
@@ -78,7 +88,7 @@ const FileUploadForm = ({ onBatchJobCreated }: FileUploadFormProps) => {
     validationStatus === 'error' || 
     !selectedColumn || 
     !validationResult?.payeeNames?.length ||
-    isLoading;
+    actualIsLoading;
 
   return (
     <Card>
@@ -100,7 +110,7 @@ const FileUploadForm = ({ onBatchJobCreated }: FileUploadFormProps) => {
         />
 
         <FileUploadActions
-          isLoading={isLoading}
+          isLoading={actualIsLoading}
           isRetrying={isRetrying}
           retryCount={retryCount}
           isProcessButtonDisabled={isProcessButtonDisabled}

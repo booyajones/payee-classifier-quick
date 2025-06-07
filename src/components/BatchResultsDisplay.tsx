@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { RotateCcw } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
@@ -5,6 +6,7 @@ import BatchProcessingSummary from "./BatchProcessingSummary";
 import ClassificationResultTable from "./ClassificationResultTable";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import { exportResultsWithOriginalDataV3 } from "@/lib/classification/exporters";
+import { exportResultsFixed } from "@/lib/classification/fixedExporter";
 import * as XLSX from 'xlsx';
 
 interface BatchResultsDisplayProps {
@@ -12,13 +14,15 @@ interface BatchResultsDisplayProps {
   processingSummary: BatchProcessingResult | null;
   onReset: () => void;
   isProcessing: boolean;
+  exportFunction?: (batchResult: any, includeAllColumns?: boolean) => any[];
 }
 
 const BatchResultsDisplay = ({ 
   batchResults, 
   processingSummary, 
   onReset, 
-  isProcessing 
+  isProcessing,
+  exportFunction
 }: BatchResultsDisplayProps) => {
   const { toast } = useToast();
 
@@ -36,8 +40,10 @@ const BatchResultsDisplay = ({
       console.log('[EXPORT] Processing summary:', processingSummary);
       console.log('[EXPORT] Has original file data:', !!processingSummary.originalFileData);
       
-      // Use the enhanced export function that preserves original data
-      const exportData = exportResultsWithOriginalDataV3(processingSummary, true);
+      // Use custom export function if provided, otherwise use default
+      const exportData = exportFunction 
+        ? exportFunction(processingSummary, true)
+        : exportResultsWithOriginalDataV3(processingSummary, true);
       
       console.log('[EXPORT] Export data sample:', exportData.slice(0, 2));
       
