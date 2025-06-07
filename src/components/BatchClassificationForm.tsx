@@ -41,13 +41,10 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
   }, []);
 
   const handleBatchJobCreated = (batchJob: BatchJob, payeeNames: string[], originalFileData: any[]) => {
-    console.log(`[BATCH FORM] Batch job created with ${payeeNames.length} payees and ${originalFileData.length} original data rows`);
+    console.log(`[BATCH FORM] Real batch job created with ${payeeNames.length} payees and ${originalFileData.length} original data rows`);
     
-    // Determine if this is a mock job based on ID
-    const isMockJob = batchJob.id.includes('mock');
-    
-    // Add to localStorage
-    addBatchJob(batchJob, payeeNames, originalFileData, isMockJob);
+    // Add to localStorage - this is always a real job now
+    addBatchJob(batchJob, payeeNames, originalFileData, false);
     
     // Create stored job for state
     const storedJob: StoredBatchJob = {
@@ -55,7 +52,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
       payeeNames,
       originalFileData,
       createdAt: Date.now(),
-      isMockJob
+      isMockJob: false
     };
     
     // Add to state
@@ -63,7 +60,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     
     toast({
       title: "Batch Job Created",
-      description: `Created ${isMockJob ? 'mock ' : ''}batch job ${batchJob.id.slice(-8)} with ${payeeNames.length} payees. Job persisted and will survive page refreshes.`,
+      description: `Created batch job ${batchJob.id.slice(-8)} with ${payeeNames.length} payees. Job will be processed by OpenAI and persisted across page refreshes.`,
     });
   };
 
@@ -110,7 +107,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Upload a file to create an OpenAI batch job. Jobs are automatically saved and will persist across page refreshes. Processing typically takes 10-15 minutes but can take up to 24 hours.
+              Upload a file to create an OpenAI batch job. Real jobs are automatically saved and will persist across page refreshes. Processing typically takes 10-15 minutes but can take up to 24 hours.
             </AlertDescription>
           </Alert>
 

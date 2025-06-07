@@ -8,7 +8,7 @@ export interface StoredBatchJob extends BatchJob {
   payeeNames: string[];
   originalFileData: any[];
   createdAt: number;
-  isMockJob?: boolean; // Flag to identify mock jobs
+  isMockJob?: boolean; // Keep for backwards compatibility but won't be used for new jobs
 }
 
 /**

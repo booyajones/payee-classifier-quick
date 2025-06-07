@@ -34,19 +34,8 @@ export const useBatchJobActions = ({
     isRetrying: isDownloadRetrying
   } = useRetry(getBatchJobResults, { maxRetries: 3, baseDelay: 2000 });
 
-  // Manual refresh - only for real jobs
+  // Manual refresh - for all real jobs
   const handleManualRefresh = async (jobId: string) => {
-    const job = validJobs.find(j => j.id === jobId);
-    
-    if (job?.isMockJob) {
-      toast({
-        title: "Mock Job",
-        description: "This is a development mock job. It cannot be refreshed from OpenAI servers.",
-        variant: "default"
-      });
-      return;
-    }
-
     if (!isValidBatchJobId(jobId)) {
       toast({
         title: "Invalid Job ID",
@@ -59,7 +48,7 @@ export const useBatchJobActions = ({
 
     setRefreshingJobs(prev => new Set(prev).add(jobId));
     try {
-      console.log(`[BATCH MANAGER] Manual refresh for real job ${jobId}`);
+      console.log(`[BATCH MANAGER] Manual refresh for job ${jobId}`);
       await manualRefresh(jobId);
     } catch (error) {
       console.error(`[BATCH MANAGER] Manual refresh failed for job ${jobId}:`, error);
@@ -83,15 +72,6 @@ export const useBatchJobActions = ({
   };
 
   const handleDownloadResults = async (job: StoredBatchJob) => {
-    if (job.isMockJob) {
-      toast({
-        title: "Mock Job Results",
-        description: "This is a development mock job. Results download is not available for mock jobs.",
-        variant: "default"
-      });
-      return;
-    }
-
     if (!isValidBatchJobId(job.id)) {
       toast({
         title: "Invalid Job ID",

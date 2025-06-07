@@ -45,13 +45,12 @@ const BatchJobManager = ({
       id: job.id,
       idLength: job.id?.length,
       isValidId: isValidBatchJobId(job.id),
-      isMockJob: job.isMockJob,
       status: job.status,
       payeeCount: job.payeeNames?.length
     });
   });
 
-  // Filter out invalid job IDs and separate mock jobs
+  // Filter out invalid job IDs
   const validJobs = jobs.filter(job => {
     const isValid = isValidBatchJobId(job.id);
     if (!isValid) {
@@ -60,13 +59,10 @@ const BatchJobManager = ({
     return isValid;
   });
 
-  const realJobs = validJobs.filter(job => !job.isMockJob);
-  const mockJobs = validJobs.filter(job => job.isMockJob);
+  console.log(`[BATCH MANAGER] After filtering: ${validJobs.length} valid jobs out of ${jobs.length} total`);
 
-  console.log(`[BATCH MANAGER] After filtering: ${validJobs.length} valid jobs (${realJobs.length} real, ${mockJobs.length} mock) out of ${jobs.length} total`);
-
-  // Use the polling hook only for real jobs (not mock jobs)
-  const { pollingStates, manualRefresh } = useBatchJobPolling(realJobs, onJobUpdate);
+  // Use the polling hook for all valid jobs
+  const { pollingStates, manualRefresh } = useBatchJobPolling(validJobs, onJobUpdate);
 
   // Use the batch job actions hook
   const {
