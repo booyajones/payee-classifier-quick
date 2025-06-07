@@ -49,7 +49,7 @@ export async function cleanProcessBatch(
               classification: 'Individual' as const,
               confidence: 0,
               reasoning: 'Empty or missing payee name',
-              processingTier: 'Skipped' as const,
+              processingTier: 'Failed' as const,
               processingMethod: 'Empty name handling'
             },
             timestamp: new Date(),
@@ -70,7 +70,7 @@ export async function cleanProcessBatch(
               classification: 'Individual' as const,
               confidence: 95,
               reasoning: `Excluded due to keyword matches: ${exclusionResult.matchedKeywords.join(', ')}`,
-              processingTier: 'Keyword Exclusion' as const,
+              processingTier: 'Excluded' as const,
               processingMethod: 'Keyword exclusion'
             },
             timestamp: new Date(),
@@ -149,7 +149,7 @@ export async function cleanProcessBatch(
   // Calculate statistics
   const businessCount = results.filter(r => r.result.classification === 'Business').length;
   const individualCount = results.filter(r => r.result.classification === 'Individual').length;
-  const excludedCount = results.filter(r => r.result.processingTier === 'Keyword Exclusion').length;
+  const excludedCount = results.filter(r => r.result.processingTier === 'Excluded').length;
   const aiProcessedCount = results.filter(r => r.result.processingTier === 'AI-Powered').length;
   const averageConfidence = results.reduce((sum, r) => sum + r.result.confidence, 0) / results.length;
   
