@@ -84,17 +84,31 @@ export function removeBatchJob(jobId: string): void {
 
 /**
  * Validate that a job ID looks like a real OpenAI batch job ID
+ * Made more lenient to handle various ID formats during development
  */
 export function isValidBatchJobId(jobId: string): boolean {
+  if (!jobId || typeof jobId !== 'string') {
+    console.log(`[BATCH STORAGE] Invalid job ID: ${jobId} (not a string)`);
+    return false;
+  }
+  
   // Real OpenAI batch IDs start with "batch_" followed by alphanumeric characters
-  return /^batch_[a-zA-Z0-9]{24,}$/.test(jobId);
+  // But we'll be more lenient for development scenarios
+  const isValidFormat = /^batch_[a-zA-Z0-9_-]{20,}$/.test(jobId);
+  
+  if (!isValidFormat) {
+    console.log(`[BATCH STORAGE] Job ID ${jobId} doesn't match expected format`);
+    console.log(`[BATCH STORAGE] Expected format: batch_[alphanumeric chars 20+ length]`);
+  }
+  
+  return isValidFormat;
 }
 
 /**
  * Check if a stored batch job is valid
  */
 function isValidBatchJob(job: any): job is StoredBatchJob {
-  return (
+  const isValid = (
     job &&
     typeof job.id === 'string' &&
     isValidBatchJobId(job.id) &&
@@ -102,6 +116,19 @@ function isValidBatchJob(job: any): job is StoredBatchJob {
     Array.isArray(job.originalFileData) &&
     typeof job.status === 'string'
   );
+  
+  if (!isValid) {
+    console.log(`[BATCH STORAGE] Invalid job detected:`, {
+      hasId: !!job?.id,
+      idType: typeof job?.id,
+      idValid: job?.id ? isValidBatchJobId(job.id) : false,
+      hasPayeeNames: Array.isArray(job?.payeeNames),
+      hasOriginalData: Array.isArray(job?.originalFileData),
+      hasStatus: typeof job?.status === 'string'
+    });
+  }
+  
+  return isValid;
 }
 
 /**

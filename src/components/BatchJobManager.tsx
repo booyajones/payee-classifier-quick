@@ -43,8 +43,28 @@ const BatchJobManager = ({
   });
   const { toast } = useToast();
 
+  // Debug logging for job validation
+  console.log(`[BATCH MANAGER] Processing ${jobs.length} total jobs`);
+  jobs.forEach((job, index) => {
+    console.log(`[BATCH MANAGER] Job ${index}:`, {
+      id: job.id,
+      idLength: job.id?.length,
+      isValidId: isValidBatchJobId(job.id),
+      status: job.status,
+      payeeCount: job.payeeNames?.length
+    });
+  });
+
   // Filter out invalid job IDs before polling
-  const validJobs = jobs.filter(job => isValidBatchJobId(job.id));
+  const validJobs = jobs.filter(job => {
+    const isValid = isValidBatchJobId(job.id);
+    if (!isValid) {
+      console.log(`[BATCH MANAGER] Filtering out invalid job:`, job.id);
+    }
+    return isValid;
+  });
+
+  console.log(`[BATCH MANAGER] After filtering: ${validJobs.length} valid jobs out of ${jobs.length} total`);
 
   // Use the polling hook (no auto-start)
   const { pollingStates, manualRefresh } = useBatchJobPolling(validJobs, onJobUpdate);
@@ -313,7 +333,9 @@ const BatchJobManager = ({
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              {invalidJobsCount} invalid job(s) were filtered out. Only valid OpenAI batch job IDs are displayed.
+              {invalidJobsCount} invalid job(s) were filtered out. 
+              Check console logs for details about job ID validation.
+              Expected format: batch_[alphanumeric characters, 20+ length]
             </AlertDescription>
           </Alert>
         )}
