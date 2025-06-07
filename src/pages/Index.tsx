@@ -4,14 +4,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import BatchClassificationForm from "@/components/BatchClassificationForm";
 import ClassificationResultTable from "@/components/ClassificationResultTable";
 import BatchProcessingSummary from "@/components/BatchProcessingSummary";
-import OpenAIKeySetup from "@/components/OpenAIKeySetup";
+import APIKeyInput from "@/components/APIKeyInput";
 import KeywordExclusionManager from "@/components/KeywordExclusionManager";
 import OpenAIDiagnostics from "@/components/OpenAIDiagnostics";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import ClassificationErrorBoundary from "@/components/ClassificationErrorBoundary";
 import ChatWidget from "@/components/chat/ChatWidget";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
-import { isOpenAIInitialized } from "@/lib/openai/client";
+import { isOpenAIInitialized, testOpenAIConnection } from "@/lib/openai/client";
 import { logMemoryUsage } from "@/lib/openai/apiUtils";
 
 const Index = () => {
@@ -19,9 +19,32 @@ const Index = () => {
   const [allBatchSummaries, setAllBatchSummaries] = useState<BatchProcessingResult[]>([]);
   const [allResults, setAllResults] = useState<PayeeClassification[]>([]);
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [isCheckingApiKey, setIsCheckingApiKey] = useState(true);
 
   useEffect(() => {
-    setHasApiKey(isOpenAIInitialized());
+    const checkApiKey = async () => {
+      console.log('[INDEX] Checking API key initialization...');
+      setIsCheckingApiKey(true);
+      
+      try {
+        if (isOpenAIInitialized()) {
+          console.log('[INDEX] OpenAI appears to be initialized, testing connection...');
+          const isWorking = await testOpenAIConnection();
+          console.log('[INDEX] Connection test result:', isWorking);
+          setHasApiKey(isWorking);
+        } else {
+          console.log('[INDEX] OpenAI not initialized');
+          setHasApiKey(false);
+        }
+      } catch (error) {
+        console.error('[INDEX] Error checking API key:', error);
+        setHasApiKey(false);
+      } finally {
+        setIsCheckingApiKey(false);
+      }
+    };
+
+    checkApiKey();
     logMemoryUsage('Index component mount');
   }, []);
 
@@ -48,13 +71,35 @@ const Index = () => {
     logMemoryUsage('Batch processing complete');
   };
 
-  const handleKeySet = () => {
-    setHasApiKey(true);
+  const handleKeySet = async () => {
+    console.log('[INDEX] API key set, testing connection...');
+    try {
+      const isWorking = await testOpenAIConnection();
+      console.log('[INDEX] Connection test after key set:', isWorking);
+      setHasApiKey(isWorking);
+    } catch (error) {
+      console.error('[INDEX] Error testing connection after key set:', error);
+      setHasApiKey(false);
+    }
   };
 
   const handleDiagnosticsReset = () => {
+    console.log('[INDEX] Diagnostics reset - clearing API key');
     setHasApiKey(false);
   };
+
+  if (isCheckingApiKey) {
+    return (
+      <ErrorBoundary>
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold mb-2">Initializing...</h2>
+            <p className="text-muted-foreground">Checking API configuration</p>
+          </div>
+        </div>
+      </ErrorBoundary>
+    );
+  }
 
   if (!hasApiKey) {
     return (
@@ -71,7 +116,7 @@ const Index = () => {
 
           <main className="container px-4 pb-8">
             <div className="max-w-2xl mx-auto space-y-6">
-              <OpenAIKeySetup onKeySet={handleKeySet} />
+              <APIKeyInput onApiKeySet={handleKeySet} />
               <OpenAIDiagnostics onReset={handleDiagnosticsReset} />
             </div>
           </main>

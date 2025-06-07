@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -10,6 +9,7 @@ import FileUploadForm from "./FileUploadForm";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import { BatchJob } from "@/lib/openai/trueBatchAPI";
 import { handleError, showErrorToast } from "@/lib/errorHandler";
+import { isOpenAIInitialized, testOpenAIConnection } from "@/lib/openai/client";
 import { 
   loadBatchJobs, 
   addBatchJob, 
@@ -27,7 +27,48 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
   const [batchJobs, setBatchJobs] = useState<StoredBatchJob[]>([]);
   const [batchResults, setBatchResults] = useState<PayeeClassification[]>([]);
   const [processingSummary, setProcessingSummary] = useState<BatchProcessingResult | null>(null);
+  const [isApiKeyValid, setIsApiKeyValid] = useState(false);
+  const [isCheckingApiKey, setIsCheckingApiKey] = useState(true);
   const { toast } = useToast();
+
+  // Check API key validity on component mount
+  useEffect(() => {
+    const checkApiKey = async () => {
+      console.log('[BATCH FORM] Checking API key validity...');
+      setIsCheckingApiKey(true);
+      
+      try {
+        if (isOpenAIInitialized()) {
+          const isWorking = await testOpenAIConnection();
+          console.log('[BATCH FORM] API key test result:', isWorking);
+          setIsApiKeyValid(isWorking);
+          
+          if (!isWorking) {
+            toast({
+              title: "API Key Issue",
+              description: "OpenAI API key test failed. Please check your API key in diagnostics.",
+              variant: "destructive"
+            });
+          }
+        } else {
+          console.log('[BATCH FORM] OpenAI not initialized');
+          setIsApiKeyValid(false);
+        }
+      } catch (error) {
+        console.error('[BATCH FORM] Error checking API key:', error);
+        setIsApiKeyValid(false);
+        toast({
+          title: "API Connection Error",
+          description: "Failed to verify OpenAI API connection. Please check your API key.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsCheckingApiKey(false);
+      }
+    };
+
+    checkApiKey();
+  }, [toast]);
 
   // Load persisted jobs on component mount
   useEffect(() => {
@@ -40,8 +81,19 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     }
   }, []);
 
-  const handleBatchJobCreated = (batchJob: BatchJob, payeeNames: string[], originalFileData: any[]) => {
+  const handleBatchJobCreated = async (batchJob: BatchJob, payeeNames: string[], originalFileData: any[]) => {
     console.log(`[BATCH FORM] Real batch job created with ${payeeNames.length} payees and ${originalFileData.length} original data rows`);
+    
+    // Verify API key is still valid before proceeding
+    if (!isApiKeyValid) {
+      console.error('[BATCH FORM] API key not valid, cannot create batch job');
+      toast({
+        title: "API Key Required",
+        description: "Please set a valid OpenAI API key before creating batch jobs.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     // Add to localStorage - this is always a real job now
     addBatchJob(batchJob, payeeNames, originalFileData, false);
@@ -93,6 +145,43 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     setBatchResults([]);
     setProcessingSummary(null);
   };
+
+  if (isCheckingApiKey) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center">
+              <p className="text-muted-foreground">Verifying API connection...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!isApiKeyValid) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-red-500" />
+              API Key Required
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                A valid OpenAI API key is required to use batch processing. Please set your API key in the Diagnostics tab first.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
