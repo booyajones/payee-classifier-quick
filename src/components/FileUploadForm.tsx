@@ -64,8 +64,8 @@ const FileUploadForm = ({ onBatchJobCreated, onDirectProcessing, isProcessing = 
 
   const handleSubmit = async () => {
     if (onDirectProcessing && validationResult) {
-      // Use direct processing if available
-      await onDirectProcessing(validationResult.payeeNames, validationResult.originalFileData);
+      // Use direct processing if available - fix the property name
+      await onDirectProcessing(validationResult.payeeNames, validationResult.originalData);
     } else {
       // Fall back to batch job creation
       await submitFileForProcessing(validationResult, selectedColumn);

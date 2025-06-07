@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,9 +10,10 @@ import { CheckCircle, Key, Eye, EyeOff, Loader2, AlertTriangle } from "lucide-re
 
 interface APIKeyInputProps {
   onApiKeySet: () => void;
+  onApiKeyChange?: () => void;
 }
 
-const APIKeyInput = ({ onApiKeySet }: APIKeyInputProps) => {
+const APIKeyInput = ({ onApiKeySet, onApiKeyChange }: APIKeyInputProps) => {
   const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [rememberKey, setRememberKey] = useState(true);
@@ -94,6 +94,7 @@ const APIKeyInput = ({ onApiKeySet }: APIKeyInputProps) => {
       setConnectionWorking(true);
       setHasConnectionError(false);
       onApiKeySet();
+      onApiKeyChange?.(); // Call the optional callback
     } catch (error) {
       console.error("Error setting API key:", error);
       toast({
@@ -112,6 +113,7 @@ const APIKeyInput = ({ onApiKeySet }: APIKeyInputProps) => {
     setConnectionWorking(false);
     setHasConnectionError(false);
     setApiKey("");
+    onApiKeyChange?.(); // Call the optional callback
     toast({
       title: "API Keys Cleared",
       description: "All saved API keys have been removed.",
