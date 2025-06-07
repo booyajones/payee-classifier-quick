@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
+import { AlertCircle } from "lucide-react";
 import { BatchJob, getBatchJobResults, cancelBatchJob } from "@/lib/openai/trueBatchAPI";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import { createPayeeClassification } from "@/lib/utils";
