@@ -8,7 +8,7 @@ export interface StoredBatchJob extends BatchJob {
   payeeNames: string[];
   originalFileData: any[];
   createdAt: number;
-  isMockJob?: boolean; // Keep for backwards compatibility but won't be used for new jobs
+  isMockJob?: boolean;
 }
 
 /**
@@ -86,42 +86,29 @@ export function removeBatchJob(jobId: string): void {
 
 /**
  * Validate that a job ID looks like a real OpenAI batch job ID
- * More lenient for development scenarios
  */
 export function isValidBatchJobId(jobId: string): boolean {
   if (!jobId || typeof jobId !== 'string') {
-    console.log(`[BATCH STORAGE] Invalid job ID: ${jobId} (not a string)`);
     return false;
   }
   
-  // Check if it starts with "batch_"
   if (!jobId.startsWith('batch_')) {
-    console.log(`[BATCH STORAGE] Job ID ${jobId} doesn't start with "batch_"`);
     return false;
   }
   
-  // More lenient length check - allow shorter IDs for development
   if (jobId.length < 15) {
-    console.log(`[BATCH STORAGE] Job ID ${jobId} is too short (${jobId.length} characters, minimum 15)`);
     return false;
   }
   
-  // Check for valid characters after "batch_"
-  const suffix = jobId.substring(6); // Remove "batch_" prefix
-  const isValidFormat = /^[a-zA-Z0-9_-]+$/.test(suffix);
-  
-  if (!isValidFormat) {
-    console.log(`[BATCH STORAGE] Job ID ${jobId} contains invalid characters`);
-  }
-  
-  return isValidFormat;
+  const suffix = jobId.substring(6);
+  return /^[a-zA-Z0-9_-]+$/.test(suffix);
 }
 
 /**
  * Check if a stored batch job is valid
  */
 function isValidBatchJob(job: any): job is StoredBatchJob {
-  const isValid = (
+  return (
     job &&
     typeof job.id === 'string' &&
     isValidBatchJobId(job.id) &&
@@ -129,43 +116,14 @@ function isValidBatchJob(job: any): job is StoredBatchJob {
     Array.isArray(job.originalFileData) &&
     typeof job.status === 'string'
   );
-  
-  if (!isValid) {
-    console.log(`[BATCH STORAGE] Invalid job detected:`, {
-      hasId: !!job?.id,
-      idType: typeof job?.id,
-      idValid: job?.id ? isValidBatchJobId(job.id) : false,
-      hasPayeeNames: Array.isArray(job?.payeeNames),
-      hasOriginalData: Array.isArray(job?.originalFileData),
-      hasStatus: typeof job?.status === 'string'
-    });
-  }
-  
-  return isValid;
 }
 
 /**
- * Clean up expired or invalid jobs
+ * Manual cleanup function - only removes jobs user explicitly wants to delete
  */
-export function cleanupBatchJobs(): void {
+export function cleanupInvalidJobs(): void {
   const jobs = loadBatchJobs();
-  const now = Date.now();
-  const oneWeekAgo = now - (7 * 24 * 60 * 60 * 1000);
-  
-  const validJobs = jobs.filter(job => {
-    // Remove jobs older than 1 week or with invalid IDs
-    if (job.createdAt < oneWeekAgo) {
-      logger.info(`[BATCH STORAGE] Removing old job ${job.id}`);
-      return false;
-    }
-    
-    if (!isValidBatchJobId(job.id)) {
-      logger.info(`[BATCH STORAGE] Removing invalid job ID ${job.id}`);
-      return false;
-    }
-    
-    return true;
-  });
+  const validJobs = jobs.filter(job => isValidBatchJob(job));
   
   if (validJobs.length !== jobs.length) {
     saveBatchJobs(validJobs);

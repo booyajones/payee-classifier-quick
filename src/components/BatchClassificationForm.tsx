@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
-import { FileText, AlertCircle } from "lucide-react";
+import { FileText, AlertCircle, Cloud, CloudOff, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import BatchJobManager from "./BatchJobManager";
 import BatchResultsDisplay from "./BatchResultsDisplay";
 import FileUploadForm from "./FileUploadForm";
@@ -11,27 +13,32 @@ import { BatchJob } from "@/lib/openai/trueBatchAPI";
 import { isOpenAIInitialized, testOpenAIConnection } from "@/lib/openai/client";
 import { cleanProcessBatch } from "@/lib/classification/cleanBatchProcessor";
 import { exportResultsFixed } from "@/lib/classification/fixedExporter";
-import { 
-  loadBatchJobs, 
-  addBatchJob, 
-  updateBatchJob, 
-  removeBatchJob, 
-  cleanupBatchJobs,
-  StoredBatchJob 
-} from "@/lib/storage/batchJobStorage";
+import { usePersistentBatchJobs } from "@/hooks/usePersistentBatchJobs";
 
 interface BatchClassificationFormProps {
   onComplete: (results: PayeeClassification[], summary: BatchProcessingResult) => void;
 }
 
 const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) => {
-  const [batchJobs, setBatchJobs] = useState<StoredBatchJob[]>([]);
   const [batchResults, setBatchResults] = useState<PayeeClassification[]>([]);
   const [processingSummary, setProcessingSummary] = useState<BatchProcessingResult | null>(null);
   const [isApiKeyValid, setIsApiKeyValid] = useState(false);
   const [isCheckingApiKey, setIsCheckingApiKey] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
+
+  // Use the new persistent storage hook
+  const {
+    batchJobs,
+    isLoading: jobsLoading,
+    isSyncing,
+    isSupabaseConfigured,
+    addJob,
+    updateJob,
+    deleteJob,
+    syncJobs,
+    refreshJobs
+  } = usePersistentBatchJobs();
 
   // Check API key validity on component mount
   useEffect(() => {
@@ -71,17 +78,6 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
 
     checkApiKey();
   }, [toast]);
-
-  // Load persisted jobs on component mount
-  useEffect(() => {
-    const storedJobs = loadBatchJobs();
-    cleanupBatchJobs();
-    setBatchJobs(storedJobs);
-    
-    if (storedJobs.length > 0) {
-      console.log(`[BATCH FORM] Loaded ${storedJobs.length} persisted batch jobs`);
-    }
-  }, []);
 
   const handleDirectProcessing = async (originalFileData: any[], selectedColumn: string) => {
     console.log(`[BATCH FORM] Starting clean processing of ${originalFileData.length} rows using column: ${selectedColumn}`);
@@ -129,21 +125,11 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
       return;
     }
     
-    addBatchJob(batchJob, payeeNames, originalFileData, false);
-    
-    const storedJob: StoredBatchJob = {
-      ...batchJob,
-      payeeNames,
-      originalFileData,
-      createdAt: Date.now(),
-      isMockJob: false
-    };
-    
-    setBatchJobs(prev => [storedJob, ...prev]);
+    await addJob(batchJob, payeeNames, originalFileData);
     
     toast({
       title: "Batch Job Created",
-      description: `Created batch job ${batchJob.id.slice(-8)} with ${payeeNames.length} payees.`,
+      description: `Created batch job ${batchJob.id.slice(-8)} with ${payeeNames.length} payees. Jobs are now persistent!`,
     });
   };
 
@@ -154,30 +140,20 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     onComplete(results, summary);
   };
 
-  const handleJobUpdate = (updatedJob: BatchJob) => {
-    updateBatchJob(updatedJob);
-    setBatchJobs(prev => prev.map(job => 
-      job.id === updatedJob.id ? { ...job, ...updatedJob } : job
-    ));
-  };
-
-  const handleJobDelete = (jobId: string) => {
-    removeBatchJob(jobId);
-    setBatchJobs(prev => prev.filter(job => job.id !== jobId));
-  };
-
   const handleReset = () => {
     setBatchResults([]);
     setProcessingSummary(null);
   };
 
-  if (isCheckingApiKey) {
+  if (isCheckingApiKey || jobsLoading) {
     return (
       <div className="space-y-6">
         <Card>
           <CardContent className="p-6">
             <div className="text-center">
-              <p className="text-muted-foreground">Verifying API connection...</p>
+              <p className="text-muted-foreground">
+                {isCheckingApiKey ? "Verifying API connection..." : "Loading batch jobs..."}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -210,10 +186,46 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
 
   return (
     <div className="space-y-6">
+      {/* Storage Status and Sync Controls */}
+      <Alert>
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-2">
+            {isSupabaseConfigured ? (
+              <Cloud className="h-4 w-4 text-green-500" />
+            ) : (
+              <CloudOff className="h-4 w-4 text-yellow-500" />
+            )}
+            <AlertDescription>
+              {isSupabaseConfigured 
+                ? "Persistent storage active - jobs will sync across devices and never be lost!"
+                : "Using local storage only - connect Supabase for full persistence across devices."
+              }
+            </AlertDescription>
+          </div>
+          
+          {isSupabaseConfigured && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={syncJobs}
+              disabled={isSyncing}
+              className="ml-4"
+            >
+              {isSyncing ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Sync
+            </Button>
+          )}
+        </div>
+      </Alert>
+
       <Alert>
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
-          Upload a CSV or Excel file to classify payees. Each row will be processed individually using the column you select, with keyword exclusions applied before AI processing.
+          Upload a CSV or Excel file to classify payees. Jobs are now permanently stored and will persist across browser refreshes and device changes.
         </AlertDescription>
       </Alert>
 
@@ -226,9 +238,9 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
       {batchJobs.length > 0 && (
         <BatchJobManager
           jobs={batchJobs}
-          onJobUpdate={handleJobUpdate}
+          onJobUpdate={updateJob}
           onJobComplete={handleJobComplete}
-          onJobDelete={handleJobDelete}
+          onJobDelete={deleteJob}
         />
       )}
 
