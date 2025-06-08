@@ -57,7 +57,7 @@ export async function cleanProcessBatch(
         continue;
       }
       
-      // Apply keyword exclusion check
+      // Apply keyword exclusion check FIRST
       const exclusionResult = checkKeywordExclusion(payeeName);
       
       if (exclusionResult.isExcluded) {
@@ -66,9 +66,9 @@ export async function cleanProcessBatch(
           id: `payee-${rowIndex}`,
           payeeName,
           result: {
-            classification: 'Individual' as const,
+            classification: 'Business' as const, // Changed to Business since these are excluded business entities
             confidence: 95,
-            reasoning: `Excluded due to keyword matches: ${exclusionResult.matchedKeywords.join(', ')}`,
+            reasoning: `Excluded by keyword match: ${exclusionResult.matchedKeywords.join(', ')}`,
             processingTier: 'Excluded' as const,
             processingMethod: 'Keyword exclusion'
           },
@@ -164,8 +164,9 @@ export async function cleanProcessBatch(
   
   console.log(`[CLEAN BATCH] Completed: ${results.length} total results with PERFECT alignment`);
   console.log(`[CLEAN BATCH] Classification breakdown: ${businessCount} Business, ${individualCount} Individual`);
-  console.log(`[CLEAN BATCH] Processing breakdown: ${aiProcessedCount} AI-processed, ${excludedCount} excluded`);
+  console.log(`[CLEAN BATCH] Processing breakdown: ${aiProcessedCount} AI-processed, ${excludedCount} excluded by keywords`);
   console.log(`[CLEAN BATCH] Business rate: ${((businessCount / results.length) * 100).toFixed(1)}%`);
+  console.log(`[CLEAN BATCH] Keyword exclusion rate: ${((excludedCount / results.length) * 100).toFixed(1)}%`);
   console.log(`[CLEAN BATCH] Average confidence: ${averageConfidence.toFixed(1)}%`);
   console.log(`[CLEAN BATCH] Processing time: ${processingTime}ms`);
   console.log(`[CLEAN BATCH] Index validation: All ${results.length} results have perfect 1:1 alignment`);
