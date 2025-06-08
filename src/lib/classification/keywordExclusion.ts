@@ -1,5 +1,5 @@
 
-// Comprehensive exclusion keywords based on your provided list
+// Updated comprehensive exclusion keywords based on your provided list
 const COMPREHENSIVE_EXCLUSION_KEYWORDS = [
   'ACCOUNTING OFFICE',
   'ACCOUNTS PAYABLE',
@@ -603,7 +603,9 @@ export interface ExclusionResult {
 }
 
 /**
- * Check if a payee name contains any exclusion keywords using comprehensive matching
+ * Check if a payee name contains any exclusion keywords
+ * Uses simple contains matching - if ANY keyword is found, exclude the payee
+ * No duplicates - each payee gets ONE result regardless of multiple keyword matches
  */
 export function checkKeywordExclusion(
   payeeName: string, 
@@ -620,16 +622,18 @@ export function checkKeywordExclusion(
   const normalizedName = payeeName.toUpperCase().trim();
   const matchedKeywords: string[] = [];
 
-  // Check each exclusion keyword using case-insensitive partial matching
+  // Check each exclusion keyword - stop at first match to avoid duplicates
   for (const keyword of exclusionKeywords) {
     if (!keyword || typeof keyword !== 'string') continue;
     
     const normalizedKeyword = keyword.toUpperCase().trim();
     if (!normalizedKeyword) continue;
 
-    // Use contains matching for better coverage
+    // Simple contains matching
     if (normalizedName.includes(normalizedKeyword)) {
       matchedKeywords.push(keyword);
+      // Stop after first match - we only care that it matched ANY keyword
+      break;
     }
   }
 
@@ -642,6 +646,7 @@ export function checkKeywordExclusion(
 
 /**
  * Filter an array of payee names, separating excluded from valid ones
+ * Ensures no duplicates in results
  */
 export function filterPayeeNames(
   payeeNames: string[],
@@ -652,8 +657,15 @@ export function filterPayeeNames(
 } {
   const validNames: string[] = [];
   const excludedNames: Array<{ name: string; reason: string[] }> = [];
+  const processedNames = new Set<string>(); // Prevent duplicates
 
   for (const name of payeeNames) {
+    // Skip if we've already processed this exact name
+    if (processedNames.has(name)) {
+      continue;
+    }
+    processedNames.add(name);
+
     const exclusionResult = checkKeywordExclusion(name, exclusionKeywords);
     
     if (exclusionResult.isExcluded) {
@@ -674,17 +686,6 @@ export function filterPayeeNames(
  */
 export function getComprehensiveExclusionKeywords(): string[] {
   return [...COMPREHENSIVE_EXCLUSION_KEYWORDS];
-}
-
-/**
- * Get the default (basic) exclusion keywords for backward compatibility
- */
-export function getDefaultExclusionKeywords(): string[] {
-  return [
-    'test', 'sample', 'example', 'dummy', 'placeholder', 'temp', 'temporary',
-    'unknown', 'na', 'null', 'undefined', 'blank', 'empty', 'void',
-    'pending', 'processing', 'error', 'failed', 'invalid', 'debug'
-  ];
 }
 
 /**
