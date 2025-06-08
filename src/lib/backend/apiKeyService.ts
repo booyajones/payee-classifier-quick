@@ -1,28 +1,27 @@
-
 import { v4 as uuidv4 } from 'uuid';
 
-const ENC_KEY_STORAGE = 'api_key_enc_key';
+const ENC_KEY_STORAGE = 'api_key_enc_key_permanent';
 
 async function getCryptoKey(): Promise<CryptoKey> {
-  const stored = sessionStorage.getItem(ENC_KEY_STORAGE);
+  const stored = localStorage.getItem(ENC_KEY_STORAGE);
   if (stored) {
     try {
       const raw = Uint8Array.from(atob(stored), c => c.charCodeAt(0));
       const key = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
-      console.log('[API_KEY_SERVICE] Successfully imported existing crypto key');
+      console.log('[API_KEY_SERVICE] Successfully imported existing crypto key from permanent storage');
       return key;
     } catch (error) {
       console.error('[API_KEY_SERVICE] Failed to import stored crypto key, generating new one:', error);
-      sessionStorage.removeItem(ENC_KEY_STORAGE);
+      localStorage.removeItem(ENC_KEY_STORAGE);
     }
   }
   
-  console.log('[API_KEY_SERVICE] Generating new crypto key...');
+  console.log('[API_KEY_SERVICE] Generating new crypto key for permanent storage...');
   const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
   const raw = await crypto.subtle.exportKey('raw', key);
   const encoded = btoa(String.fromCharCode(...new Uint8Array(raw)));
-  sessionStorage.setItem(ENC_KEY_STORAGE, encoded);
-  console.log('[API_KEY_SERVICE] New crypto key generated and stored');
+  localStorage.setItem(ENC_KEY_STORAGE, encoded);
+  console.log('[API_KEY_SERVICE] New crypto key generated and stored permanently');
   return key;
 }
 
@@ -97,9 +96,9 @@ export async function getApiKey(token: string): Promise<string | null> {
     console.log('[API_KEY_SERVICE] Retrieving API key for token:', token.slice(-8));
     
     // Check if we have an encryption key first
-    const hasEncryptionKey = !!sessionStorage.getItem(ENC_KEY_STORAGE);
+    const hasEncryptionKey = !!localStorage.getItem(ENC_KEY_STORAGE);
     if (!hasEncryptionKey) {
-      console.warn('[API_KEY_SERVICE] No encryption key found in session storage');
+      console.warn('[API_KEY_SERVICE] No encryption key found in permanent storage');
       // Try to regenerate the encryption key - this will fail for existing encrypted data
       // but we'll handle that gracefully
     }
@@ -209,8 +208,8 @@ export function clearAllApiKeys(): void {
     // Clear token map
     localStorage.removeItem(`${STORAGE_PREFIX}token_map`);
     
-    // Clear session storage
-    sessionStorage.removeItem(ENC_KEY_STORAGE);
+    // Clear permanent encryption key
+    localStorage.removeItem(ENC_KEY_STORAGE);
     
     console.log('[API_KEY_SERVICE] All API keys cleared');
   } catch (error) {
@@ -231,11 +230,11 @@ export function getApiKeyDiagnostics(): {
   try {
     const tokenMap = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}token_map`) || '{}');
     const tokens = Object.keys(tokenMap);
-    const hasEncryptionKey = !!sessionStorage.getItem(ENC_KEY_STORAGE);
+    const hasEncryptionKey = !!localStorage.getItem(ENC_KEY_STORAGE);
     
     let encryptionKeyStatus = 'Missing';
     if (hasEncryptionKey) {
-      encryptionKeyStatus = 'Present';
+      encryptionKeyStatus = 'Present (Permanent)';
     } else if (tokens.length > 0) {
       encryptionKeyStatus = 'Missing (Stored keys cannot be decrypted)';
     }
