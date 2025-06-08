@@ -9,6 +9,7 @@ interface FileUploadActionsProps {
   isProcessButtonDisabled: boolean;
   onProcess: () => void;
   onReset: () => void;
+  buttonText?: string;
 }
 
 const FileUploadActions = ({ 
@@ -17,7 +18,8 @@ const FileUploadActions = ({
   retryCount, 
   isProcessButtonDisabled, 
   onProcess, 
-  onReset 
+  onReset,
+  buttonText = "Submit File for Processing"
 }: FileUploadActionsProps) => {
   return (
     <div className="flex gap-2">
@@ -30,10 +32,10 @@ const FileUploadActions = ({
         {isLoading ? (
           <>
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            {isRetrying ? `Retrying (${retryCount + 1})...` : "Creating Job..."}
+            {buttonText}
           </>
         ) : (
-          "Submit File for Processing"
+          buttonText
         )}
       </Button>
       
