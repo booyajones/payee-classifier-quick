@@ -1,7 +1,7 @@
 
 import { PayeeClassification, BatchProcessingResult, ClassificationConfig } from '../types';
 import { balancedClassifyPayeeWithAI } from '../openai/balancedClassification';
-import { checkKeywordExclusion } from './keywordExclusion';
+import { checkKeywordExclusion, getComprehensiveExclusionKeywords } from './keywordExclusion';
 import { DEFAULT_CLASSIFICATION_CONFIG } from './config';
 
 /**
@@ -24,6 +24,10 @@ export async function cleanProcessBatch(
   if (!selectedColumn) {
     throw new Error('No column selected for processing');
   }
+  
+  // Get the comprehensive exclusion keywords
+  const exclusionKeywords = getComprehensiveExclusionKeywords();
+  console.log(`[CLEAN BATCH] Using ${exclusionKeywords.length} exclusion keywords`);
   
   const results: PayeeClassification[] = [];
   
@@ -57,8 +61,8 @@ export async function cleanProcessBatch(
         continue;
       }
       
-      // Apply keyword exclusion check FIRST
-      const exclusionResult = checkKeywordExclusion(payeeName);
+      // Apply keyword exclusion check FIRST with the comprehensive keywords
+      const exclusionResult = checkKeywordExclusion(payeeName, exclusionKeywords);
       
       if (exclusionResult.isExcluded) {
         console.log(`[CLEAN BATCH] Excluding "${payeeName}" at row ${rowIndex} due to keywords: ${exclusionResult.matchedKeywords.join(', ')}`);
@@ -66,7 +70,7 @@ export async function cleanProcessBatch(
           id: `payee-${rowIndex}`,
           payeeName,
           result: {
-            classification: 'Business' as const, // Changed to Business since these are excluded business entities
+            classification: 'Business' as const,
             confidence: 95,
             reasoning: `Excluded by keyword match: ${exclusionResult.matchedKeywords.join(', ')}`,
             processingTier: 'Excluded' as const,

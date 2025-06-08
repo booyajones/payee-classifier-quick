@@ -1,20 +1,33 @@
 
 import { KeywordExclusionResult, SimilarityScores } from '../types';
 import { calculateCombinedSimilarity, advancedNormalization } from './stringMatching';
+import { getComprehensiveExclusionKeywords } from './keywordExclusion';
 
 /**
  * Key used to store exclusion keywords in localStorage
  */
 export const EXCLUDED_KEYWORDS_STORAGE_KEY = 'excludedKeywords';
 
-// Load exclusion keywords from localStorage
+// Load exclusion keywords from localStorage, initialize with comprehensive list if empty
 function getExclusionKeywords(): string[] {
   try {
     const stored = localStorage.getItem(EXCLUDED_KEYWORDS_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+    
+    // If no keywords in storage or empty array, initialize with comprehensive list
+    const comprehensiveKeywords = getComprehensiveExclusionKeywords();
+    localStorage.setItem(EXCLUDED_KEYWORDS_STORAGE_KEY, JSON.stringify(comprehensiveKeywords));
+    console.log(`[ENHANCED EXCLUSION] Initialized localStorage with ${comprehensiveKeywords.length} comprehensive keywords`);
+    return comprehensiveKeywords;
   } catch (error) {
     console.warn('Failed to load exclusion keywords:', error);
-    return [];
+    // Fallback to comprehensive list
+    return getComprehensiveExclusionKeywords();
   }
 }
 
@@ -23,6 +36,8 @@ function getExclusionKeywords(): string[] {
  */
 export function checkKeywordExclusion(payeeName: string): KeywordExclusionResult {
   const exclusionKeywords = getExclusionKeywords();
+  
+  console.log(`[ENHANCED EXCLUSION] Checking "${payeeName}" against ${exclusionKeywords.length} keywords`);
   
   if (exclusionKeywords.length === 0) {
     return {
@@ -44,13 +59,15 @@ export function checkKeywordExclusion(payeeName: string): KeywordExclusionResult
     // Exact match in normalized name
     if (normalized.includes(normalizedKeyword)) {
       matchedKeywords.push(keyword);
-      continue;
+      console.log(`[ENHANCED EXCLUSION] Exact match found: "${keyword}" in "${payeeName}"`);
+      break; // Stop at first match
     }
     
     // Token-level exact match
     if (tokens.some(token => token === normalizedKeyword)) {
       matchedKeywords.push(keyword);
-      continue;
+      console.log(`[ENHANCED EXCLUSION] Token match found: "${keyword}" in "${payeeName}"`);
+      break; // Stop at first match
     }
     
     // Fuzzy matching for partial matches
@@ -68,12 +85,13 @@ export function checkKeywordExclusion(payeeName: string): KeywordExclusionResult
     }
   }
   
-  // Add fuzzy matches to matched keywords
-  similarities.forEach(({ keyword }) => {
-    if (!matchedKeywords.includes(keyword)) {
-      matchedKeywords.push(keyword);
-    }
-  });
+  // Add fuzzy matches to matched keywords if no exact matches found
+  if (matchedKeywords.length === 0 && similarities.length > 0) {
+    // Sort by similarity and take the best match
+    similarities.sort((a, b) => b.similarity - a.similarity);
+    matchedKeywords.push(similarities[0].keyword);
+    console.log(`[ENHANCED EXCLUSION] Fuzzy match found: "${similarities[0].keyword}" (${similarities[0].similarity.toFixed(1)}%) in "${payeeName}"`);
+  }
   
   const isExcluded = matchedKeywords.length > 0;
   const confidence = isExcluded ? Math.max(
@@ -86,9 +104,9 @@ export function checkKeywordExclusion(payeeName: string): KeywordExclusionResult
     const exactMatches = matchedKeywords.filter(k => 
       !similarities.some(s => s.keyword === k)
     );
-    const fuzzyMatches = similarities.map(s => 
-      `${s.keyword} (${s.similarity.toFixed(1)}% similar)`
-    );
+    const fuzzyMatches = similarities.filter(s => 
+      matchedKeywords.includes(s.keyword)
+    ).map(s => `${s.keyword} (${s.similarity.toFixed(1)}% similar)`);
     
     const parts = [];
     if (exactMatches.length > 0) {
