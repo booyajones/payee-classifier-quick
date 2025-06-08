@@ -14,10 +14,10 @@ const ColumnSelector = ({ columns, selectedColumn, onColumnChange, fileInfo }: C
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="column-select">Select column with payee names</Label>
+      <Label htmlFor="column-select">Payee column</Label>
       <Select value={selectedColumn} onValueChange={onColumnChange}>
         <SelectTrigger id="column-select">
-          <SelectValue placeholder="Select a column" />
+          <SelectValue placeholder="Select column" />
         </SelectTrigger>
         <SelectContent>
           {columns.map((column) => (
@@ -29,7 +29,7 @@ const ColumnSelector = ({ columns, selectedColumn, onColumnChange, fileInfo }: C
       </Select>
       {fileInfo && selectedColumn && (
         <p className="text-xs text-muted-foreground">
-          Found {fileInfo.rowCount} rows, {fileInfo.payeeCount} unique payee names. Original data with {columns.length} columns will be preserved with enhanced row index tracking.
+          {fileInfo.rowCount} rows, {fileInfo.payeeCount} unique payees
         </p>
       )}
     </div>

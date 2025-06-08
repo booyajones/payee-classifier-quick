@@ -30,10 +30,10 @@ const ProcessingModeSelector = ({ mode, onModeChange, disabled = false }: Proces
             <div className="flex-1">
               <Label htmlFor="direct" className="flex items-center gap-2 font-medium cursor-pointer">
                 <Zap className="h-4 w-4 text-blue-500" />
-                Direct Processing
+                Direct
               </Label>
               <p className="text-sm text-muted-foreground mt-1">
-                Fast processing using immediate AI classification. Best for most files.
+                Fast processing
               </p>
             </div>
           </div>
@@ -43,10 +43,10 @@ const ProcessingModeSelector = ({ mode, onModeChange, disabled = false }: Proces
             <div className="flex-1">
               <Label htmlFor="batch" className="flex items-center gap-2 font-medium cursor-pointer">
                 <Clock className="h-4 w-4 text-orange-500" />
-                Batch Job Processing
+                Batch
               </Label>
               <p className="text-sm text-muted-foreground mt-1">
-                Uses OpenAI Batch API for cost-effective processing of large files. Includes job tracking and status monitoring.
+                Trackable batch job
               </p>
             </div>
           </div>

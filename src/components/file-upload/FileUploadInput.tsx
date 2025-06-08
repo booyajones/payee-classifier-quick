@@ -25,7 +25,7 @@ const FileUploadInput = ({ file, validationStatus, onFileChange }: FileUploadInp
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="file-upload">Upload Excel or CSV file</Label>
+      <Label htmlFor="file-upload">File</Label>
       <div className="flex items-center gap-2">
         <Button 
           type="button" 
@@ -53,7 +53,7 @@ const FileUploadInput = ({ file, validationStatus, onFileChange }: FileUploadInp
         onChange={onFileChange}
       />
       <p className="text-xs text-muted-foreground">
-        Accepted formats: Excel (.xlsx, .xls) or CSV files (max 50MB, 50,000 rows). All original columns will be preserved in the export.
+        Excel (.xlsx, .xls) or CSV files
       </p>
     </div>
   );

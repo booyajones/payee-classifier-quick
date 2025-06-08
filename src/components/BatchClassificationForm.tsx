@@ -3,10 +3,11 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
-import { FileText, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import BatchJobManager from "./BatchJobManager";
 import BatchResultsDisplay from "./BatchResultsDisplay";
 import FileUploadForm from "./FileUploadForm";
+import APIKeyInput from "./APIKeyInput";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import { BatchJob } from "@/lib/openai/trueBatchAPI";
 import { isOpenAIInitialized, testOpenAIConnection } from "@/lib/openai/client";
@@ -16,9 +17,11 @@ import { usePersistentBatchJobs } from "@/hooks/usePersistentBatchJobs";
 
 interface BatchClassificationFormProps {
   onComplete: (results: PayeeClassification[], summary: BatchProcessingResult) => void;
+  onApiKeySet?: () => void;
+  onApiKeyChange?: () => void;
 }
 
-const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) => {
+const BatchClassificationForm = ({ onComplete, onApiKeySet, onApiKeyChange }: BatchClassificationFormProps) => {
   const [batchResults, setBatchResults] = useState<PayeeClassification[]>([]);
   const [processingSummary, setProcessingSummary] = useState<BatchProcessingResult | null>(null);
   const [isApiKeyValid, setIsApiKeyValid] = useState(false);
@@ -26,7 +29,6 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
 
-  // Use the new persistent storage hook
   const {
     batchJobs,
     isLoading: jobsLoading,
@@ -35,31 +37,26 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     deleteJob
   } = usePersistentBatchJobs();
 
-  // Check API key validity on component mount
   useEffect(() => {
     const checkApiKey = async () => {
-      console.log('[BATCH FORM] Checking API key validity...');
       setIsCheckingApiKey(true);
       
       try {
         if (isOpenAIInitialized()) {
           const isWorking = await testOpenAIConnection();
-          console.log('[BATCH FORM] API key test result:', isWorking);
           setIsApiKeyValid(isWorking);
           
           if (!isWorking) {
             toast({
               title: "API Key Issue",
-              description: "OpenAI API key test failed. Please check your API key in settings.",
+              description: "OpenAI API key test failed. Please check your API key.",
               variant: "destructive"
             });
           }
         } else {
-          console.log('[BATCH FORM] OpenAI not initialized');
           setIsApiKeyValid(false);
         }
       } catch (error) {
-        console.error('[BATCH FORM] Error checking API key:', error);
         setIsApiKeyValid(false);
         toast({
           title: "API Connection Error",
@@ -75,7 +72,6 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
   }, [toast]);
 
   const handleDirectProcessing = async (originalFileData: any[], selectedColumn: string) => {
-    console.log(`[BATCH FORM] Starting clean processing of ${originalFileData.length} rows using column: ${selectedColumn}`);
     setIsProcessing(true);
     
     try {
@@ -92,11 +88,10 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
       
       toast({
         title: "Processing Complete",
-        description: `Successfully processed ${result.results.length} payees using the selected column "${selectedColumn}".`,
+        description: `Successfully processed ${result.results.length} payees.`,
       });
       
     } catch (error) {
-      console.error('[BATCH FORM] Clean processing failed:', error);
       toast({
         title: "Processing Failed",
         description: error instanceof Error ? error.message : "Unknown error occurred",
@@ -108,10 +103,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
   };
 
   const handleBatchJobCreated = async (batchJob: BatchJob, payeeNames: string[], originalFileData: any[]) => {
-    console.log(`[BATCH FORM] Batch job created with ${payeeNames.length} payees and ${originalFileData.length} original data rows`);
-    
     if (!isApiKeyValid) {
-      console.error('[BATCH FORM] API key not valid, cannot create batch job');
       toast({
         title: "API Key Required",
         description: "Please set a valid OpenAI API key before creating batch jobs.",
@@ -124,12 +116,11 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     
     toast({
       title: "Batch Job Created",
-      description: `Created batch job ${batchJob.id.slice(-8)} with ${payeeNames.length} payees. Jobs are now persistent!`,
+      description: `Created batch job with ${payeeNames.length} payees.`,
     });
   };
 
   const handleJobComplete = (results: PayeeClassification[], summary: BatchProcessingResult, jobId: string) => {
-    console.log(`[BATCH FORM] Job ${jobId} completed with ${results.length} results`);
     setBatchResults(results);
     setProcessingSummary(summary);
     onComplete(results, summary);
@@ -140,19 +131,25 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     setProcessingSummary(null);
   };
 
+  const handleApiKeySetLocal = () => {
+    setIsApiKeyValid(true);
+    onApiKeySet?.();
+  };
+
+  const handleApiKeyChangeLocal = () => {
+    setIsApiKeyValid(isOpenAIInitialized());
+    onApiKeyChange?.();
+  };
+
   if (isCheckingApiKey || jobsLoading) {
     return (
-      <div className="space-y-6">
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center">
-              <p className="text-muted-foreground">
-                {isCheckingApiKey ? "Verifying API connection..." : "Loading batch jobs..."}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-muted-foreground">
+            {isCheckingApiKey ? "Verifying API connection..." : "Loading..."}
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -162,17 +159,15 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-red-500" />
-              API Key Required
+              <AlertCircle className="h-5 w-5" />
+              Setup Required
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                A valid OpenAI API key is required for batch processing. Please set your API key in the Settings tab first.
-              </AlertDescription>
-            </Alert>
+          <CardContent>
+            <APIKeyInput 
+              onApiKeySet={handleApiKeySetLocal}
+              onApiKeyChange={handleApiKeyChangeLocal} 
+            />
           </CardContent>
         </Card>
       </div>
@@ -181,13 +176,6 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
 
   return (
     <div className="space-y-6">
-      <Alert>
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          Upload a CSV or Excel file to classify payees. Jobs are now permanently stored and will persist across browser refreshes and device changes.
-        </AlertDescription>
-      </Alert>
-
       <FileUploadForm 
         onBatchJobCreated={handleBatchJobCreated}
         onDirectProcessing={handleDirectProcessing}
