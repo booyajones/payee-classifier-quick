@@ -3,8 +3,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
-import { FileText, AlertCircle, Cloud, CloudOff, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { FileText, AlertCircle } from "lucide-react";
 import BatchJobManager from "./BatchJobManager";
 import BatchResultsDisplay from "./BatchResultsDisplay";
 import FileUploadForm from "./FileUploadForm";
@@ -31,13 +30,9 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
   const {
     batchJobs,
     isLoading: jobsLoading,
-    isSyncing,
-    isSupabaseConfigured,
     addJob,
     updateJob,
-    deleteJob,
-    syncJobs,
-    refreshJobs
+    deleteJob
   } = usePersistentBatchJobs();
 
   // Check API key validity on component mount
@@ -186,42 +181,6 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
 
   return (
     <div className="space-y-6">
-      {/* Storage Status and Sync Controls */}
-      <Alert>
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-2">
-            {isSupabaseConfigured ? (
-              <Cloud className="h-4 w-4 text-green-500" />
-            ) : (
-              <CloudOff className="h-4 w-4 text-yellow-500" />
-            )}
-            <AlertDescription>
-              {isSupabaseConfigured 
-                ? "Persistent storage active - jobs will sync across devices and never be lost!"
-                : "Using local storage only - connect Supabase for full persistence across devices."
-              }
-            </AlertDescription>
-          </div>
-          
-          {isSupabaseConfigured && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={syncJobs}
-              disabled={isSyncing}
-              className="ml-4"
-            >
-              {isSyncing ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              Sync
-            </Button>
-          )}
-        </div>
-      </Alert>
-
       <Alert>
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
