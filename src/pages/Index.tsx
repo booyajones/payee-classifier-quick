@@ -8,6 +8,7 @@ import BatchClassificationForm from "@/components/BatchClassificationForm";
 import APIKeyInput from "@/components/APIKeyInput";
 import OpenAIDiagnostics from "@/components/OpenAIDiagnostics";
 import KeywordExclusionManager from "@/components/KeywordExclusionManager";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import { isOpenAIInitialized } from "@/lib/openai/client";
 
@@ -34,13 +35,18 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-8 px-4">
-        <div className="mb-8 text-center">
-          <h1 className="text-4xl font-bold text-foreground mb-2">
-            AI Payee Classification System
-          </h1>
-          <p className="text-xl text-muted-foreground">
-            Classify payees as Business or Individual using advanced AI
-          </p>
+        <div className="mb-8">
+          <div className="flex justify-between items-start mb-4">
+            <div className="text-center flex-1">
+              <h1 className="text-4xl font-bold text-foreground mb-2">
+                AI Payee Classification System
+              </h1>
+              <p className="text-xl text-muted-foreground">
+                Classify payees as Business or Individual using advanced AI
+              </p>
+            </div>
+            <ThemeToggle />
+          </div>
         </div>
 
         {!isApiKeySet && (
