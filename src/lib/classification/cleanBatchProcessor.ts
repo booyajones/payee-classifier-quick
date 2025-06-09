@@ -27,15 +27,23 @@ export async function cleanProcessBatch(
   
   // Get the comprehensive exclusion keywords
   const exclusionKeywords = getComprehensiveExclusionKeywords();
-  console.log(`[CLEAN BATCH] Using ${exclusionKeywords.length} exclusion keywords`);
+  console.log(`[CLEAN BATCH] Loaded ${exclusionKeywords.length} exclusion keywords for processing`);
+  console.log(`[CLEAN BATCH] Sample keywords: ${exclusionKeywords.slice(0, 10).join(', ')}`);
   
   const results: PayeeClassification[] = [];
+  let excludedCount = 0;
+  let aiProcessedCount = 0;
+  let errorCount = 0;
   
   // Process each row individually with perfect index tracking
   for (let rowIndex = 0; rowIndex < originalFileData.length; rowIndex++) {
     const rowData = originalFileData[rowIndex];
     
-    console.log(`[CLEAN BATCH] Processing row ${rowIndex} of ${originalFileData.length}`);
+    // Show progress every 10 rows
+    if (rowIndex % 10 === 0) {
+      console.log(`[CLEAN BATCH] Processing row ${rowIndex + 1} of ${originalFileData.length} (${Math.round((rowIndex / originalFileData.length) * 100)}%)`);
+      console.log(`[CLEAN BATCH] Progress so far: ${excludedCount} excluded, ${aiProcessedCount} AI processed, ${errorCount} errors`);
+    }
     
     try {
       // Extract payee name from the selected column
@@ -58,14 +66,15 @@ export async function cleanProcessBatch(
           rowIndex: rowIndex
         };
         results.push(result);
+        errorCount++;
         continue;
       }
       
-      // Apply keyword exclusion check FIRST with the comprehensive keywords
+      // Apply keyword exclusion check FIRST
       const exclusionResult = checkKeywordExclusion(payeeName, exclusionKeywords);
       
       if (exclusionResult.isExcluded) {
-        console.log(`[CLEAN BATCH] Excluding "${payeeName}" at row ${rowIndex} due to keywords: ${exclusionResult.matchedKeywords.join(', ')}`);
+        console.log(`[CLEAN BATCH] EXCLUDED "${payeeName}" at row ${rowIndex} due to keywords: ${exclusionResult.matchedKeywords.join(', ')}`);
         const result: PayeeClassification = {
           id: `payee-${rowIndex}`,
           payeeName,
@@ -81,11 +90,12 @@ export async function cleanProcessBatch(
           rowIndex: rowIndex
         };
         results.push(result);
+        excludedCount++;
         continue;
       }
       
       // Process with AI - each name individually
-      console.log(`[CLEAN BATCH] Processing "${payeeName}" with AI (row ${rowIndex})`);
+      console.log(`[CLEAN BATCH] AI processing "${payeeName}" (row ${rowIndex})`);
       const aiResult = await balancedClassifyPayeeWithAI(payeeName);
       
       const result: PayeeClassification = {
@@ -103,6 +113,7 @@ export async function cleanProcessBatch(
         rowIndex: rowIndex
       };
       results.push(result);
+      aiProcessedCount++;
       
     } catch (error) {
       console.error(`[CLEAN BATCH] Error processing row ${rowIndex}:`, error);
@@ -125,6 +136,7 @@ export async function cleanProcessBatch(
         rowIndex: rowIndex
       };
       results.push(result);
+      errorCount++;
     }
     
     // Small delay every 10 rows to prevent rate limiting
@@ -159,20 +171,19 @@ export async function cleanProcessBatch(
   
   const processingTime = Date.now() - startTime;
   
-  // Calculate statistics
+  // Calculate final statistics
   const businessCount = results.filter(r => r.result.classification === 'Business').length;
   const individualCount = results.filter(r => r.result.classification === 'Individual').length;
-  const excludedCount = results.filter(r => r.result.processingTier === 'Excluded').length;
-  const aiProcessedCount = results.filter(r => r.result.processingTier === 'AI-Powered').length;
   const averageConfidence = results.reduce((sum, r) => sum + r.result.confidence, 0) / results.length;
   
-  console.log(`[CLEAN BATCH] Completed: ${results.length} total results with PERFECT alignment`);
+  console.log(`[CLEAN BATCH] ===== PROCESSING COMPLETE =====`);
+  console.log(`[CLEAN BATCH] Total processed: ${results.length} payees`);
   console.log(`[CLEAN BATCH] Classification breakdown: ${businessCount} Business, ${individualCount} Individual`);
-  console.log(`[CLEAN BATCH] Processing breakdown: ${aiProcessedCount} AI-processed, ${excludedCount} excluded by keywords`);
+  console.log(`[CLEAN BATCH] Processing breakdown: ${aiProcessedCount} AI-processed, ${excludedCount} excluded by keywords, ${errorCount} errors`);
   console.log(`[CLEAN BATCH] Business rate: ${((businessCount / results.length) * 100).toFixed(1)}%`);
   console.log(`[CLEAN BATCH] Keyword exclusion rate: ${((excludedCount / results.length) * 100).toFixed(1)}%`);
   console.log(`[CLEAN BATCH] Average confidence: ${averageConfidence.toFixed(1)}%`);
-  console.log(`[CLEAN BATCH] Processing time: ${processingTime}ms`);
+  console.log(`[CLEAN BATCH] Processing time: ${(processingTime / 1000).toFixed(1)} seconds`);
   console.log(`[CLEAN BATCH] Index validation: All ${results.length} results have perfect 1:1 alignment`);
   
   return {

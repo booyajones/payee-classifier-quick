@@ -611,7 +611,10 @@ export function checkKeywordExclusion(
   payeeName: string, 
   exclusionKeywords: string[] = COMPREHENSIVE_EXCLUSION_KEYWORDS
 ): ExclusionResult {
+  console.log(`[KEYWORD EXCLUSION] Testing "${payeeName}" against ${exclusionKeywords.length} keywords`);
+  
   if (!payeeName || typeof payeeName !== 'string') {
+    console.log(`[KEYWORD EXCLUSION] Invalid input: "${payeeName}"`);
     return {
       isExcluded: true,
       matchedKeywords: ['invalid-input'],
@@ -620,7 +623,7 @@ export function checkKeywordExclusion(
   }
 
   const normalizedName = payeeName.toUpperCase().trim();
-  const matchedKeywords: string[] = [];
+  console.log(`[KEYWORD EXCLUSION] Normalized name: "${normalizedName}"`);
 
   // Check each exclusion keyword - stop at first match to avoid duplicates
   for (const keyword of exclusionKeywords) {
@@ -631,15 +634,19 @@ export function checkKeywordExclusion(
 
     // Simple contains matching
     if (normalizedName.includes(normalizedKeyword)) {
-      matchedKeywords.push(keyword);
-      // Stop after first match - we only care that it matched ANY keyword
-      break;
+      console.log(`[KEYWORD EXCLUSION] MATCH FOUND! "${payeeName}" contains keyword "${keyword}"`);
+      return {
+        isExcluded: true,
+        matchedKeywords: [keyword],
+        originalName: payeeName
+      };
     }
   }
 
+  console.log(`[KEYWORD EXCLUSION] No match found for "${payeeName}"`);
   return {
-    isExcluded: matchedKeywords.length > 0,
-    matchedKeywords,
+    isExcluded: false,
+    matchedKeywords: [],
     originalName: payeeName
   };
 }
