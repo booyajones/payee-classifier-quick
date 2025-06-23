@@ -32,18 +32,18 @@ const COMMON_FIRST_NAMES = new Set([
   'SUE', 'JANE', 'LYNN', 'ANNE', 'ANN', 'KATE', 'KIM', 'BETH', 'JEN', 'LIZ', 'CHRIS', 'PAT'
 ]);
 
-// Business entity indicators - reduced to only strong indicators
+// Business entity indicators - strong indicators
 const BUSINESS_SUFFIXES = [
   'LLC', 'INC', 'CORP', 'LTD', 'CO', 'COMPANY', 'CORPORATION', 'ENTERPRISES', 'GROUP', 'HOLDINGS',
-  'PARTNERS', 'ASSOCIATES'
+  'PARTNERS', 'ASSOCIATES', 'SERVICES'
 ];
 
-// Reduced business keywords - only clear business indicators
+// Strong business keywords - expanded and more accurate
 const BUSINESS_KEYWORDS = [
   'AGENCY', 'STUDIO', 'MANAGEMENT', 'CONSULTING', 'SERVICES', 'SOLUTIONS', 'SYSTEMS', 'TECHNOLOGIES',
   'DISTRIBUTORS', 'BAKERY', 'ENTERTAINMENT', 'CONSTRUCTION', 'RESTAURANT', 'CAFE', 'BAR', 'HOTEL',
-  // Security and emergency services
-  'FIRE', 'ALARM', 'SECURITY', 'ELECTRIC'
+  'FIRE', 'ALARM', 'SECURITY', 'ELECTRIC', 'LOCKSMITH', 'LOCKSMITHS', 'GLAZERS', 'GLAZER', 'MUSHROOMS',
+  'CHAMBER', 'LINEN', 'PEST', 'CONTROL', 'CONCEPTS', 'GIFT', 'CARDS', 'BROKERS', 'BROKER'
 ];
 
 // Individual indicators
@@ -52,7 +52,7 @@ const INDIVIDUAL_TITLES = [
 ];
 
 /**
- * FIXED: Fast individual name detection with improved patterns
+ * FIXED: Individual name detection with stricter criteria
  */
 function detectIndividualName(payeeName: string): { isIndividual: boolean; confidence: number; reasons: string[] } {
   const name = payeeName.toUpperCase().trim();
@@ -64,52 +64,50 @@ function detectIndividualName(payeeName: string): { isIndividual: boolean; confi
   for (const title of INDIVIDUAL_TITLES) {
     if (name.includes(title)) {
       reasons.push(`Professional title: ${title}`);
-      confidence += 60;
+      confidence += 70;
       break;
     }
   }
 
-  // CRITICAL: Check for common first names - instant individual detection
-  if (words.length >= 1) {
+  // CRITICAL: Check for common first names - but be more selective
+  if (words.length >= 2) {
     const firstWord = words[0].replace(/[^A-Z]/g, '');
     if (COMMON_FIRST_NAMES.has(firstWord)) {
-      reasons.push(`Common first name: ${firstWord}`);
-      confidence += 70; // High confidence for first names
+      // Only count as strong individual indicator if it's a clear name pattern
+      const secondWord = words[1];
+      // Don't count first names followed by obvious business terms
+      if (!BUSINESS_KEYWORDS.includes(secondWord) && 
+          !['LOCKSMITH', 'LOCKSMITHS', 'GLAZERS', 'MUSHROOMS', 'CONCEPTS'].includes(secondWord)) {
+        reasons.push(`Common first name: ${firstWord}`);
+        confidence += 60;
+      }
     }
   }
 
-  // FIXED: Individual + occupation pattern (e.g., "Tom Plumber", "Christina Manuel")
-  if (words.length === 2) {
-    const [first, second] = words;
-    if (COMMON_FIRST_NAMES.has(first)) {
-      // If first word is a name, likely individual even if second word sounds like occupation
-      reasons.push(`First name + descriptor pattern: ${first} ${second}`);
-      confidence += 50;
-    }
-  }
-
-  // Personal name patterns
-  if (words.length === 2 && confidence < 50) {
+  // Personal name patterns - be more restrictive
+  if (words.length === 2 && confidence >= 60) {
     const [first, last] = words;
     if (first.length >= 2 && last.length >= 2 && 
         !BUSINESS_KEYWORDS.includes(first) && !BUSINESS_KEYWORDS.includes(last)) {
       reasons.push('Two-word personal name pattern');
-      confidence += 40;
+      confidence += 30;
     }
   }
 
   if (words.length === 3) {
     const [first, middle, last] = words;
-    if (first.length >= 2 && middle.length <= 3 && last.length >= 2) {
+    // Check for proper name structure
+    if (first.length >= 2 && middle.length <= 3 && last.length >= 2 &&
+        !BUSINESS_KEYWORDS.some(kw => name.includes(kw))) {
       reasons.push('Three-word personal name pattern');
-      confidence += 35;
+      confidence += 25;
     }
   }
 
   // Possessive form (John's Plumbing) - individual proprietor
   if (/'\s*S\b/.test(name) || name.includes("'S")) {
     reasons.push('Possessive form (individual proprietor)');
-    confidence += 50;
+    confidence += 40;
   }
 
   // Last, First format
@@ -118,21 +116,21 @@ function detectIndividualName(payeeName: string): { isIndividual: boolean; confi
     confidence += 45;
   }
 
-  // Mixed case personal names
-  if (payeeName !== payeeName.toUpperCase() && words.length <= 3) {
+  // Mixed case personal names - only for simple patterns
+  if (payeeName !== payeeName.toUpperCase() && words.length <= 2) {
     reasons.push('Mixed case personal name');
-    confidence += 30;
+    confidence += 25;
   }
 
   return {
-    isIndividual: confidence >= 40,
+    isIndividual: confidence >= 60, // Raised threshold
     confidence: Math.min(95, confidence),
     reasons
   };
 }
 
 /**
- * FIXED: Business detection with reduced false positives
+ * FIXED: Business detection with expanded keywords
  */
 function detectBusinessEntity(payeeName: string): { isBusiness: boolean; confidence: number; reasons: string[] } {
   const name = payeeName.toUpperCase().trim();
@@ -149,47 +147,63 @@ function detectBusinessEntity(payeeName: string): { isBusiness: boolean; confide
     }
   }
 
-  // Business keywords - reduced scoring to avoid false positives
+  // Business keywords - strong indicators
   for (const keyword of BUSINESS_KEYWORDS) {
     if (name.includes(keyword)) {
       reasons.push(`Business keyword: ${keyword}`);
-      confidence += 30;
+      confidence += 45; // Increased from 30
+      break;
+    }
+  }
+
+  // Industry terms from config
+  const industryTerms = Object.values(INDUSTRY_IDENTIFIERS).flat();
+  for (const term of industryTerms) {
+    if (name.includes(term)) {
+      reasons.push(`Industry term: ${term}`);
+      confidence += 35;
       break;
     }
   }
 
   // Structural business indicators
-  if (words.length >= 5) {
-    reasons.push('Very long business name (5+ words)');
+  if (words.length >= 3) {
+    reasons.push('Multi-word business name (3+ words)');
     confidence += 20;
   }
 
   if (name.includes('&') || name.includes(' AND ')) {
     reasons.push('Business partnership indicator');
-    confidence += 25;
+    confidence += 30;
   }
 
   // Number patterns in business names
   if (/\b\d{3,}\b/.test(name) && words.length >= 2) {
     reasons.push('Contains numbers (business pattern)');
-    confidence += 15;
-  }
-
-  // All caps format for longer names
-  if (name === payeeName.toUpperCase() && payeeName.length > 20) {
-    reasons.push('All caps business format');
     confidence += 20;
   }
 
+  // All caps format for longer names
+  if (name === payeeName.toUpperCase() && payeeName.length > 10) {
+    reasons.push('All caps business format');
+    confidence += 25;
+  }
+
+  // Single word business names (common brands)
+  if (words.length === 1 && payeeName.length > 5) {
+    reasons.push('Single word business name');
+    confidence += 35;
+  }
+
   return {
-    isBusiness: confidence >= 60, // Raised threshold to reduce false positives
+    isBusiness: confidence >= 45, // Lowered threshold
     confidence: Math.min(95, confidence),
     reasons
   };
 }
 
 /**
- * Enhanced V3 classification with FIXED individual-first logic
+ * Enhanced V3 classification with FIXED business-first logic
  */
 export async function enhancedClassifyPayeeV3(
   payeeName: string,
@@ -222,66 +236,67 @@ export async function enhancedClassifyPayeeV3(
       };
     }
 
-    // Stage 2: INDIVIDUAL-FIRST detection
-    const individualCheck = detectIndividualName(payeeName);
+    // Stage 2: BUSINESS-FIRST detection (FIXED)
     const businessCheck = detectBusinessEntity(payeeName);
+    const individualCheck = detectIndividualName(payeeName);
 
     console.log(`[V3-FIXED] "${payeeName}" - Individual: ${individualCheck.confidence}%, Business: ${businessCheck.confidence}%`);
 
-    // FIXED: Individual-first decision logic
-    if (individualCheck.isIndividual && individualCheck.confidence >= 40) {
+    // FIXED: Business-first decision logic
+    if (businessCheck.isBusiness && businessCheck.confidence >= 45) {
+      return {
+        classification: 'Business',
+        confidence: businessCheck.confidence,
+        reasoning: `Business detected: ${businessCheck.reasons.join(', ')}`,
+        processingTier: 'Rule-Based',
+        matchingRules: businessCheck.reasons,
+        processingMethod: 'Enhanced business-first detection'
+      };
+    }
+
+    // Only classify as individual if strong indicators AND no business indicators
+    if (individualCheck.isIndividual && individualCheck.confidence >= 60 && !businessCheck.isBusiness) {
       return {
         classification: 'Individual',
         confidence: individualCheck.confidence,
         reasoning: `Individual detected: ${individualCheck.reasons.join(', ')}`,
         processingTier: 'Rule-Based',
         matchingRules: individualCheck.reasons,
-        processingMethod: 'Enhanced individual-first detection'
+        processingMethod: 'Enhanced individual detection'
       };
     }
 
-    // Only classify as business if strong indicators AND no individual indicators
-    if (businessCheck.isBusiness && businessCheck.confidence > 70 && !individualCheck.isIndividual) {
-      return {
-        classification: 'Business',
-        confidence: businessCheck.confidence,
-        reasoning: `Strong business indicators: ${businessCheck.reasons.join(', ')}`,
-        processingTier: 'Rule-Based',
-        matchingRules: businessCheck.reasons,
-        processingMethod: 'Enhanced business detection'
-      };
-    }
-
-    // Stage 3: Conservative fallback with business keyword check
+    // Stage 3: Enhanced fallback logic
     const nameUpper = payeeName.toUpperCase();
-    const industryTerms = Object.values(INDUSTRY_IDENTIFIERS).flat();
-    const hasBusinessIndicator =
+    const words = nameUpper.split(/\s+/);
+
+    // Check for business indicators in fallback
+    const hasBusinessIndicator = 
       BUSINESS_KEYWORDS.some(k => nameUpper.includes(k)) ||
-      industryTerms.some(term =>
-        nameUpper.includes(term) ||
-        (term.endsWith('AL') && nameUpper.includes(term.slice(0, -2)))
-      );
+      words.length >= 3 ||
+      /\b\d+\b/.test(nameUpper) ||
+      nameUpper.includes('&') ||
+      (payeeName === payeeName.toUpperCase() && payeeName.length > 8);
 
     if (hasBusinessIndicator) {
       return {
         classification: 'Business',
-        confidence: 60,
-        reasoning: `Fallback business indicators detected. Individual: ${individualCheck.confidence}%, Business: ${businessCheck.confidence}%`,
+        confidence: 65,
+        reasoning: `Fallback business classification based on patterns. Individual: ${individualCheck.confidence}%, Business: ${businessCheck.confidence}%`,
         processingTier: 'Rule-Based',
         matchingRules: [...individualCheck.reasons, ...businessCheck.reasons],
-        processingMethod: 'Keyword-based fallback'
+        processingMethod: 'Business-oriented fallback'
       };
     }
 
-    const fallbackConfidence = Math.max(55, individualCheck.confidence || 55);
-
+    // Final fallback - still conservative toward Individual for privacy
     return {
       classification: 'Individual',
-      confidence: fallbackConfidence,
+      confidence: 55,
       reasoning: `Conservative Individual classification. Individual: ${individualCheck.confidence}%, Business: ${businessCheck.confidence}%`,
       processingTier: 'Rule-Based',
       matchingRules: [...individualCheck.reasons, ...businessCheck.reasons],
-      processingMethod: 'Conservative Individual-first fallback'
+      processingMethod: 'Conservative Individual fallback'
     };
 
   } catch (error) {
