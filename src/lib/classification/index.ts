@@ -69,3 +69,6 @@ export {
   enhancedRuleOnlyClassification, 
   enhancedBatchRuleOnlyClassification 
 } from './enhancedRuleOnlyClassification';
+
+// Export new advanced classifier
+export { AdvancedPayeeClassifier, advancedClassifyPayee } from './advancedPayeeClassifier';
