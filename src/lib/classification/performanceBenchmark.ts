@@ -1,4 +1,3 @@
-
 import { worldClassClassification } from './worldClassRules';
 import { ClassificationResult } from '../types';
 
