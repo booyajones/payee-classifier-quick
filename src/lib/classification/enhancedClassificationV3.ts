@@ -1,6 +1,6 @@
 
 import { ClassificationResult, ClassificationConfig } from '../types';
-import { DEFAULT_CLASSIFICATION_CONFIG } from './config';
+import { DEFAULT_CLASSIFICATION_CONFIG, INDUSTRY_IDENTIFIERS } from './config';
 import { checkKeywordExclusion } from './enhancedKeywordExclusion';
 
 // Hard-coded confidence thresholds for intelligent escalation
@@ -252,9 +252,29 @@ export async function enhancedClassifyPayeeV3(
       };
     }
 
-    // Stage 3: Conservative fallback - ALWAYS favor Individual when uncertain
+    // Stage 3: Conservative fallback with business keyword check
+    const nameUpper = payeeName.toUpperCase();
+    const industryTerms = Object.values(INDUSTRY_IDENTIFIERS).flat();
+    const hasBusinessIndicator =
+      BUSINESS_KEYWORDS.some(k => nameUpper.includes(k)) ||
+      industryTerms.some(term =>
+        nameUpper.includes(term) ||
+        (term.endsWith('AL') && nameUpper.includes(term.slice(0, -2)))
+      );
+
+    if (hasBusinessIndicator) {
+      return {
+        classification: 'Business',
+        confidence: 60,
+        reasoning: `Fallback business indicators detected. Individual: ${individualCheck.confidence}%, Business: ${businessCheck.confidence}%`,
+        processingTier: 'Rule-Based',
+        matchingRules: [...individualCheck.reasons, ...businessCheck.reasons],
+        processingMethod: 'Keyword-based fallback'
+      };
+    }
+
     const fallbackConfidence = Math.max(55, individualCheck.confidence || 55);
-    
+
     return {
       classification: 'Individual',
       confidence: fallbackConfidence,
