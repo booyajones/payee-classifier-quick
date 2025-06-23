@@ -5,23 +5,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RotateCcw } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { ClassificationConfig } from "@/lib/types";
-import { createBatchJob, BatchJob } from "@/lib/openai/trueBatchAPI";
 
 interface BatchTextInputProps {
   payeeNames: string;
   setPayeeNames: (value: string) => void;
-  onBatchJobCreated: (batchJob: BatchJob, payeeNames: string[]) => void;
+  onDirectProcessing: (payeeNames: string[]) => Promise<void>;
   onReset: () => void;
-  config: ClassificationConfig;
 }
 
 const BatchTextInput = ({ 
   payeeNames, 
   setPayeeNames, 
-  onBatchJobCreated, 
-  onReset,
-  config 
+  onDirectProcessing, 
+  onReset
 }: BatchTextInputProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
@@ -44,22 +40,19 @@ const BatchTextInput = ({
 
     try {
       const names = payeeNames.split("\n").map(name => name.trim()).filter(name => name !== "");
-      console.log(`[BATCH TEXT INPUT] Creating batch job for ${names.length} names:`, names);
+      console.log(`[BATCH TEXT INPUT] Processing ${names.length} names:`, names);
       
-      const batchJob = await createBatchJob(names, `Text input batch: ${names.length} payees`);
-      console.log(`[BATCH TEXT INPUT] Batch job created:`, batchJob);
-
-      onBatchJobCreated(batchJob, names);
+      await onDirectProcessing(names);
 
       toast({
-        title: "Batch Job Created",
-        description: `Successfully submitted ${names.length} payees for batch processing. Job ID: ${batchJob.id.slice(-8)}`,
+        title: "Processing Complete",
+        description: `Successfully processed ${names.length} payees.`,
       });
     } catch (error) {
-      console.error("Batch job creation error:", error);
+      console.error("Processing error:", error);
       toast({
-        title: "Batch Job Creation Error",
-        description: error instanceof Error ? error.message : "An error occurred while creating the batch job.",
+        title: "Processing Error",
+        description: error instanceof Error ? error.message : "An error occurred while processing.",
         variant: "destructive",
       });
     } finally {
@@ -84,18 +77,18 @@ const BatchTextInput = ({
       </div>
       
       <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-md">
-        <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Batch Processing Information</h4>
+        <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Rule-Based Processing</h4>
         <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-          <li>• 50% cost savings compared to real-time processing</li>
-          <li>• Results delivered within 24 hours</li>
-          <li>• Processing queue managed by OpenAI</li>
-          <li>• You can monitor progress in the Batch Jobs tab</li>
+          <li>• Fast, deterministic classification</li>
+          <li>• Keyword exclusion filtering</li>
+          <li>• Pattern-based business/individual detection</li>
+          <li>• Instant results with detailed reasoning</li>
         </ul>
       </div>
       
       <div className="flex gap-2">
         <Button type="submit" className="flex-1" disabled={isProcessing || payeeCount === 0}>
-          {isProcessing ? "Creating Batch Job..." : `Submit ${payeeCount} Payees for Batch Processing`}
+          {isProcessing ? "Processing..." : `Process ${payeeCount} Payees`}
         </Button>
         
         <Button
