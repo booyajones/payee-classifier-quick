@@ -23,8 +23,8 @@ const SingleClassificationForm = ({ onComplete }: SingleClassificationFormProps)
   const [currentResult, setCurrentResult] = useState<PayeeClassification | null>(null);
   const [config, setConfig] = useState<ClassificationConfig>({
     aiThreshold: 80,
-    bypassRuleNLP: true,
-    offlineMode: false
+    bypassRuleNLP: false,
+    offlineMode: true
   });
   const { toast } = useToast();
 
