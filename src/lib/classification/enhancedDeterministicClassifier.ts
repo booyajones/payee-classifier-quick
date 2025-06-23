@@ -11,14 +11,14 @@ export class EnhancedDeterministicClassifier {
     const signals = getLocalLibrarySignals(cleanName);
     const features = getFeatureFlags(cleanName, signals);
     const score = calculateScore(features);
-    const classification = makeDecision(score, signals, features);
+    const decision = makeDecision(score, signals, features);
     const confidence = calculateConfidence(score, features, signals);
     const rationale = generateRationale(features, signals);
 
     return {
-      classification,
+      classification: decision === 'business' ? 'Business' : 'Individual',
       confidence,
-      rationale,
+      reasoning: rationale,
       processingTier: 'Deterministic-Enhanced',
       metadata: {
         score,
