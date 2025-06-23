@@ -27,10 +27,7 @@ export async function benchmarkClassificationEngine(testCases: string[]): Promis
     const result = await worldClassClassification(testCase);
     const caseEndTime = performance.now();
     
-    results.push({
-      ...result,
-      processingTime: caseEndTime - caseStartTime
-    });
+    results.push(result);
   }
   
   const endTime = performance.now();
