@@ -120,6 +120,16 @@ not published to the npm registry, it is no longer listed in `package.json`.
 If you have a local build available you can install it manually and the
 classifier will load it at runtime.
 
+To install a local build, run `npm install` with the path to the generated
+`.tgz` file or project directory, e.g.
+
+```sh
+npm install ../probablepeople/dist/probablepeople-1.0.0.tgz
+```
+
+After installation the classifier will automatically use the library when
+available.
+
 API keys are stored using AES‑GCM encryption in `localStorage`, with the
 encryption key kept in `sessionStorage` for added security.
 
