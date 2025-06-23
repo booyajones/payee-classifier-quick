@@ -1,8 +1,9 @@
+
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
 import { AlertCircle } from "lucide-react";
-import { BatchJob } from "@/lib/openai/trueBatchAPI";
+import { BatchJob } from "@/lib/types/batchJob";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import { useBatchJobPolling } from "@/hooks/useBatchJobPolling";
 import { StoredBatchJob, isValidBatchJobId } from "@/lib/storage/batchJobStorage";

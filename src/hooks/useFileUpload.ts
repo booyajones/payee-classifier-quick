@@ -1,7 +1,6 @@
-
 import { useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
-import { BatchJob } from "@/lib/openai/trueBatchAPI";
+import { BatchJob } from "@/lib/types/batchJob";
 
 interface UseFileUploadProps {
   onBatchJobCreated: (batchJob: BatchJob, payeeNames: string[], originalFileData: any[]) => void;
@@ -43,10 +42,10 @@ export const useFileUpload = ({ onBatchJobCreated }: UseFileUploadProps) => {
       });
 
       // Import the batch job creation function
-      const { createBatchJob } = await import("@/lib/openai/trueBatchAPI");
+      const { createMockBatchJob } = await import("@/lib/types/batchJob");
       
-      // Create a real OpenAI batch job
-      const batchJob = await createBatchJob(
+      // Create a mock batch job
+      const batchJob = createMockBatchJob(
         validationResult.payeeNames,
         `Payee classification for ${validationResult.payeeNames.length} payees from ${selectedColumn} column`
       );

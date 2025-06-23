@@ -1,5 +1,5 @@
 
-import { BatchJob } from '@/lib/openai/trueBatchAPI';
+import { BatchJob } from '@/lib/types/batchJob';
 import { logger } from '@/lib/logger';
 
 const STORAGE_KEY = 'lovable_batch_jobs';

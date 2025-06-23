@@ -2,7 +2,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react";
-import { BatchJob } from "@/lib/openai/trueBatchAPI";
+import { BatchJob } from "@/lib/types/batchJob";
 import BatchJobTimeline from "./BatchJobTimeline";
 import BatchJobStats from "./BatchJobStats";
 import BatchJobActions from "./BatchJobActions";

@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react';
-import { BatchJob, checkBatchJobStatus } from '@/lib/openai/trueBatchAPI';
+import { BatchJob, checkBatchJobStatus } from '@/lib/types/batchJob';
 import { useToast } from '@/components/ui/use-toast';
 
 interface PollingState {

@@ -1,6 +1,5 @@
-
 import { useState } from "react";
-import { getBatchJobResults, cancelBatchJob } from "@/lib/openai/trueBatchAPI";
+import { getBatchJobResults, cancelBatchJob } from "@/lib/types/batchJob";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import { createPayeeClassification } from "@/lib/utils";
 import { handleError, showErrorToast, showRetryableErrorToast } from "@/lib/errorHandler";
@@ -106,7 +105,7 @@ export const useBatchJobActions = ({
       // Create sequential row indexes to guarantee 1:1 correspondence
       const originalRowIndexes = Array.from({ length: payeeNames.length }, (_, i) => i);
 
-      // Get raw results from OpenAI with guaranteed index alignment
+      // Get raw results from offline processing with guaranteed index alignment
       const rawResults = await downloadResultsWithRetry(job, payeeNames, originalRowIndexes);
       
       console.log(`[BATCH MANAGER] Processing ${rawResults.length} results with PERFECT alignment`);
@@ -135,16 +134,16 @@ export const useBatchJobActions = ({
           reasoning = keywordExclusion.reasoning;
           processingTier = 'Excluded';
         } else if (rawResult?.status === 'success') {
-          // Use OpenAI result
+          // Use offline result
           classification = rawResult.classification || 'Individual';
           confidence = rawResult.confidence || 50;
-          reasoning = rawResult.reasoning || 'AI classification';
-          processingTier = 'AI-Powered';
+          reasoning = rawResult.reasoning || 'Offline classification';
+          processingTier = 'Rule-Based';
         } else if (rawResult?.status === 'error') {
           // Handle API errors properly
           classification = 'Individual';
           confidence = 0;
-          reasoning = `API Error: ${rawResult.error || 'Unknown error'}`;
+          reasoning = `Processing Error: ${rawResult.error || 'Unknown error'}`;
           processingTier = 'Failed';
         }
         
@@ -154,7 +153,7 @@ export const useBatchJobActions = ({
           reasoning,
           processingTier,
           keywordExclusion,
-          processingMethod: keywordExclusion.isExcluded ? 'Keyword Exclusion' : 'OpenAI Batch API'
+          processingMethod: keywordExclusion.isExcluded ? 'Keyword Exclusion' : 'Offline Rule-Based'
         }, originalRowData, originalRowIndex);
       });
 
@@ -190,7 +189,7 @@ export const useBatchJobActions = ({
       if (error instanceof Error && error.message.includes('404')) {
         toast({
           title: "Job Not Found",
-          description: `Batch job ${job.id.slice(-8)} was not found on OpenAI's servers. It may have been deleted or expired. Removing from list.`,
+          description: `Batch job ${job.id.slice(-8)} was not found. Removing from list.`,
           variant: "destructive"
         });
         onJobDelete(job.id);

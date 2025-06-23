@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useToast } from '@/components/ui/use-toast';
-import { BatchJob } from '@/lib/openai/trueBatchAPI';
+import { BatchJob } from '@/lib/types/batchJob';
 import { StoredBatchJob } from '@/lib/storage/batchJobStorage';
 import {
   isSupabaseConfigured,

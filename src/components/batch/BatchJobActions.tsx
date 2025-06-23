@@ -1,7 +1,6 @@
-
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Download, Trash, Loader2 } from "lucide-react";
-import { BatchJob } from "@/lib/openai/trueBatchAPI";
+import { BatchJob } from "@/lib/types/batchJob";
 
 interface BatchJobActionsProps {
   job: BatchJob;

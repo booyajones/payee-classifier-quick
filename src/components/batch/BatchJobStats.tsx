@@ -1,5 +1,4 @@
-
-import { BatchJob } from "@/lib/openai/trueBatchAPI";
+import { BatchJob } from "@/lib/types/batchJob";
 
 interface BatchJobStatsProps {
   job: BatchJob;

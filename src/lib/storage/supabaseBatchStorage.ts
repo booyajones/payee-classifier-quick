@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { BatchJob } from '@/lib/openai/trueBatchAPI';
+import { BatchJob } from '@/lib/types/batchJob';
 import { StoredBatchJob } from './batchJobStorage';
 import { logger } from '@/lib/logger';
 

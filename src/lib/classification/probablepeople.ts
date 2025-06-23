@@ -36,3 +36,8 @@ export function parsePersonName(name: string): NameParsing {
     confidence: hasPersonPattern ? 0.7 : 0.5
   };
 }
+
+// Export the main function that other files expect
+export const probablepeople = {
+  tag: parsePersonName
+};
