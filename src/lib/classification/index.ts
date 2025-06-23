@@ -1,3 +1,4 @@
+
 // Main export file for the classification module
 // Re-exports all functionality from the individual modules
 export * from './config';
@@ -84,9 +85,17 @@ export { ensembleClassifyPayee } from './ensembleClassifier';
 
 // Export new enhanced deterministic classifier modules
 export { EnhancedDeterministicClassifier, enhancedDeterministicClassifyPayee, getEnhancedDeterministicJSON } from './enhancedDeterministicClassifier';
-export * from './enhancedDeterministicConstants';
 export * from './enhancedDeterministicTypes';
 export * from './enhancedDeterministicLibrary';
 export * from './enhancedDeterministicFeatures';
 export * from './enhancedDeterministicScoring';
 export * from './enhancedDeterministicNormalizer';
+
+// Export constants with explicit naming to avoid conflicts
+export { 
+  BUSINESS_SUFFIXES as ENHANCED_BUSINESS_SUFFIXES,
+  BUSINESS_KEYWORDS as ENHANCED_BUSINESS_KEYWORDS,
+  HONORIFICS as ENHANCED_HONORIFICS,
+  GENERATION_SUFFIXES as ENHANCED_GENERATION_SUFFIXES,
+  GIVEN_NAMES as ENHANCED_GIVEN_NAMES
+} from './enhancedDeterministicConstants';
