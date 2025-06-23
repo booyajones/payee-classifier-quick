@@ -16,9 +16,9 @@ export class EnhancedDeterministicClassifier {
     const rationale = generateRationale(features, signals);
 
     return {
-      classification: decision === 'business' ? 'Business' : 'Individual',
+      result: decision === 'business' ? 'Business' : 'Individual',
       confidence,
-      reasoning: rationale,
+      rationale,
       processingTier: 'Deterministic-Enhanced',
       metadata: {
         score,
