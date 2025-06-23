@@ -3,7 +3,7 @@ export interface ClassificationResult {
   classification: 'Business' | 'Individual';
   confidence: number;
   reasoning: string;
-  processingTier: 'Rule-Based' | 'NLP-Based' | 'AI-Assisted' | 'AI-Powered' | 'Excluded' | 'Failed';
+  processingTier: 'Rule-Based' | 'NLP-Based' | 'AI-Assisted' | 'AI-Powered' | 'Excluded' | 'Failed' | 'Advanced-Weighted';
   matchingRules?: string[];
   similarityScores?: SimilarityScores;
   keywordExclusion?: KeywordExclusionResult;

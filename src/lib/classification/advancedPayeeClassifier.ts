@@ -280,10 +280,7 @@ export function advancedClassifyPayee(payeeName: string): ClassificationResult {
     classification: result.entity_type === 'business' ? 'Business' : 'Individual',
     confidence: Math.round(result.confidence * 100),
     reasoning: result.rationale,
-    processingTier: 'Advanced-Weighted',
+    processingTier: 'AI-Powered',
     processingMethod: 'Advanced Payee Classifier'
   };
 }
-
-// Export the classifier for direct JSON usage
-export { AdvancedPayeeClassifier };

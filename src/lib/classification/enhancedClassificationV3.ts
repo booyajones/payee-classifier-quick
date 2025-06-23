@@ -1,5 +1,6 @@
+
 import { ClassificationResult, ClassificationConfig } from '../types';
-import { DEFAULT_CLASSIFICATION_CONFIG, KEYWORD_EXCLUSIONS } from './config';
+import { DEFAULT_CLASSIFICATION_CONFIG } from './config';
 import { applyRuleBasedClassification } from './ruleBasedClassification';
 import { classifyWithNLP } from './nlpClassification';
 import { checkKeywordExclusion } from './keywordExclusion';
@@ -49,13 +50,18 @@ export async function enhancedClassifyPayeeV3(
     console.log(`[ENHANCED-V3] TIER 3: Keyword exclusion check`);
     const exclusionResult = checkKeywordExclusion(payeeName);
     if (exclusionResult.isExcluded) {
-      console.log(`[ENHANCED-V3] Keyword exclusion triggered: ${exclusionResult.reasoning}`);
+      console.log(`[ENHANCED-V3] Keyword exclusion triggered: ${exclusionResult.matchedKeywords.join(', ')}`);
       return {
         classification: 'Individual',
         confidence: 0,
-        reasoning: exclusionResult.reasoning,
+        reasoning: `Excluded due to keyword matches: ${exclusionResult.matchedKeywords.join(', ')}`,
         processingTier: 'Excluded',
-        keywordExclusion: exclusionResult
+        keywordExclusion: {
+          isExcluded: exclusionResult.isExcluded,
+          matchedKeywords: exclusionResult.matchedKeywords,
+          confidence: 100,
+          reasoning: `Excluded due to keyword matches: ${exclusionResult.matchedKeywords.join(', ')}`
+        }
       };
     }
 
