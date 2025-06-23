@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,6 +9,7 @@ import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
 import { cleanProcessBatch } from "@/lib/classification/cleanBatchProcessor";
 import { ruleOnlyClassification } from "@/lib/classification/ruleOnlyClassification";
 import { exportResultsFixed } from "@/lib/classification/fixedExporter";
+import { v4 as uuidv4 } from 'uuid';
 
 interface BatchClassificationFormProps {
   onComplete: (results: PayeeClassification[], summary: BatchProcessingResult) => void;
@@ -62,9 +62,10 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
       for (const name of names) {
         const result = await ruleOnlyClassification(name);
         results.push({
+          id: uuidv4(),
           payeeName: name,
           result,
-          processingTime: 0 // Rule-based is instant
+          timestamp: new Date()
         });
       }
       
@@ -72,15 +73,23 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
         results,
         successCount: results.length,
         failureCount: 0,
-        totalProcessed: results.length,
         processingTime: 0,
-        startTime: Date.now(),
-        endTime: Date.now(),
-        config: {
-          aiThreshold: 75,
-          bypassRuleNLP: false,
-          useEnhanced: true,
-          offlineMode: true
+        originalFileData: undefined,
+        enhancedStats: {
+          totalProcessed: results.length,
+          businessCount: results.filter(r => r.result.classification === 'Business').length,
+          individualCount: results.filter(r => r.result.classification === 'Individual').length,
+          excludedCount: results.filter(r => r.result.processingTier === 'Excluded').length,
+          failedCount: 0,
+          averageConfidence: results.reduce((sum, r) => sum + r.result.confidence, 0) / results.length,
+          highConfidenceCount: results.filter(r => r.result.confidence >= 80).length,
+          mediumConfidenceCount: results.filter(r => r.result.confidence >= 60 && r.result.confidence < 80).length,
+          lowConfidenceCount: results.filter(r => r.result.confidence < 60).length,
+          processingTierCounts: results.reduce((acc, r) => {
+            acc[r.result.processingTier] = (acc[r.result.processingTier] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>),
+          processingTime: 0
         }
       };
       
