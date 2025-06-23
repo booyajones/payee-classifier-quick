@@ -25,4 +25,16 @@ describe('applyRuleBasedClassification', () => {
     expect(result).not.toBeNull();
     expect(result!.classification).toBe('Individual');
   });
+
+  it('detects business by industry term without legal suffix', async () => {
+    const result = await applyRuleBasedClassification('NORTHWEST FIRE PROTECTION');
+    expect(result).not.toBeNull();
+    expect(result!.classification).toBe('Business');
+  });
+
+  it('detects business with legal suffix and industry term', async () => {
+    const result = await applyRuleBasedClassification('CITY ALARM CO');
+    expect(result).not.toBeNull();
+    expect(result!.classification).toBe('Business');
+  });
 });
