@@ -96,9 +96,9 @@ const SingleClassificationForm = ({ onComplete }: SingleClassificationFormProps)
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Classify Single Payee (V3)</CardTitle>
+        <CardTitle>Classify Single Payee (V3 - Offline)</CardTitle>
         <CardDescription>
-          Enter a payee name to classify it using the advanced V3 classification system with intelligent escalation.
+          Enter a payee name to classify it using the advanced V3 classification system (no AI required).
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -121,7 +121,7 @@ const SingleClassificationForm = ({ onComplete }: SingleClassificationFormProps)
             <div className="space-y-4">
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <Label htmlFor="aiThreshold">AI Confidence Threshold: {config.aiThreshold}%</Label>
+                  <Label htmlFor="aiThreshold">Confidence Threshold: {config.aiThreshold}%</Label>
                 </div>
                 <Slider
                   id="aiThreshold"
@@ -133,7 +133,7 @@ const SingleClassificationForm = ({ onComplete }: SingleClassificationFormProps)
                   disabled={isProcessing}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Threshold for escalating to AI classification
+                  Minimum confidence threshold for classification
                 </p>
               </div>
               
@@ -144,10 +144,10 @@ const SingleClassificationForm = ({ onComplete }: SingleClassificationFormProps)
                   onCheckedChange={handleOfflineModeChange}
                   disabled={isProcessing}
                 />
-                <Label htmlFor="offlineMode">Offline Mode (No AI/Web Search)</Label>
+                <Label htmlFor="offlineMode">Offline Mode (Rule-Based Only)</Label>
               </div>
               <p className="text-xs text-muted-foreground">
-                V3 uses intelligent escalation: Rule-Based → Fuzzy Matching → AI → Web Search Enhanced AI
+                V3 uses rule-based classification with keyword matching and pattern recognition
               </p>
             </div>
           </div>

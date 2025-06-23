@@ -1,40 +1,38 @@
 
-// Attempt to load the optional probablepeople package when first used.
-// If the package isn't installed we fall back to a no-op implementation.
-let loadedModule: any | null | undefined = undefined;
+// Simplified probablepeople-like functionality without external dependencies
+export interface NameParsing {
+  type: 'Person' | 'Corporation';
+  confidence: number;
+}
 
-const loadProbablePeople = async () => {
-  if (loadedModule !== undefined) return loadedModule;
-
-  try {
-    loadedModule = await import('probablepeople');
-  } catch {
-    console.warn('Warning: probablepeople package not available, using fallback classification only');
-    loadedModule = null;
+export function parsePersonName(name: string): NameParsing {
+  const cleanName = name.trim().toLowerCase();
+  
+  // Business indicators
+  const businessKeywords = [
+    'llc', 'inc', 'corp', 'ltd', 'company', 'co', 'corporation',
+    'enterprises', 'group', 'associates', 'partners', 'holdings',
+    'solutions', 'services', 'systems', 'technologies', 'consulting'
+  ];
+  
+  // Check for business indicators
+  const hasBusinessKeyword = businessKeywords.some(keyword => 
+    cleanName.includes(keyword)
+  );
+  
+  if (hasBusinessKeyword) {
+    return {
+      type: 'Corporation',
+      confidence: 0.85
+    };
   }
-
-  return loadedModule;
-};
-
-// Export a wrapper that handles the lazy loading
-export const probablepeople = {
-  /**
-   * Parse a payee name using probablepeople if available.
-   *
-   * When the library is missing or parsing fails, this returns `null` or `{}`
-   * instead of throwing so callers can gracefully degrade.
-   */
-  parse: async (name: string): Promise<any> => {
-    const pp = await loadProbablePeople();
-
-    if (!pp || typeof pp.parse !== 'function') {
-      return null;
-    }
-
-    try {
-      return await pp.parse(name);
-    } catch {
-      return {};
-    }
-  }
-};
+  
+  // Simple person name pattern check
+  const words = cleanName.split(/\s+/);
+  const hasPersonPattern = words.length >= 2 && words.length <= 4;
+  
+  return {
+    type: 'Person',
+    confidence: hasPersonPattern ? 0.7 : 0.5
+  };
+}
