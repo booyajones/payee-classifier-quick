@@ -1,4 +1,3 @@
-
 // This file is maintained for backward compatibility
 // It re-exports all functionality from the new module structure
 
@@ -39,3 +38,7 @@ export {
   calculateCombinedSimilarity,
   advancedNormalization
 } from './classification/stringMatching';
+
+// Export new V4 functions (deterministic classifier)
+export { enhancedClassifyPayeeV4, batchClassifyV4 } from './classification/enhancedClassificationV4';
+export { deterministicClassifyPayee, getDeterministicJSON } from './classification/deterministicClassifier';
