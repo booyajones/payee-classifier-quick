@@ -1,3 +1,4 @@
+
 import { ClassificationConfig } from '../types';
 
 // Helper function to safely get environment variables
@@ -43,11 +44,55 @@ export const LEGAL_SUFFIXES = [
   "N.V.", "NV", "B.V.", "OY", "AB", "PT", "OOO"
 ];
 
-// Business keywords for identifying businesses
+// SIGNIFICANTLY EXPANDED business keywords for identifying businesses
 export const BUSINESS_KEYWORDS = [
+  // Core business terms
   "SERVICES", "CONSULTING", "SOLUTIONS", "MANAGEMENT", "ENTERPRISES",
   "INTERNATIONAL", "SYSTEMS", "TECHNOLOGIES", "PROPERTIES", "INVESTMENTS",
   "GLOBAL", "INDUSTRIES", "COMMUNICATIONS", "RESOURCES", "DEVELOPMENT",
+  
+  // Service business types
+  "EXPRESS", "LOCKSMITH", "PLUMBING", "ELECTRICAL", "REPAIR", "AUTO", "AUTOMOTIVE",
+  "ROOFING", "FLOORING", "PAINTING", "CLEANING", "LANDSCAPING", "GARDENING",
+  "PEST", "CONTROL", "SECURITY", "ALARM", "FIRE", "PROTECTION",
+  
+  // Professional services
+  "ACCOUNTING", "LEGAL", "LAW", "ATTORNEY", "CPA", "TAX", "INSURANCE",
+  "REAL", "ESTATE", "REALTY", "MORTGAGE", "LOAN", "FINANCE", "FINANCIAL",
+  
+  // Trade and manufacturing
+  "CONSTRUCTION", "CONTRACTING", "BUILDING", "MANUFACTURING", "SUPPLY",
+  "EQUIPMENT", "TOOLS", "HARDWARE", "MATERIALS", "WHOLESALE", "RETAIL",
+  
+  // Food and hospitality
+  "RESTAURANT", "CAFE", "CATERING", "FOOD", "BAKERY", "DELI", "BAR",
+  "GRILL", "PIZZA", "BURGER", "COFFEE", "HOTEL", "MOTEL", "INN",
+  
+  // Healthcare and wellness
+  "MEDICAL", "DENTAL", "HEALTH", "CLINIC", "PHARMACY", "THERAPY",
+  "WELLNESS", "FITNESS", "GYM", "SPA", "MASSAGE",
+  
+  // Technology and communications
+  "TECH", "SOFTWARE", "COMPUTER", "IT", "INTERNET", "WEB", "DIGITAL",
+  "PHONE", "MOBILE", "WIRELESS", "CABLE", "SATELLITE",
+  
+  // Transportation and logistics
+  "TRANSPORT", "SHIPPING", "DELIVERY", "MOVING", "STORAGE", "WAREHOUSE",
+  "TRUCK", "TAXI", "CAB", "UBER", "LYFT", "RENTAL", "LEASE",
+  
+  // Entertainment and media
+  "ENTERTAINMENT", "MEDIA", "STUDIO", "PRODUCTION", "PHOTOGRAPHY",
+  "VIDEO", "MUSIC", "THEATER", "CINEMA", "GAME", "GAMING",
+  
+  // Common business patterns
+  "EXPRESS", "QUICK", "FAST", "RAPID", "INSTANT", "SAME", "DAY",
+  "PROFESSIONAL", "QUALITY", "PREMIUM", "ELITE", "EXPERT", "MASTER",
+  "ADVANCED", "SUPERIOR", "BEST", "TOP", "FIRST", "PRIME", "CHOICE",
+  
+  // Business structure indicators
+  "FRANCHISE", "CHAIN", "BRANCH", "DIVISION", "SUBSIDIARY", "AFFILIATE",
+  "NETWORK", "ALLIANCE", "PARTNERSHIP", "JOINT", "VENTURE",
+  
   // Common non-English business terms
   "SERVICIOS", "CONSULTORIA", "SOLUCIONES", "GESTION", "EMPRESAS",
   "INTERNACIONAL", "SISTEMAS", "TECNOLOGIAS", "PROPIEDADES", "INVERSIONES",
@@ -61,7 +106,7 @@ export const INDUSTRY_IDENTIFIERS = {
   healthcare: [
     "HOSPITAL", "CLINIC", "MEDICAL CENTER", "HEALTH", "CARE", "PHARMACY",
     "MEDICAL", "HEALTHCARE", "DENTAL", "PHYSICIANS", "LABORATORIES", "DIAGNOSTIC",
-    "WELLNESS", "THERAPY", "REHABILITATION", "NURSING", "HOSPICE"
+    "WELLNESS", "THERAPY", "REHABILITATION", "NURSING", "HOSPICE", "URGENT", "EMERGENCY"
   ],
   retail: [
     "STORE", "SHOP", "MARKET", "RETAIL", "OUTLET", "MART", "BOUTIQUE",
@@ -102,7 +147,7 @@ export const INDUSTRY_IDENTIFIERS = {
     "GRAY", "MATTER", "MECHANICAL", "EVENTS", "PLANNERS", "CRUISE", "TRAVEL",
     "DISTRIBUTORS", "CURATED", "CLEAN", "DESIGNS", "AESOP", "ALLIANT", "BRUVION",
     "CHEMSEARCH", "CLARK", "DELTA", "ENTERTAINMENT", "FAIRFIELD", "FLORAL", "FUJI",
-    "GABRIELLA", "GOOD", "CITIZEN", "HOMEBOY",
+    "GABRIELLA", "GOOD", "CITIZEN", "HOMEBOY", "LOCKSMITH", "EXPRESS", "AUTO",
     // Security and emergency services
     "FIRE", "ALARM", "SECURITY", "ELECTRIC"
   ]

@@ -8,8 +8,8 @@ interface LLMClassificationResult {
 }
 
 /**
- * Local LLM-based payee classifier using Hugging Face Transformers
- * Uses a lightweight BERT model for entity classification
+ * ENHANCED Local LLM-based payee classifier using Hugging Face Transformers
+ * Uses a lightweight BERT model for entity classification with improved business detection
  */
 export class LocalLLMClassifier {
   private classifier: any = null; // Using any to avoid complex type issues
@@ -78,7 +78,7 @@ export class LocalLLMClassifier {
         confidence: Math.round(interpretation.confidence * 100),
         reasoning: interpretation.reasoning,
         processingTier: 'AI-Powered',
-        processingMethod: 'Local LLM Classification'
+        processingMethod: 'Enhanced Local LLM Classification'
       };
 
     } catch (error) {
@@ -88,14 +88,14 @@ export class LocalLLMClassifier {
   }
 
   /**
-   * Prepare the input prompt for the LLM
+   * ENHANCED prompt preparation for better business vs individual detection
    */
   private preparePrompt(payeeName: string): string {
-    return `Classify this entity as either a business organization or an individual person: "${payeeName}"`;
+    return `Analyze this entity name and determine if it represents a business organization or an individual person: "${payeeName}". Consider business indicators like service words, company structures, and professional naming patterns.`;
   }
 
   /**
-   * Interpret LLM results for business vs individual classification
+   * ENHANCED interpretation with better business pattern recognition
    */
   private interpretResults(payeeName: string, results: LLMClassificationResult[]): {
     classification: 'Business' | 'Individual';
@@ -104,46 +104,60 @@ export class LocalLLMClassifier {
   } {
     const topResult = results[0];
     
-    // Analyze the payee name for business indicators
-    const businessIndicators = this.getBusinessIndicators(payeeName);
-    const individualIndicators = this.getIndividualIndicators(payeeName);
+    // Get enhanced business and individual indicators
+    const businessIndicators = this.getEnhancedBusinessIndicators(payeeName);
+    const individualIndicators = this.getEnhancedIndividualIndicators(payeeName);
     
-    // Combine LLM confidence with rule-based indicators
+    // Start with base scores from pattern analysis
     let businessScore = businessIndicators.score;
     let individualScore = individualIndicators.score;
     
-    // Adjust scores based on LLM sentiment (positive sentiment often indicates business confidence)
+    // ENHANCED: Better LLM interpretation
+    // Positive sentiment often correlates with business confidence/success messaging
     if (topResult.label === 'POSITIVE') {
-      businessScore += topResult.score * 0.3;
+      // Business names often have positive sentiment (Success, Quality, Professional, etc.)
+      businessScore += topResult.score * 0.4;
     } else {
+      // Negative or neutral sentiment might indicate personal names
       individualScore += topResult.score * 0.3;
     }
     
+    // Normalize scores
     const totalScore = businessScore + individualScore;
     const normalizedBusinessScore = totalScore > 0 ? businessScore / totalScore : 0.5;
     
-    if (normalizedBusinessScore > 0.6) {
+    // ENHANCED decision threshold - favor business for service-oriented names
+    const threshold = this.hasServiceIndicators(payeeName) ? 0.4 : 0.6;
+    
+    if (normalizedBusinessScore > threshold) {
       return {
         classification: 'Business',
-        confidence: normalizedBusinessScore,
-        reasoning: `LLM analysis suggests business entity. ${businessIndicators.reasons.join(', ')}`
+        confidence: Math.max(0.6, normalizedBusinessScore),
+        reasoning: `Enhanced LLM analysis suggests business entity. ${businessIndicators.reasons.join(', ')}`
       };
     } else {
       return {
         classification: 'Individual',
-        confidence: 1 - normalizedBusinessScore,
-        reasoning: `LLM analysis suggests individual person. ${individualIndicators.reasons.join(', ')}`
+        confidence: Math.max(0.6, 1 - normalizedBusinessScore),
+        reasoning: `Enhanced LLM analysis suggests individual person. ${individualIndicators.reasons.join(', ')}`
       };
     }
   }
 
   /**
-   * Get business indicators from the payee name
+   * ENHANCED business indicators with service industry focus
    */
-  private getBusinessIndicators(payeeName: string): { score: number; reasons: string[] } {
+  private getEnhancedBusinessIndicators(payeeName: string): { score: number; reasons: string[] } {
     const name = payeeName.toUpperCase();
     const reasons: string[] = [];
     let score = 0;
+
+    // ENHANCED: Service industry keywords (the missing piece!)
+    const serviceKeywords = ['LOCKSMITH', 'EXPRESS', 'AUTO', 'REPAIR', 'MAINTENANCE', 'PLUMBING', 'ELECTRICAL', 'SECURITY', 'ALARM', 'EMERGENCY'];
+    if (serviceKeywords.some(keyword => name.includes(keyword))) {
+      score += 0.5;
+      reasons.push('Contains service industry keywords');
+    }
 
     // Business suffixes
     const businessSuffixes = ['INC', 'LLC', 'CORP', 'LTD', 'CO', 'COMPANY'];
@@ -152,26 +166,39 @@ export class LocalLLMClassifier {
       reasons.push('Contains business suffix');
     }
 
+    // ENHANCED: Business pattern detection
+    if (/[A-Z]-\d+/.test(name)) {
+      score += 0.4;
+      reasons.push('Alphanumeric business pattern (e.g., A-1)');
+    }
+
     // Business keywords
-    const businessKeywords = ['SERVICES', 'GROUP', 'SYSTEMS', 'SOLUTIONS', 'CONSULTING'];
+    const businessKeywords = ['SERVICES', 'GROUP', 'SYSTEMS', 'SOLUTIONS', 'CONSULTING', 'PROFESSIONAL'];
     if (businessKeywords.some(keyword => name.includes(keyword))) {
       score += 0.3;
       reasons.push('Contains business keywords');
     }
 
-    // All caps (typical of business names)
-    if (payeeName === payeeName.toUpperCase() && payeeName.length > 5) {
+    // Multi-word business names
+    const words = name.split(/\s+/);
+    if (words.length >= 3) {
       score += 0.2;
-      reasons.push('Name in all capitals');
+      reasons.push('Multi-word business name pattern');
+    }
+
+    // All caps (typical of business names) but be more selective
+    if (payeeName === payeeName.toUpperCase() && payeeName.length > 8 && words.length >= 2) {
+      score += 0.2;
+      reasons.push('All-caps business formatting');
     }
 
     return { score, reasons };
   }
 
   /**
-   * Get individual indicators from the payee name
+   * ENHANCED individual indicators
    */
-  private getIndividualIndicators(payeeName: string): { score: number; reasons: string[] } {
+  private getEnhancedIndividualIndicators(payeeName: string): { score: number; reasons: string[] } {
     const name = payeeName.toUpperCase();
     const reasons: string[] = [];
     let score = 0;
@@ -183,20 +210,34 @@ export class LocalLLMClassifier {
       reasons.push('Contains personal title');
     }
 
-    // Simple name pattern (First Last)
-    const words = payeeName.split(/\s+/);
-    if (words.length === 2 && words.every(word => /^[A-Za-z]+$/.test(word))) {
-      score += 0.3;
-      reasons.push('Simple two-word name pattern');
-    }
+    // ENHANCED: Check for business terms that would override personal indicators
+    const hasBusinessTerms = ['LOCKSMITH', 'EXPRESS', 'AUTO', 'REPAIR', 'SERVICES', 'COMPANY', 'LLC', 'INC'].some(term => name.includes(term));
+    
+    if (!hasBusinessTerms) {
+      // Simple name pattern (First Last) - only if no business terms
+      const words = payeeName.split(/\s+/);
+      if (words.length === 2 && words.every(word => /^[A-Za-z]+$/.test(word))) {
+        score += 0.3;
+        reasons.push('Simple two-word personal name pattern');
+      }
 
-    // Mixed case (typical of personal names)
-    if (payeeName !== payeeName.toUpperCase() && /[A-Z]/.test(payeeName)) {
-      score += 0.2;
-      reasons.push('Mixed case formatting');
+      // Mixed case (typical of personal names) - only if no business context
+      if (payeeName !== payeeName.toUpperCase() && /[A-Z]/.test(payeeName) && words.length <= 3) {
+        score += 0.2;
+        reasons.push('Mixed case personal name formatting');
+      }
     }
 
     return { score, reasons };
+  }
+
+  /**
+   * Check if the name has service industry indicators
+   */
+  private hasServiceIndicators(payeeName: string): boolean {
+    const serviceTerms = ['LOCKSMITH', 'EXPRESS', 'AUTO', 'REPAIR', 'MAINTENANCE', 'SERVICES', 'PLUMBING', 'ELECTRICAL', 'SECURITY', 'PROFESSIONAL'];
+    const name = payeeName.toUpperCase();
+    return serviceTerms.some(term => name.includes(term));
   }
 
   /**
@@ -211,7 +252,7 @@ export class LocalLLMClassifier {
 const localLLMClassifier = new LocalLLMClassifier();
 
 /**
- * Classify a payee using the local LLM
+ * Classify a payee using the enhanced local LLM
  */
 export async function classifyWithLocalLLM(payeeName: string): Promise<ClassificationResult | null> {
   return await localLLMClassifier.classify(payeeName);

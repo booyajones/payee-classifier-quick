@@ -2,9 +2,8 @@
 import { ClassificationResult } from '../types';
 
 /**
- * OVERHAULED World-class deterministic classification engine
- * Fixed to properly detect individuals vs businesses
- * Reduced business bias and improved individual detection
+ * ENHANCED World-class deterministic classification engine
+ * Improved business detection for service companies and professional services
  */
 
 // Comprehensive first names database for instant O(1) lookups
@@ -55,14 +54,39 @@ const BUSINESS_LEGAL_SUFFIXES = [
   "LP", "LLP", "PC", "PLC", "GMBH", "SA", "AG", "PTY", "INCORPORATED"
 ];
 
-// Strong business keywords
+// ENHANCED business keywords with service industry focus
 const BUSINESS_KEYWORDS = [
+  // Core business terms
   "SERVICES", "SOLUTIONS", "CONSULTING", "MANAGEMENT", "SYSTEMS", "TECHNOLOGIES",
   "ENTERPRISES", "GROUP", "HOLDINGS", "PARTNERS", "ASSOCIATES", "AGENCY",
-  "CONSTRUCTION", "MANUFACTURING", "ENGINEERING", "MEDICAL", "DENTAL", "HEALTHCARE",
-  "FINANCIAL", "INSURANCE", "RESTAURANT", "RETAIL", "WHOLESALE",
-  // Security and emergency services
-  "FIRE", "ALARM", "SECURITY", "ELECTRIC"
+  
+  // Service industry (the key missing piece!)
+  "LOCKSMITH", "EXPRESS", "AUTO", "AUTOMOTIVE", "REPAIR", "MAINTENANCE", "INSTALLATION",
+  "PLUMBING", "ELECTRICAL", "ROOFING", "FLOORING", "PAINTING", "CLEANING", "LANDSCAPING",
+  "PEST", "CONTROL", "SECURITY", "ALARM", "FIRE", "PROTECTION", "EMERGENCY",
+  
+  // Professional services
+  "ACCOUNTING", "LEGAL", "INSURANCE", "REAL", "ESTATE", "MORTGAGE", "FINANCE", "FINANCIAL",
+  "CONSULTING", "ENGINEERING", "ARCHITECTURE", "DESIGN", "MARKETING", "ADVERTISING",
+  
+  // Trade and construction
+  "CONSTRUCTION", "CONTRACTING", "BUILDING", "MANUFACTURING", "SUPPLY", "EQUIPMENT",
+  "TOOLS", "HARDWARE", "MATERIALS", "WHOLESALE", "RETAIL", "DISTRIBUTION",
+  
+  // Food and hospitality
+  "RESTAURANT", "CAFE", "CATERING", "FOOD", "BAKERY", "HOTEL", "MOTEL",
+  
+  // Healthcare and wellness
+  "MEDICAL", "DENTAL", "HEALTH", "CLINIC", "PHARMACY", "THERAPY", "FITNESS",
+  
+  // Technology
+  "TECH", "SOFTWARE", "COMPUTER", "IT", "WEB", "DIGITAL", "COMMUNICATIONS",
+  
+  // Transportation
+  "TRANSPORT", "SHIPPING", "DELIVERY", "MOVING", "STORAGE", "TRUCK", "TAXI",
+  
+  // Business qualifiers
+  "PROFESSIONAL", "QUALITY", "PREMIUM", "EXPERT", "ADVANCED", "QUICK", "FAST", "SAME", "DAY"
 ];
 
 // Professional titles indicating individuals
@@ -82,7 +106,7 @@ function normalizeText(text: string): string {
 }
 
 /**
- * Detect individual names using multiple strategies
+ * ENHANCED individual detection with better first name recognition
  */
 function detectIndividualPatterns(payeeName: string): { score: number; rules: string[] } {
   const normalizedName = normalizeText(payeeName);
@@ -108,7 +132,7 @@ function detectIndividualPatterns(payeeName: string): { score: number; rules: st
     }
   }
 
-  // Strategy 3: First name detection (CRITICAL FIX)
+  // Strategy 3: ENHANCED first name detection
   if (words.length >= 1) {
     const firstWord = words[0];
     if (COMMON_FIRST_NAMES.has(firstWord)) {
@@ -126,18 +150,21 @@ function detectIndividualPatterns(payeeName: string): { score: number; rules: st
     }
   }
 
-  // Strategy 5: Personal name patterns
-  const namePatterns = [
-    { pattern: /^[A-Z]+\s+[A-Z]+$/, score: 35, desc: "Two-word name pattern" },
-    { pattern: /^[A-Z]+\s+[A-Z]+\s+[A-Z]+$/, score: 30, desc: "Three-word name pattern" },
-    { pattern: /^[A-Z]+,\s*[A-Z]+/, score: 40, desc: "Last, First format" }
-  ];
+  // Strategy 5: Personal name patterns (but exclude if has business terms)
+  const hasBusinessTerms = BUSINESS_KEYWORDS.some(keyword => normalizedName.includes(keyword));
+  if (!hasBusinessTerms) {
+    const namePatterns = [
+      { pattern: /^[A-Z]+\s+[A-Z]+$/, score: 35, desc: "Two-word name pattern" },
+      { pattern: /^[A-Z]+\s+[A-Z]+\s+[A-Z]+$/, score: 30, desc: "Three-word name pattern" },
+      { pattern: /^[A-Z]+,\s*[A-Z]+/, score: 40, desc: "Last, First format" }
+    ];
 
-  for (const { pattern, score: patternScore, desc } of namePatterns) {
-    if (pattern.test(normalizedName)) {
-      score += patternScore;
-      rules.push(desc);
-      break;
+    for (const { pattern, score: patternScore, desc } of namePatterns) {
+      if (pattern.test(normalizedName)) {
+        score += patternScore;
+        rules.push(desc);
+        break;
+      }
     }
   }
 
@@ -147,8 +174,8 @@ function detectIndividualPatterns(payeeName: string): { score: number; rules: st
     rules.push("Possessive form (individual proprietor)");
   }
 
-  // Strategy 7: Mixed case personal names (proper nouns)
-  if (payeeName !== payeeName.toUpperCase() && words.length <= 3) {
+  // Strategy 7: Mixed case personal names (proper nouns) - but only for short names
+  if (payeeName !== payeeName.toUpperCase() && words.length <= 3 && !hasBusinessTerms) {
     const hasProperCase = /^[A-Z][a-z]+(\s+[A-Z][a-z]+)*$/.test(payeeName);
     if (hasProperCase) {
       score += 30;
@@ -160,59 +187,84 @@ function detectIndividualPatterns(payeeName: string): { score: number; rules: st
 }
 
 /**
- * Detect business entities using clear indicators
+ * SIGNIFICANTLY ENHANCED business detection
  */
 function detectBusinessPatterns(payeeName: string): { score: number; rules: string[] } {
   const normalizedName = normalizeText(payeeName);
+  const originalName = payeeName;
   const words = normalizedName.split(/\s+/).filter(word => word.length > 0);
   let score = 0;
   const rules: string[] = [];
 
-  // Strategy 1: Legal suffixes (strongest indicator)
+  // Strategy 1: ENHANCED business number/letter patterns
+  const businessPatterns = [
+    { pattern: /\b[A-Z]-\d+\b/, score: 60, desc: "Alphanumeric business pattern (A-1 format)" },
+    { pattern: /\b\d+-[A-Z]\b/, score: 50, desc: "Numeric-letter pattern" },
+    { pattern: /\b[A-Z]{2,3}\b/, score: 30, desc: "Business abbreviation pattern" },
+    { pattern: /\b\d+\/\d+\b/, score: 40, desc: "24/7 style pattern" },
+    { pattern: /\b\d+[A-Z]+\b/, score: 35, desc: "Number-letter combination" }
+  ];
+
+  for (const { pattern, score: patternScore, desc } of businessPatterns) {
+    if (pattern.test(normalizedName)) {
+      score += patternScore;
+      rules.push(desc);
+      break;
+    }
+  }
+
+  // Strategy 2: Legal suffixes (strongest indicator)
   for (const suffix of BUSINESS_LEGAL_SUFFIXES) {
     if (normalizedName.endsWith(suffix) || normalizedName.includes(` ${suffix}`)) {
-      score += 60;
+      score += 70;
       rules.push(`Legal business suffix: ${suffix}`);
       break;
     }
   }
 
-  // Strategy 2: Business keywords
+  // Strategy 3: ENHANCED business keywords with weighted scoring
   for (const keyword of BUSINESS_KEYWORDS) {
     if (normalizedName.includes(keyword)) {
-      score += 25;
+      // High-value service keywords get extra points
+      const highValueKeywords = ['LOCKSMITH', 'EXPRESS', 'AUTO', 'REPAIR', 'SERVICES', 'EMERGENCY', 'PROFESSIONAL'];
+      const keywordScore = highValueKeywords.includes(keyword) ? 45 : 25;
+      score += keywordScore;
       rules.push(`Business keyword: ${keyword}`);
       break;
     }
   }
 
-  // Strategy 3: Business patterns
-  if (words.length >= 4) {
-    score += 15;
-    rules.push("Multi-word business name (4+ words)");
+  // Strategy 4: Business structure patterns
+  if (words.length >= 3) {
+    score += 20;
+    rules.push("Multi-word business name (3+ words)");
   }
 
   if (normalizedName.includes("&") || normalizedName.includes("AND")) {
-    score += 20;
+    score += 25;
     rules.push("Partnership indicator (&/AND)");
   }
 
   if (/\b\d{3,}\b/.test(normalizedName)) {
-    score += 10;
+    score += 15;
     rules.push("Numeric identifiers");
   }
 
-  // Strategy 4: All caps business names
-  if (payeeName === payeeName.toUpperCase() && payeeName.length > 10 && words.length >= 2) {
-    score += 15;
-    rules.push("All-caps business format");
+  // Strategy 5: ALL CAPS with business context
+  if (originalName === originalName.toUpperCase() && originalName.length > 8 && words.length >= 2) {
+    // Only count if it has business indicators or is longer/complex
+    const hasBusinessContext = BUSINESS_KEYWORDS.some(keyword => normalizedName.includes(keyword)) || words.length > 3;
+    if (hasBusinessContext) {
+      score += 25;
+      rules.push("All-caps business format with business context");
+    }
   }
 
   return { score, rules };
 }
 
 /**
- * OVERHAULED World-class classification with individual bias fix
+ * ENHANCED World-class classification with better business detection
  */
 export async function worldClassClassification(payeeName: string): Promise<ClassificationResult> {
   if (!payeeName || payeeName.trim() === '') {
@@ -221,11 +273,11 @@ export async function worldClassClassification(payeeName: string): Promise<Class
       confidence: 0,
       reasoning: 'Empty or invalid payee name',
       processingTier: 'Rule-Based',
-      processingMethod: 'Overhauled world-class engine'
+      processingMethod: 'Enhanced world-class engine'
     };
   }
 
-  console.log(`[OVERHAULED-WORLD-CLASS] Classifying "${payeeName}"`);
+  console.log(`[ENHANCED-WORLD-CLASS] Classifying "${payeeName}"`);
 
   // Detect individual patterns
   const individualResult = detectIndividualPatterns(payeeName);
@@ -233,9 +285,21 @@ export async function worldClassClassification(payeeName: string): Promise<Class
   // Detect business patterns
   const businessResult = detectBusinessPatterns(payeeName);
 
-  console.log(`[OVERHAULED-WORLD-CLASS] Individual score: ${individualResult.score}, Business score: ${businessResult.score}`);
+  console.log(`[ENHANCED-WORLD-CLASS] Individual score: ${individualResult.score}, Business score: ${businessResult.score}`);
 
-  // CRITICAL FIX: Better decision logic with individual bias
+  // ENHANCED decision logic with business preference for clear business indicators
+  if (businessResult.score >= 50 || (businessResult.score > individualResult.score && businessResult.score >= 30)) {
+    const confidence = Math.min(95, 65 + businessResult.score * 0.4);
+    return {
+      classification: 'Business',
+      confidence: Math.round(confidence),
+      reasoning: `Business classification (score: ${businessResult.score} vs ${individualResult.score}). Rules: ${businessResult.rules.join(', ')}`,
+      processingTier: 'Rule-Based',
+      matchingRules: businessResult.rules,
+      processingMethod: 'Enhanced world-class engine'
+    };
+  }
+
   if (individualResult.score >= 40 || (individualResult.score > businessResult.score && individualResult.score >= 25)) {
     const confidence = Math.min(95, 60 + individualResult.score * 0.5);
     return {
@@ -244,40 +308,41 @@ export async function worldClassClassification(payeeName: string): Promise<Class
       reasoning: `Individual classification (score: ${individualResult.score} vs ${businessResult.score}). Rules: ${individualResult.rules.join(', ')}`,
       processingTier: 'Rule-Based',
       matchingRules: individualResult.rules,
-      processingMethod: 'Overhauled world-class engine'
+      processingMethod: 'Enhanced world-class engine'
     };
   }
 
-  if (businessResult.score >= 50 || (businessResult.score > individualResult.score && businessResult.score >= 30)) {
-    const confidence = Math.min(95, 60 + businessResult.score * 0.4);
+  // Enhanced fallback logic
+  const words = normalizeText(payeeName).split(/\s+/);
+  
+  // For names like "A-1 Express Locksmith" - favor business
+  if (words.length >= 3 || /[A-Z]-\d+/.test(payeeName)) {
     return {
       classification: 'Business',
-      confidence: Math.round(confidence),
-      reasoning: `Business classification (score: ${businessResult.score} vs ${individualResult.score}). Rules: ${businessResult.rules.join(', ')}`,
+      confidence: 65,
+      reasoning: `Complex name pattern suggests business (${words.length} words)`,
       processingTier: 'Rule-Based',
-      matchingRules: businessResult.rules,
-      processingMethod: 'Overhauled world-class engine'
+      processingMethod: 'Enhanced world-class engine (pattern fallback)'
     };
   }
 
-  // CRITICAL FIX: Default to Individual when uncertain (safer for privacy)
-  const words = normalizeText(payeeName).split(/\s+/);
-  if (words.length <= 3) {
+  // For simple 2-word names, default to Individual (safer)
+  if (words.length <= 2) {
     return {
       classification: 'Individual',
       confidence: 55,
-      reasoning: `Default to Individual for short name (${words.length} words) - safer assumption`,
+      reasoning: `Simple name pattern, defaulting to Individual for privacy`,
       processingTier: 'Rule-Based',
-      processingMethod: 'Overhauled world-class engine (conservative fallback)'
+      processingMethod: 'Enhanced world-class engine (conservative fallback)'
     };
   }
 
-  // For longer names, slightly favor business but with low confidence
+  // Final fallback
   return {
     classification: 'Business',
     confidence: 52,
-    reasoning: `Weak business classification for multi-word name (${words.length} words)`,
+    reasoning: `Multi-word name with uncertain classification`,
     processingTier: 'Rule-Based',
-    processingMethod: 'Overhauled world-class engine (weak fallback)'
+    processingMethod: 'Enhanced world-class engine (weak fallback)'
   };
 }
