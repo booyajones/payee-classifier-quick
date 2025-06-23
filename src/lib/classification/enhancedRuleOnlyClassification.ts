@@ -3,68 +3,73 @@ import { ClassificationResult } from '../types';
 import { worldClassClassification } from './worldClassRules';
 
 /**
- * Enhanced rule-only classification using world-class deterministic engine
- * Fallback to original rule-only classification if needed
+ * OVERHAULED Enhanced rule-only classification
+ * Fixed individual detection and removed excessive fallbacks
  */
 export async function enhancedRuleOnlyClassification(payeeName: string): Promise<ClassificationResult> {
   try {
-    // Use world-class classification engine
+    console.log(`[ENHANCED-RULE-ONLY] Processing "${payeeName}"`);
+    
+    // Use the overhauled world-class classification engine
     const result = await worldClassClassification(payeeName);
     
-    // If confidence is very low, enhance with additional heuristics
-    if (result.confidence < 60) {
-      const enhancedResult = await enhanceWithHeuristics(payeeName, result);
+    console.log(`[ENHANCED-RULE-ONLY] Result: ${result.classification} (${result.confidence}%)`);
+    
+    // Only enhance if confidence is very low (< 50)
+    if (result.confidence < 50) {
+      const enhancedResult = await applyAdditionalHeuristics(payeeName, result);
+      console.log(`[ENHANCED-RULE-ONLY] Enhanced result: ${enhancedResult.classification} (${enhancedResult.confidence}%)`);
       return enhancedResult;
     }
     
     return result;
   } catch (error) {
-    console.error('[ENHANCED-RULE-ONLY] Error in world-class classification:', error);
+    console.error('[ENHANCED-RULE-ONLY] Error in classification:', error);
     
-    // Fallback to simple rule-based classification
-    return await fallbackClassification(payeeName);
+    // Simple fallback - default to Individual for safety
+    return await simpleFallbackClassification(payeeName);
   }
 }
 
 /**
- * Enhanced heuristics for low-confidence cases
+ * Additional heuristics for very low confidence cases
  */
-async function enhanceWithHeuristics(payeeName: string, baseResult: ClassificationResult): Promise<ClassificationResult> {
+async function applyAdditionalHeuristics(payeeName: string, baseResult: ClassificationResult): Promise<ClassificationResult> {
   const name = payeeName.toUpperCase();
   const words = name.split(/\s+/);
   let additionalScore = 0;
   const additionalRules: string[] = [];
   
-  // Business heuristics
-  if (words.length >= 3 && !/^(MR|MRS|MS|DR|PROF)/.test(name)) {
-    additionalScore += 20;
-    additionalRules.push('Multi-word non-personal name pattern');
+  // Heuristic 1: Numbers often indicate businesses
+  if (/\b\d+\b/.test(name)) {
+    if (words.length >= 3) {
+      additionalScore += 15;
+      additionalRules.push('Contains numbers with multiple words');
+    }
   }
   
-  if (name.includes('&') || name.includes('AND')) {
-    additionalScore += 25;
-    additionalRules.push('Partnership indicators');
-  }
-  
-  if (/\b\d{3,}\b/.test(name)) {
-    additionalScore += 15;
-    additionalRules.push('Numeric identifiers');
-  }
-  
-  // Individual heuristics
+  // Heuristic 2: Simple two-word names are often individuals
   if (words.length === 2 && !/(LLC|INC|CORP|LTD|CO)$/.test(name)) {
-    additionalScore -= 10; // Slight bias toward individual
-    additionalRules.push('Simple two-word name');
+    additionalScore -= 20; // Bias toward individual
+    additionalRules.push('Simple two-word name pattern');
   }
   
-  if (/^[A-Z][a-z]+\s+[A-Z][a-z]+$/.test(payeeName)) {
-    additionalScore -= 15; // Proper case suggests individual
-    additionalRules.push('Proper case personal name format');
+  // Heuristic 3: Mixed case suggests individual names  
+  if (payeeName !== payeeName.toUpperCase() && words.length <= 3) {
+    additionalScore -= 15;
+    additionalRules.push('Mixed case personal name format');
   }
   
-  const enhancedConfidence = Math.min(95, baseResult.confidence + Math.abs(additionalScore) * 0.5);
-  const finalClassification = additionalScore > 0 ? 'Business' : 
-                              additionalScore < 0 ? 'Individual' : 
+  // Heuristic 4: Very short names are usually individuals
+  if (payeeName.length <= 15 && words.length <= 2) {
+    additionalScore -= 10;
+    additionalRules.push('Short name likely individual');
+  }
+  
+  // Calculate final classification
+  const enhancedConfidence = Math.min(85, baseResult.confidence + Math.abs(additionalScore));
+  const finalClassification = additionalScore < -10 ? 'Individual' : 
+                              additionalScore > 10 ? 'Business' : 
                               baseResult.classification;
   
   return {
@@ -73,72 +78,73 @@ async function enhanceWithHeuristics(payeeName: string, baseResult: Classificati
     reasoning: `${baseResult.reasoning} Enhanced with heuristics: ${additionalRules.join(', ')}`,
     processingTier: 'Rule-Based',
     matchingRules: [...(baseResult.matchingRules || []), ...additionalRules],
-    processingMethod: 'Enhanced world-class deterministic engine'
+    processingMethod: 'Enhanced rule-only with additional heuristics'
   };
 }
 
 /**
- * Fallback classification for error cases
+ * Simple fallback for error cases - bias toward Individual
  */
-async function fallbackClassification(payeeName: string): Promise<ClassificationResult> {
+async function simpleFallbackClassification(payeeName: string): Promise<ClassificationResult> {
   const name = payeeName.toUpperCase();
   const words = name.split(/\s+/);
   
-  // Simple business indicators
-  const businessIndicators = ['LLC', 'INC', 'CORP', 'LTD', 'CO', 'COMPANY', 'SERVICES', 'GROUP'];
+  // Check for obvious business indicators
+  const businessIndicators = ['LLC', 'INC', 'CORP', 'LTD', 'COMPANY', 'SERVICES', 'GROUP'];
   const hasBusinessIndicator = businessIndicators.some(indicator => name.includes(indicator));
   
   if (hasBusinessIndicator) {
     return {
       classification: 'Business',
-      confidence: 75,
-      reasoning: 'Fallback classification based on business indicators',
+      confidence: 70,
+      reasoning: 'Fallback classification based on clear business indicators',
       processingTier: 'Rule-Based',
-      processingMethod: 'Fallback deterministic classification'
+      processingMethod: 'Simple fallback classification'
     };
   }
   
-  // Default to individual for simple names
-  if (words.length <= 3) {
-    return {
-      classification: 'Individual',
-      confidence: 65,
-      reasoning: 'Fallback classification for simple name pattern',
-      processingTier: 'Rule-Based',
-      processingMethod: 'Fallback deterministic classification'
-    };
-  }
-  
-  // Multi-word names without clear indicators
+  // Default to Individual (safer for privacy)
   return {
-    classification: 'Business',
+    classification: 'Individual',
     confidence: 60,
-    reasoning: 'Fallback classification for multi-word name',
+    reasoning: `Fallback to Individual classification for "${payeeName}" (${words.length} words)`,
     processingTier: 'Rule-Based',
-    processingMethod: 'Fallback deterministic classification'
+    processingMethod: 'Conservative fallback classification'
   };
 }
 
 /**
- * Batch processing with enhanced rule-only classification
+ * OVERHAULED Batch processing with better individual detection
  */
 export async function enhancedBatchRuleOnlyClassification(payeeNames: string[]): Promise<ClassificationResult[]> {
-  console.log(`[ENHANCED-BATCH-RULE-ONLY] Processing ${payeeNames.length} payees with world-class classification`);
+  console.log(`[ENHANCED-BATCH-RULE-ONLY] Processing ${payeeNames.length} payees with overhauled classification`);
   
   const results: ClassificationResult[] = [];
   const startTime = Date.now();
   
+  // Track classification stats
+  let individualCount = 0;
+  let businessCount = 0;
+  
   for (let i = 0; i < payeeNames.length; i++) {
-    if (i % 100 === 0) {
+    if (i % 50 === 0) {
       console.log(`[ENHANCED-BATCH-RULE-ONLY] Progress: ${i}/${payeeNames.length} (${Math.round((i / payeeNames.length) * 100)}%)`);
     }
     
     const result = await enhancedRuleOnlyClassification(payeeNames[i]);
     results.push(result);
+    
+    if (result.classification === 'Individual') {
+      individualCount++;
+    } else {
+      businessCount++;
+    }
   }
   
   const processingTime = Date.now() - startTime;
-  console.log(`[ENHANCED-BATCH-RULE-ONLY] Completed ${results.length} classifications in ${processingTime}ms (${(processingTime / results.length).toFixed(2)}ms per classification)`);
+  console.log(`[ENHANCED-BATCH-RULE-ONLY] Completed ${results.length} classifications in ${processingTime}ms`);
+  console.log(`[ENHANCED-BATCH-RULE-ONLY] Results: ${individualCount} individuals, ${businessCount} businesses`);
+  console.log(`[ENHANCED-BATCH-RULE-ONLY] Average: ${(processingTime / results.length).toFixed(2)}ms per classification`);
   
   return results;
 }
