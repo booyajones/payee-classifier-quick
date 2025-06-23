@@ -1,3 +1,4 @@
+
 import { ClassificationResult } from '../types';
 import { probablepeople } from './probablepeople';
 
@@ -10,7 +11,7 @@ export async function classifyWithNLP(payeeName: string): Promise<Classification
         classification: 'Business',
         confidence: parsedName.confidence * 0.9,
         reasoning: `Probablepeople identified as Corporation with confidence ${parsedName.confidence}`,
-        processingTier: 'NLP',
+        processingTier: 'NLP-Based',
         processingMethod: 'probablepeople'
       };
     } else if (parsedName && parsedName.type === 'Person') {
@@ -18,7 +19,7 @@ export async function classifyWithNLP(payeeName: string): Promise<Classification
         classification: 'Individual',
         confidence: parsedName.confidence * 0.9,
         reasoning: `Probablepeople identified as Person with confidence ${parsedName.confidence}`,
-        processingTier: 'NLP',
+        processingTier: 'NLP-Based',
         processingMethod: 'probablepeople'
       };
     } else {
@@ -26,7 +27,7 @@ export async function classifyWithNLP(payeeName: string): Promise<Classification
         classification: 'Individual',
         confidence: 0.5,
         reasoning: 'Probablepeople could not confidently classify',
-        processingTier: 'NLP',
+        processingTier: 'NLP-Based',
         processingMethod: 'probablepeople'
       };
     }
@@ -36,8 +37,11 @@ export async function classifyWithNLP(payeeName: string): Promise<Classification
       classification: 'Individual',
       confidence: 0.3,
       reasoning: `NLP classification failed: ${error}`,
-      processingTier: 'Fallback',
+      processingTier: 'Failed',
       processingMethod: 'NLP Fallback'
     };
   }
 }
+
+// Export for backward compatibility
+export const applyNLPClassification = classifyWithNLP;

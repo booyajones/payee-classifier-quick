@@ -1,5 +1,13 @@
+
 import { ClassificationResult } from '../types';
 import { probablepeople } from './probablepeople';
+import { 
+  LEGAL_SUFFIXES, 
+  BUSINESS_KEYWORDS, 
+  INDUSTRY_IDENTIFIERS, 
+  GOVERNMENT_PATTERNS, 
+  PROFESSIONAL_TITLES 
+} from './config';
 
 /**
  * Rule-based classification using probablepeople library and custom rules
@@ -14,15 +22,13 @@ export async function applyRuleBasedClassification(payeeName: string): Promise<C
   let isIndividualIndicator = false;
 
   // Use probablepeople to parse the name if available
-  const parsedResult = await probablepeople.parse(payeeName);
-  if (parsedResult && Array.isArray(parsedResult)) {
-    const [parsed, nameType] = parsedResult;
-
+  const parsedResult = probablepeople.tag(payeeName);
+  if (parsedResult) {
     // If probablepeople confidently identifies the type
-    if (nameType === 'person') {
+    if (parsedResult.type === 'Person') {
       matchingRules.push("Identified as person by name structure analysis");
       isIndividualIndicator = true;
-    } else if (nameType === 'corporation') {
+    } else if (parsedResult.type === 'Corporation') {
       matchingRules.push("Identified as corporation by name structure analysis");
       isBusinessIndicator = true;
     }
