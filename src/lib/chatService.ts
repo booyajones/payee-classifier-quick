@@ -32,6 +32,21 @@ export class ChatService {
     return assistantMessage;
   }
 
+  async processQuery(query: string): Promise<string> {
+    // Simple offline response based on query content
+    const lowerQuery = query.toLowerCase();
+    
+    if (lowerQuery.includes('job') && lowerQuery.includes('active')) {
+      return "I'm currently in offline mode. To check active jobs, please use the batch processing section of the application.";
+    } else if (lowerQuery.includes('result') || lowerQuery.includes('recent')) {
+      return "I'm currently in offline mode. To view recent results, please check the classification results section.";
+    } else if (lowerQuery.includes('help') || lowerQuery.includes('file') || lowerQuery.includes('upload')) {
+      return "I'm currently in offline mode. For file upload help, please use the file upload form in the main application.";
+    } else {
+      return "I'm currently in offline mode. For payee classification, please use the main classification tools available in the application.";
+    }
+  }
+
   getMessages(): ChatMessage[] {
     return this.messages;
   }
