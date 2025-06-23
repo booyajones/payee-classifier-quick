@@ -1,3 +1,4 @@
+
 import { ClassificationResult } from '../types';
 
 /**
@@ -105,87 +106,6 @@ function normalizeText(text: string): string {
 }
 
 /**
- * ENHANCED individual detection with better first name recognition
- */
-function detectIndividualPatterns(payeeName: string): { score: number; rules: string[] } {
-  const normalizedName = normalizeText(payeeName);
-  const words = normalizedName.split(/\s+/).filter(word => word.length > 0);
-  let score = 0;
-  const rules: string[] = [];
-
-  // Strategy 1: Check for professional titles
-  for (const title of PROFESSIONAL_TITLES) {
-    if (normalizedName.includes(title)) {
-      score += 50;
-      rules.push(`Professional title: ${title}`);
-      break;
-    }
-  }
-
-  // Strategy 2: Check for name suffixes
-  for (const suffix of NAME_SUFFIXES) {
-    if (normalizedName.endsWith(suffix) || normalizedName.includes(` ${suffix}`)) {
-      score += 45;
-      rules.push(`Name suffix: ${suffix}`);
-      break;
-    }
-  }
-
-  // Strategy 3: ENHANCED first name detection
-  if (words.length >= 1) {
-    const firstWord = words[0];
-    if (COMMON_FIRST_NAMES.has(firstWord)) {
-      score += 40;
-      rules.push(`Common first name: ${firstWord}`);
-    }
-  }
-
-  // Strategy 4: Last name detection
-  if (words.length >= 2) {
-    const lastWord = words[words.length - 1];
-    if (COMMON_LAST_NAMES.has(lastWord)) {
-      score += 25;
-      rules.push(`Common last name: ${lastWord}`);
-    }
-  }
-
-  // Strategy 5: Personal name patterns (but exclude if has business terms)
-  const hasBusinessTerms = BUSINESS_KEYWORDS.some(keyword => normalizedName.includes(keyword));
-  if (!hasBusinessTerms) {
-    const namePatterns = [
-      { pattern: /^[A-Z]+\s+[A-Z]+$/, score: 35, desc: "Two-word name pattern" },
-      { pattern: /^[A-Z]+\s+[A-Z]+\s+[A-Z]+$/, score: 30, desc: "Three-word name pattern" },
-      { pattern: /^[A-Z]+,\s*[A-Z]+/, score: 40, desc: "Last, First format" }
-    ];
-
-    for (const { pattern, score: patternScore, desc } of namePatterns) {
-      if (pattern.test(normalizedName)) {
-        score += patternScore;
-        rules.push(desc);
-        break;
-      }
-    }
-  }
-
-  // Strategy 6: Possessive forms (individual proprietors)
-  if (payeeName.includes("'S") || payeeName.includes("'s")) {
-    score += 35;
-    rules.push("Possessive form (individual proprietor)");
-  }
-
-  // Strategy 7: Mixed case personal names (proper nouns) - but only for short names
-  if (payeeName !== payeeName.toUpperCase() && words.length <= 3 && !hasBusinessTerms) {
-    const hasProperCase = /^[A-Z][a-z]+(\s+[A-Z][a-z]+)*$/.test(payeeName);
-    if (hasProperCase) {
-      score += 30;
-      rules.push("Proper case personal name");
-    }
-  }
-
-  return { score, rules };
-}
-
-/**
  * FIXED business pattern detection with proper service industry recognition
  */
 function detectBusinessPatterns(payeeName: string): { score: number; rules: string[] } {
@@ -199,7 +119,7 @@ function detectBusinessPatterns(payeeName: string): { score: number; rules: stri
 
   // CRITICAL FIX: A-1 Express Locksmith type patterns
   if (/^[A-Z]-?\d+\s+.*\s+(LOCKSMITH|EXPRESS|AUTO|REPAIR|SERVICE|PLUMBING|ELECTRICAL|ROOFING|CLEANING)/.test(normalizedName)) {
-    score += 90;
+    score += 95;
     rules.push("Strong service business pattern (Letter-Number + Service)");
     console.log(`[WORLD-CLASS] STRONG SERVICE PATTERN: ${payeeName}`);
   }
@@ -208,7 +128,7 @@ function detectBusinessPatterns(payeeName: string): { score: number; rules: stri
   const serviceKeywords = ['LOCKSMITH', 'EXPRESS', 'AUTO', 'REPAIR', 'PLUMBING', 'ELECTRICAL', 'ROOFING', 'CLEANING', 'MAINTENANCE', 'INSTALLATION'];
   for (const keyword of serviceKeywords) {
     if (normalizedName.includes(keyword)) {
-      score += 80;
+      score += 85;
       rules.push(`Service industry keyword: ${keyword}`);
       console.log(`[WORLD-CLASS] SERVICE KEYWORD: ${keyword}`);
       break;
@@ -217,10 +137,10 @@ function detectBusinessPatterns(payeeName: string): { score: number; rules: stri
 
   // Alphanumeric business patterns
   const businessPatterns = [
-    { pattern: /\b[A-Z]-\d+\b/, score: 70, desc: "Alphanumeric business pattern (A-1 format)" },
-    { pattern: /\b\d+-[A-Z]\b/, score: 60, desc: "Numeric-letter pattern" },
-    { pattern: /\b[A-Z]{2,3}\b/, score: 40, desc: "Business abbreviation pattern" },
-    { pattern: /\b\d+\/\d+\b/, score: 50, desc: "24/7 style pattern" }
+    { pattern: /\b[A-Z]-\d+\b/, score: 75, desc: "Alphanumeric business pattern (A-1 format)" },
+    { pattern: /\b\d+-[A-Z]\b/, score: 65, desc: "Numeric-letter pattern" },
+    { pattern: /\b[A-Z]{2,3}\b/, score: 45, desc: "Business abbreviation pattern" },
+    { pattern: /\b\d+\/\d+\b/, score: 55, desc: "24/7 style pattern" }
   ];
 
   for (const { pattern, score: patternScore, desc } of businessPatterns) {
@@ -234,7 +154,7 @@ function detectBusinessPatterns(payeeName: string): { score: number; rules: stri
   // Legal suffixes
   for (const suffix of BUSINESS_LEGAL_SUFFIXES) {
     if (normalizedName.endsWith(suffix) || normalizedName.includes(` ${suffix}`)) {
-      score += 85;
+      score += 90;
       rules.push(`Legal business suffix: ${suffix}`);
       break;
     }
@@ -243,7 +163,7 @@ function detectBusinessPatterns(payeeName: string): { score: number; rules: stri
   // Business keywords
   for (const keyword of BUSINESS_KEYWORDS) {
     if (normalizedName.includes(keyword)) {
-      score += 50;
+      score += 55;
       rules.push(`Business keyword: ${keyword}`);
       break;
     }
@@ -251,7 +171,7 @@ function detectBusinessPatterns(payeeName: string): { score: number; rules: stri
 
   // Multi-word business names
   if (words.length >= 3) {
-    score += 30;
+    score += 35;
     rules.push("Multi-word business name (3+ words)");
   }
 
@@ -260,7 +180,7 @@ function detectBusinessPatterns(payeeName: string): { score: number; rules: stri
 }
 
 /**
- * FIXED individual pattern detection
+ * Individual pattern detection
  */
 function detectIndividualPatterns(payeeName: string): { score: number; rules: string[] } {
   const normalizedName = normalizeText(payeeName);
@@ -273,7 +193,7 @@ function detectIndividualPatterns(payeeName: string): { score: number; rules: st
   // Professional titles
   for (const title of PROFESSIONAL_TITLES) {
     if (normalizedName.includes(title)) {
-      score += 60;
+      score += 65;
       rules.push(`Professional title: ${title}`);
       break;
     }
@@ -282,7 +202,7 @@ function detectIndividualPatterns(payeeName: string): { score: number; rules: st
   // Name suffixes
   for (const suffix of NAME_SUFFIXES) {
     if (normalizedName.endsWith(suffix) || normalizedName.includes(` ${suffix}`)) {
-      score += 50;
+      score += 55;
       rules.push(`Name suffix: ${suffix}`);
       break;
     }
@@ -292,7 +212,7 @@ function detectIndividualPatterns(payeeName: string): { score: number; rules: st
   if (words.length >= 1) {
     const firstWord = words[0];
     if (COMMON_FIRST_NAMES.has(firstWord)) {
-      score += 50;
+      score += 55;
       rules.push(`Common first name: ${firstWord}`);
     }
   }
@@ -303,7 +223,7 @@ function detectIndividualPatterns(payeeName: string): { score: number; rules: st
   if (!hasBusinessTerms && words.length === 2) {
     const namePattern = /^[A-Z]+\s+[A-Z]+$/;
     if (namePattern.test(normalizedName)) {
-      score += 60;
+      score += 65;
       rules.push("Two-word personal name pattern");
     }
   }
@@ -334,8 +254,8 @@ export async function worldClassClassification(payeeName: string): Promise<Class
   console.log(`[WORLD-CLASS] Final scores - Business: ${businessResult.score}, Individual: ${individualResult.score}`);
 
   // FIXED decision logic - prioritize obvious businesses
-  if (businessResult.score >= 70) {
-    const confidence = Math.min(95, 75 + businessResult.score * 0.2);
+  if (businessResult.score >= 75) {
+    const confidence = Math.min(98, 80 + businessResult.score * 0.15);
     console.log(`[WORLD-CLASS] CONFIDENT BUSINESS: ${Math.round(confidence)}%`);
     return {
       classification: 'Business',
@@ -347,8 +267,8 @@ export async function worldClassClassification(payeeName: string): Promise<Class
     };
   }
 
-  if (businessResult.score > individualResult.score && businessResult.score >= 40) {
-    const confidence = Math.min(85, 65 + businessResult.score * 0.3);
+  if (businessResult.score > individualResult.score && businessResult.score >= 45) {
+    const confidence = Math.min(90, 70 + businessResult.score * 0.25);
     return {
       classification: 'Business',
       confidence: Math.round(confidence),
@@ -359,8 +279,8 @@ export async function worldClassClassification(payeeName: string): Promise<Class
     };
   }
 
-  if (individualResult.score >= 50) {
-    const confidence = Math.min(85, 65 + individualResult.score * 0.3);
+  if (individualResult.score >= 55) {
+    const confidence = Math.min(90, 70 + individualResult.score * 0.25);
     return {
       classification: 'Individual',
       confidence: Math.round(confidence),
@@ -376,7 +296,7 @@ export async function worldClassClassification(payeeName: string): Promise<Class
   if (words.length >= 3) {
     return {
       classification: 'Business',
-      confidence: 60,
+      confidence: 65,
       reasoning: `Multi-word name likely business (${words.length} words)`,
       processingTier: 'Rule-Based',
       processingMethod: 'Enhanced world-class engine (fallback)'
@@ -385,7 +305,7 @@ export async function worldClassClassification(payeeName: string): Promise<Class
 
   return {
     classification: 'Individual',
-    confidence: 55,
+    confidence: 60,
     reasoning: `Default classification - insufficient business indicators`,
     processingTier: 'Rule-Based',
     processingMethod: 'Enhanced world-class engine (conservative fallback)'
