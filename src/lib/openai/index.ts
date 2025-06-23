@@ -9,6 +9,7 @@ export * from './enhancedClassification';
 // Explicitly export items from config to avoid conflicts
 export {
   DEFAULT_API_TIMEOUT,
+  API_TIMEOUT,
   CLASSIFICATION_MODEL,
   MAX_BATCH_SIZE as CONFIG_MAX_BATCH_SIZE,
   MAX_PARALLEL_BATCHES

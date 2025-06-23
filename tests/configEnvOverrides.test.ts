@@ -23,9 +23,11 @@ describe('environment configuration overrides', () => {
   it('uses OPENAI_* env vars', async () => {
     process.env.OPENAI_MAX_BATCH_SIZE = '8';
     process.env.OPENAI_MAX_PARALLEL_BATCHES = '4';
+    process.env.OPENAI_TIMEOUT_MS = '12345';
     const mod = await import('@/lib/openai/config');
     expect(mod.MAX_BATCH_SIZE).toBe(8);
     expect(mod.ENHANCED_PROCESSING.MAX_PARALLEL_BATCHES).toBe(4);
     expect(mod.MAX_PARALLEL_BATCHES).toBe(4);
+    expect(mod.API_TIMEOUT).toBe(12345);
   });
 });

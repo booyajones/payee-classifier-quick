@@ -86,3 +86,7 @@ export function findResultByName(payeeName: string, results: any[], preferredInd
 
   return null;
 }
+
+// Re-export the main exporter for backward compatibility
+export { exportResultsWithOriginalDataV3 } from './exporters';
+

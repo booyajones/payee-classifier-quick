@@ -11,6 +11,16 @@ const getEnvVar = (key: string, defaultValue: string): string => {
   return defaultValue;
 };
 
+// Resolve the effective timeout from the environment
+const envTimeout = parseInt(
+  getEnvVar('OPENAI_TIMEOUT_MS', String(DEFAULT_API_TIMEOUT)),
+  10
+);
+export const API_TIMEOUT =
+  Number.isFinite(envTimeout) && envTimeout > 0
+    ? envTimeout
+    : DEFAULT_API_TIMEOUT;
+
 // Optimized batch size for faster processing
 const envBatchSize = parseInt(getEnvVar('OPENAI_MAX_BATCH_SIZE', '15'), 10);
 export const MAX_BATCH_SIZE =
