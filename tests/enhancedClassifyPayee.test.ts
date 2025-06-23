@@ -21,4 +21,9 @@ describe('enhancedClassifyPayee', () => {
     const result = await enhancedClassifyPayee('john doe', config);
     expect(result.classification).toBe('Individual');
   });
+
+  it('detects security and emergency service keywords', async () => {
+    const result = await enhancedClassifyPayee('ABCO FIRE ALARM', config);
+    expect(result.classification).toBe('Business');
+  });
 });
