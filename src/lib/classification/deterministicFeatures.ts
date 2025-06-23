@@ -12,7 +12,9 @@ export function generateFeatureFlags(cleanName: string): FeatureFlags {
   const businessSuffixes = [
     'INC', 'LLC', 'LTD', 'CORP', 'CO', 'LLP', 'LP', 'PC', 'PLLC', 'COMPANY', 'CORPORATION',
     'INCORPORATED', 'LIMITED', 'BANK', 'TRUST', 'FOUNDATION', 'UNIVERSITY', 'HOSPITAL', 
-    'INSTITUTE', 'GROUP', 'ASSOCIATES', 'PARTNERS', 'ENTERPRISES', 'HOLDINGS', 'PROPERTIES'
+    'INSTITUTE', 'GROUP', 'ASSOCIATES', 'PARTNERS', 'ENTERPRISES', 'HOLDINGS', 'PROPERTIES',
+    'SERVICES', 'SOLUTIONS', 'SYSTEMS', 'TECHNOLOGIES', 'COMMUNICATIONS', 'DEPARTMENT',
+    'AUTHORITY', 'DISTRICT', 'AGENCY', 'DIVISION'
   ];
   
   const has_business_suffix = businessSuffixes.some(suffix => 
@@ -26,7 +28,7 @@ export function generateFeatureFlags(cleanName: string): FeatureFlags {
   );
   
   // Generation suffixes
-  const generationSuffixes = ['JR', 'SR', 'II', 'III', 'IV', 'V'];
+  const generationSuffixes = ['JR', 'SR', 'II', 'III', 'IV', 'V', '2ND', '3RD'];
   const has_generation_suffix = generationSuffixes.some(suffix => 
     cleanName.endsWith(suffix) || tokens.some(token => token === suffix)
   );
@@ -36,13 +38,25 @@ export function generateFeatureFlags(cleanName: string): FeatureFlags {
   
   // Enhanced business keywords from training data
   const businessKeywords = [
-    'SERVICES', 'SOLUTIONS', 'SYSTEMS', 'CONSTRUCTION', 'PLUMBING', 'HEATING', 'COOLING',
-    'ELECTRICAL', 'LANDSCAPING', 'CLEANING', 'MAINTENANCE', 'SECURITY', 'PROTECTION',
-    'MANAGEMENT', 'CONTRACTORS', 'CONSULTING', 'TECHNOLOGIES', 'COMMUNICATIONS',
-    'RESOURCES', 'DEVELOPMENT', 'ROOFING', 'FLOORING', 'PAINTING', 'CARPET', 'GLASS',
-    'APPLIANCE', 'ELEVATOR', 'WASTE', 'DISPOSAL', 'PEST', 'CONTROL', 'FIRE', 'ALARM',
-    'RESTORATION', 'RENOVATION', 'REMODELING', 'SUPPLY', 'DISTRIBUTION', 'WHOLESALE',
-    'RETAIL', 'MANUFACTURING'
+    // Core business terms
+    'SERVICES', 'SOLUTIONS', 'SYSTEMS', 'TECHNOLOGIES', 'COMMUNICATIONS', 'RESOURCES',
+    'DEVELOPMENT', 'MANAGEMENT', 'CONSULTING', 'CONSTRUCTION', 'CONTRACTORS', 'ENTERPRISES',
+    
+    // Industry specific
+    'PLUMBING', 'HEATING', 'COOLING', 'ELECTRICAL', 'LANDSCAPING', 'CLEANING', 'MAINTENANCE',
+    'SECURITY', 'PROTECTION', 'FIRE', 'ALARM', 'ROOFING', 'FLOORING', 'PAINTING', 'CARPET',
+    'GLASS', 'SUPPLY', 'DISTRIBUTION', 'WHOLESALE', 'RETAIL', 'MANUFACTURING', 'REPAIR',
+    'RESTORATION', 'RENOVATION', 'REMODELING', 'APPLIANCE', 'ELEVATOR', 'WASTE', 'DISPOSAL',
+    'PEST', 'CONTROL', 'POOL', 'SPA', 'LANDSCAPE', 'LAWN', 'TREE', 'DOOR', 'WINDOW',
+    'LOCKSMITH', 'MECHANCIAL', 'HVAC', 'AIR', 'CONDITIONING', 'INSPECTION', 'TESTING',
+    
+    // Government/institutional
+    'CITY', 'COUNTY', 'STATE', 'DEPARTMENT', 'AUTHORITY', 'DISTRICT', 'GOVERNMENT',
+    'MUNICIPAL', 'FEDERAL', 'BUREAU', 'COMMISSION', 'BOARD', 'OFFICE', 'ADMINISTRATION',
+    
+    // Apartment/property related
+    'APARTMENTS', 'APARTMENT', 'PROPERTIES', 'PROPERTY', 'MANAGEMENT', 'REALTY', 'REAL ESTATE',
+    'HOUSING', 'RESIDENTIAL', 'COMMERCIAL', 'LEASING', 'RENTAL', 'RENTALS'
   ];
   
   const contains_business_keyword = businessKeywords.some(keyword => cleanName.includes(keyword));
