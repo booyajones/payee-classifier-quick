@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -6,8 +7,8 @@ import BatchResultsDisplay from "./BatchResultsDisplay";
 import FileUploadForm from "./FileUploadForm";
 import BatchTextInput from "./BatchTextInput";
 import { PayeeClassification, BatchProcessingResult } from "@/lib/types";
-import { cleanProcessBatch } from "@/lib/classification/cleanBatchProcessor";
-import { ruleOnlyClassification } from "@/lib/classification/ruleOnlyClassification";
+import { enhancedProcessBatchV3 } from "@/lib/classification/enhancedBatchProcessorV3";
+import { enhancedClassifyPayeeV3 } from "@/lib/classification/enhancedClassificationV3";
 import { exportResultsFixed } from "@/lib/classification/fixedExporter";
 import { v4 as uuidv4 } from 'uuid';
 
@@ -26,12 +27,26 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     setIsProcessing(true);
     
     try {
-      const result = await cleanProcessBatch(originalFileData, selectedColumn, {
-        aiThreshold: 75,
-        bypassRuleNLP: false,
-        useEnhanced: true,
-        offlineMode: true // Use offline mode for rule-only processing
-      });
+      // Extract payee names from the selected column
+      const payeeNames = originalFileData.map((row, index) => ({
+        name: row[selectedColumn]?.toString().trim() || '',
+        originalData: row,
+        originalIndex: index
+      })).filter(item => item.name);
+
+      console.log(`Processing ${payeeNames.length} payees with V3 classification`);
+      
+      // Use V3 batch processor with offline mode for rule-based processing
+      const result = await enhancedProcessBatchV3(
+        payeeNames.map(item => item.name),
+        {
+          aiThreshold: 75,
+          bypassRuleNLP: false,
+          useEnhanced: true,
+          offlineMode: true // Rule-based only for now
+        },
+        originalFileData
+      );
       
       setBatchResults(result.results);
       setProcessingSummary(result);
@@ -39,10 +54,11 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
       
       toast({
         title: "Processing Complete",
-        description: `Successfully processed ${result.results.length} payees.`,
+        description: `Successfully processed ${result.results.length} payees with V3 classification.`,
       });
       
     } catch (error) {
+      console.error('File processing error:', error);
       toast({
         title: "Processing Failed",
         description: error instanceof Error ? error.message : "Unknown error occurred",
@@ -57,10 +73,18 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     setIsProcessing(true);
     
     try {
+      console.log(`Processing ${names.length} payees with V3 classification`);
       const results: PayeeClassification[] = [];
       
+      // Use V3 classification for each name
       for (const name of names) {
-        const result = await ruleOnlyClassification(name);
+        const result = await enhancedClassifyPayeeV3(name, {
+          aiThreshold: 75,
+          bypassRuleNLP: false,
+          useEnhanced: true,
+          offlineMode: true // Rule-based only for consistency
+        });
+        
         results.push({
           id: uuidv4(),
           payeeName: name,
@@ -99,10 +123,11 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
       
       toast({
         title: "Processing Complete",
-        description: `Successfully processed ${results.length} payees.`,
+        description: `Successfully processed ${results.length} payees with V3 classification.`,
       });
       
     } catch (error) {
+      console.error('Text processing error:', error);
       toast({
         title: "Processing Failed",
         description: error instanceof Error ? error.message : "Unknown error occurred",
@@ -123,7 +148,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Payee Classification</CardTitle>
+          <CardTitle>Payee Classification (V3 System)</CardTitle>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="file" className="w-full">

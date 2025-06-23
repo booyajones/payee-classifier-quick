@@ -3,10 +3,7 @@ import { ClassificationResult, ClassificationConfig, SimilarityScores } from '..
 import { DEFAULT_CLASSIFICATION_CONFIG } from './config';
 import { checkKeywordExclusion } from './enhancedKeywordExclusion';
 import { calculateCombinedSimilarity, advancedNormalization, levenshteinSimilarity } from './stringMatching';
-import { applyRuleBasedClassification } from './ruleBasedClassification';
-import { applyNLPClassification } from './nlpClassification';
 import { consensusClassification } from '../openai/enhancedClassification';
-import { detectBusinessByExtendedRules, detectIndividualByExtendedRules } from './enhancedRules';
 
 // Hard-coded confidence thresholds for intelligent escalation
 const CONFIDENCE_THRESHOLDS = {
@@ -17,234 +14,174 @@ const CONFIDENCE_THRESHOLDS = {
   FORCE_WEB_SEARCH: 50
 };
 
-// Business entity indicators for advanced detection
-const BUSINESS_INDICATORS = [
-  'LLC', 'INC', 'CORP', 'LTD', 'CO', 'COMPANY', 'CORPORATION', 'ENTERPRISES',
-  'GROUP', 'HOLDINGS', 'PARTNERS', 'ASSOCIATES', 'SERVICES', 'SOLUTIONS',
-  'AGENCY', 'STUDIO', 'CONSULTING', 'MANAGEMENT', 'SYSTEMS', 'TECHNOLOGIES',
-  'GRAPHICS', 'POOLS', 'TRAVEL', 'EVENTS', 'PLANNERS', 'MAINTENANCE',
-  'DISTRIBUTORS', 'BAKERY', 'CREATIVE', 'ENDEAVOR', 'MECHANICAL', 'PRO',
-  'HVAC', 'RESOURCING', 'GAS', 'LOCAL', 'CRUISE', 'DESIGNS', 'HATCHED',
-  'HOMEBOY', 'CITIZEN', 'MATTER', 'SURFACE', 'IMAGE', 'CURATED',
-  'ENTERTAINMENT', 'AIR', 'ADVANCED', 'ADMIRAL', 'AV', 'EXPERT'
+// COMPREHENSIVE FIRST NAMES DATABASE - Critical for individual detection
+const COMMON_FIRST_NAMES = [
+  'JAMES', 'JOHN', 'ROBERT', 'MICHAEL', 'WILLIAM', 'DAVID', 'RICHARD', 'JOSEPH', 'THOMAS', 'CHARLES',
+  'CHRISTOPHER', 'DANIEL', 'MATTHEW', 'ANTHONY', 'MARK', 'DONALD', 'STEVEN', 'PAUL', 'ANDREW', 'JOSHUA',
+  'KENNETH', 'KEVIN', 'BRIAN', 'GEORGE', 'TIMOTHY', 'RONALD', 'JASON', 'EDWARD', 'JEFFREY', 'RYAN',
+  'JACOB', 'GARY', 'NICHOLAS', 'ERIC', 'JONATHAN', 'STEPHEN', 'LARRY', 'JUSTIN', 'SCOTT', 'BRANDON',
+  'BENJAMIN', 'SAMUEL', 'GREGORY', 'ALEXANDER', 'PATRICK', 'FRANK', 'RAYMOND', 'JACK', 'DENNIS', 'JERRY',
+  'TYLER', 'AARON', 'JOSE', 'HENRY', 'ADAM', 'DOUGLAS', 'NATHAN', 'PETER', 'ZACHARY', 'KYLE',
+  'NOAH', 'ALAN', 'ETHAN', 'JEREMY', 'LIONEL', 'ANGEL', 'MIKE', 'CHRIS', 'TOM', 'JIM', 'BOB', 'BILL',
+  'STEVE', 'DAVE', 'MATT', 'JEFF', 'DAN', 'TONY', 'RICH', 'RICK', 'NICK', 'GREG', 'CARL', 'CHAD',
+  
+  'MARY', 'PATRICIA', 'LINDA', 'BARBARA', 'ELIZABETH', 'JENNIFER', 'MARIA', 'SUSAN', 'MARGARET', 'DOROTHY',
+  'LISA', 'NANCY', 'KAREN', 'BETTY', 'HELEN', 'SANDRA', 'DONNA', 'CAROL', 'RUTH', 'SHARON',
+  'MICHELLE', 'LAURA', 'SARAH', 'KIMBERLY', 'DEBORAH', 'JESSICA', 'SHIRLEY', 'CYNTHIA', 'ANGELA', 'MELISSA',
+  'BRENDA', 'EMMA', 'OLIVIA', 'AMY', 'ANNA', 'REBECCA', 'VIRGINIA', 'KATHLEEN', 'PAMELA', 'MARTHA',
+  'DEBRA', 'RACHEL', 'CAROLYN', 'JANET', 'CATHERINE', 'FRANCES', 'CHRISTINE', 'SAMANTHA', 'DEBBIE', 'RACHEL',
+  'CHRISTINA', 'JACQUELINE', 'MARIE', 'JANET', 'ROSE', 'JEAN', 'JOYCE', 'JULIE', 'GLORIA', 'DIANA',
+  'SUE', 'JANE', 'LYNN', 'ANNE', 'ANN', 'KATE', 'KIM', 'BETH', 'JEN', 'LIZ', 'CHRIS', 'PAT'
 ];
 
-const INDIVIDUAL_INDICATORS = [
-  'DR', 'MR', 'MRS', 'MS', 'JR', 'SR', 'III', 'IV', 'ESQ', 'MD', 'PHD',
-  'PROF', 'REV', 'PASTOR', 'RABBI'
+// Business entity indicators
+const BUSINESS_SUFFIXES = [
+  'LLC', 'INC', 'CORP', 'LTD', 'CO', 'COMPANY', 'CORPORATION', 'ENTERPRISES', 'GROUP', 'HOLDINGS',
+  'PARTNERS', 'ASSOCIATES', 'SERVICES', 'SOLUTIONS', 'SYSTEMS', 'TECHNOLOGIES', 'CONSULTING'
+];
+
+const BUSINESS_KEYWORDS = [
+  'AGENCY', 'STUDIO', 'MANAGEMENT', 'GRAPHICS', 'POOLS', 'TRAVEL', 'EVENTS', 'PLANNERS', 'MAINTENANCE',
+  'DISTRIBUTORS', 'BAKERY', 'CREATIVE', 'ENDEAVOR', 'MECHANICAL', 'PRO', 'HVAC', 'RESOURCING', 'GAS',
+  'LOCAL', 'CRUISE', 'DESIGNS', 'HATCHED', 'HOMEBOY', 'CITIZEN', 'MATTER', 'SURFACE', 'IMAGE', 'CURATED',
+  'ENTERTAINMENT', 'AIR', 'ADVANCED', 'ADMIRAL', 'AV', 'EXPERT', 'LOCKSMITH', 'PLUMBING', 'ELECTRIC',
+  'CONSTRUCTION', 'ROOFING', 'PAINTING', 'LANDSCAPING', 'CLEANING', 'REPAIR', 'AUTO', 'SHOP', 'STORE',
+  'MARKET', 'RESTAURANT', 'CAFE', 'BAR', 'HOTEL', 'MOTEL'
+];
+
+// Individual indicators
+const INDIVIDUAL_TITLES = [
+  'DR', 'MR', 'MRS', 'MS', 'MISS', 'JR', 'SR', 'III', 'IV', 'ESQ', 'MD', 'PHD', 'PROF', 'REV', 'PASTOR', 'RABBI'
 ];
 
 /**
- * Extract comprehensive features for entity classification
+ * CRITICAL: Fast individual name detection using comprehensive patterns
  */
-function extractEntityFeatures(payeeName: string): {
-  businessScore: number;
-  individualScore: number;
-  confidence: number;
-  indicators: string[];
-  structuralFeatures: any;
-} {
-  const { normalized, tokens, businessIndicators, individualIndicators } = advancedNormalization(payeeName);
-  const words = payeeName.split(/\s+/);
-  const indicators: string[] = [];
-  
-  let businessScore = 0;
-  let individualScore = 0;
-  
-  // Exact business indicator matches
-  const exactBusinessMatches = BUSINESS_INDICATORS.filter(indicator =>
-    normalized.includes(indicator)
-  );
-  businessScore += exactBusinessMatches.length * 25;
-  indicators.push(...exactBusinessMatches.map(match => `Business indicator: ${match}`));
-  
-  // Exact individual indicator matches
-  const exactIndividualMatches = INDIVIDUAL_INDICATORS.filter(indicator =>
-    normalized.includes(indicator)
-  );
-  individualScore += exactIndividualMatches.length * 30;
-  indicators.push(...exactIndividualMatches.map(match => `Individual indicator: ${match}`));
-  
-  // Structural analysis
-  const structuralFeatures = {
-    wordCount: words.length,
-    hasNumbers: /\d/.test(payeeName),
-    hasSpecialChars: /[&@#$%]/.test(payeeName),
-    isAllCaps: payeeName === payeeName.toUpperCase() && payeeName.length > 5,
-    hasAmpersand: payeeName.includes('&'),
-    hasPossessive: /'\s*s\b/.test(payeeName),
-    avgWordLength: words.reduce((sum, word) => sum + word.length, 0) / words.length,
-    startsWithThe: /^the\s+/i.test(payeeName),
-    hasComma: payeeName.includes(',')
-  };
-  
-  // Business structural scoring
-  if (structuralFeatures.wordCount > 3) {
-    businessScore += 15;
-    indicators.push('Multi-word business pattern');
-  }
-  
-  if (structuralFeatures.hasNumbers) {
-    businessScore += 10;
-    indicators.push('Contains numbers');
-  }
-  
-  if (structuralFeatures.hasAmpersand) {
-    businessScore += 20;
-    indicators.push('Contains ampersand');
-  }
-  
-  if (structuralFeatures.isAllCaps) {
-    businessScore += 15;
-    indicators.push('All caps formatting');
-  }
-  
-  if (payeeName.length > 30) {
-    businessScore += 10;
-    indicators.push('Long name pattern');
-  }
-  
-  // Individual structural scoring
-  if (structuralFeatures.wordCount === 2 && !structuralFeatures.hasNumbers) {
-    individualScore += 20;
-    indicators.push('Two-word personal name pattern');
-  }
-  
-  if (structuralFeatures.wordCount === 3 && !structuralFeatures.hasNumbers) {
-    individualScore += 15;
-    indicators.push('Three-word personal name pattern');
-  }
-  
-  if (structuralFeatures.hasPossessive) {
-    individualScore += 25;
-    indicators.push('Possessive form (individual proprietor)');
-  }
-  
-  if (structuralFeatures.hasComma && structuralFeatures.wordCount === 2) {
-    individualScore += 20;
-    indicators.push('Last, First name format');
-  }
-  
-  // Calculate confidence based on score differential
-  const maxScore = Math.max(businessScore, individualScore);
-  const minScore = Math.min(businessScore, individualScore);
-  const scoreDifferential = maxScore - minScore;
-  const confidence = Math.min(95, Math.max(50, maxScore + scoreDifferential / 2));
-  
-  return {
-    businessScore,
-    individualScore,
-    confidence,
-    indicators,
-    structuralFeatures
-  };
-}
+function detectIndividualName(payeeName: string): { isIndividual: boolean; confidence: number; reasons: string[] } {
+  const name = payeeName.toUpperCase().trim();
+  const words = name.split(/\s+/).filter(w => w.length > 0);
+  const reasons: string[] = [];
+  let confidence = 0;
 
-/**
- * Advanced fuzzy matching against cached results
- */
-async function performAdvancedFuzzyMatching(payeeName: string): Promise<ClassificationResult | null> {
-  try {
-    const cachedClassifications = JSON.parse(localStorage.getItem('payeeClassifications') || '{}');
-    const cachedNames = Object.keys(cachedClassifications);
-    
-    if (cachedNames.length === 0) return null;
-    
-    // Calculate similarities using multiple algorithms
-    const similarities = cachedNames.map(cachedName => {
-      const scores = calculateCombinedSimilarity(payeeName, cachedName);
-      return {
-        name: cachedName,
-        scores,
-        result: cachedClassifications[cachedName]
-      };
-    }).filter(match => match.scores.combined >= CONFIDENCE_THRESHOLDS.REVIEW_REQUIRED);
-    
-    if (similarities.length === 0) return null;
-    
-    // Get best match with highest combined similarity
-    const bestMatch = similarities.sort((a, b) => b.scores.combined - a.scores.combined)[0];
-    
-    if (bestMatch.scores.combined >= CONFIDENCE_THRESHOLDS.MEDIUM_CONFIDENCE) {
-      return {
-        classification: bestMatch.result.result.classification,
-        confidence: Math.min(bestMatch.scores.combined, CONFIDENCE_THRESHOLDS.HIGH_CONFIDENCE),
-        reasoning: `High-confidence fuzzy match with "${bestMatch.name}" (${bestMatch.scores.combined.toFixed(1)}% similarity)`,
-        processingTier: 'Rule-Based',
-        similarityScores: bestMatch.scores,
-        processingMethod: 'Advanced fuzzy matching'
-      };
+  // Check for professional titles
+  for (const title of INDIVIDUAL_TITLES) {
+    if (name.includes(title)) {
+      reasons.push(`Professional title: ${title}`);
+      confidence += 50;
+      break;
     }
-    
-    return null;
-  } catch (error) {
-    console.warn('Advanced fuzzy matching failed:', error);
-    return null;
   }
-}
 
-/**
- * Multi-algorithm heuristic classification with confidence scoring
- */
-function performMultiAlgorithmClassification(payeeName: string): ClassificationResult {
-  const features = extractEntityFeatures(payeeName);
-  const { businessScore, individualScore, confidence, indicators } = features;
-  
-  // Determine classification based on scores
-  const classification = businessScore > individualScore ? 'Business' : 'Individual';
-  const dominantScore = Math.max(businessScore, individualScore);
-  
-  // Adjust confidence based on score strength and indicators
-  let adjustedConfidence = Math.min(CONFIDENCE_THRESHOLDS.HIGH_CONFIDENCE, 
-    confidence + (indicators.length * 2));
-  
-  // Boost confidence for very clear cases
-  if (dominantScore > 50 && indicators.length >= 3) {
-    adjustedConfidence = Math.min(CONFIDENCE_THRESHOLDS.HIGH_CONFIDENCE, adjustedConfidence + 10);
+  // Check for common first names - CRITICAL FIX
+  if (words.length >= 1) {
+    const firstWord = words[0].replace(/[^A-Z]/g, '');
+    if (COMMON_FIRST_NAMES.includes(firstWord)) {
+      reasons.push(`Common first name: ${firstWord}`);
+      confidence += 60; // High confidence for first names
+    }
   }
-  
+
+  // Personal name patterns
+  if (words.length === 2) {
+    // First Last pattern
+    const [first, last] = words;
+    if (first.length >= 2 && last.length >= 2 && !BUSINESS_KEYWORDS.includes(first) && !BUSINESS_KEYWORDS.includes(last)) {
+      reasons.push('Two-word personal name pattern');
+      confidence += 30;
+    }
+  }
+
+  if (words.length === 3) {
+    // First Middle Last pattern
+    const [first, middle, last] = words;
+    if (first.length >= 2 && middle.length <= 3 && last.length >= 2) {
+      reasons.push('Three-word personal name pattern');
+      confidence += 25;
+    }
+  }
+
+  // Possessive form (John's Plumbing)
+  if (/'\s*S\b/.test(name)) {
+    reasons.push('Possessive form (individual proprietor)');
+    confidence += 40;
+  }
+
+  // Last, First format
+  if (name.includes(',') && words.length === 2) {
+    reasons.push('Last, First name format');
+    confidence += 35;
+  }
+
+  // Mixed case personal names
+  if (payeeName !== payeeName.toUpperCase() && words.length <= 3) {
+    reasons.push('Mixed case personal name');
+    confidence += 20;
+  }
+
   return {
-    classification,
-    confidence: adjustedConfidence,
-    reasoning: `Multi-algorithm classification (Business: ${businessScore}, Individual: ${individualScore}). Key indicators: ${indicators.slice(0, 3).join(', ')}`,
-    processingTier: 'Rule-Based',
-    matchingRules: indicators,
-    processingMethod: 'Multi-algorithm heuristic analysis'
+    isIndividual: confidence >= 40,
+    confidence: Math.min(95, confidence),
+    reasons
   };
 }
 
 /**
- * Web search enhanced AI classification for difficult cases
+ * CRITICAL: Fast business detection using clear indicators
  */
-async function performWebSearchClassification(payeeName: string): Promise<ClassificationResult> {
-  try {
-    // Use consensus classification with web search capability
-    const aiResult = await consensusClassification(payeeName, 3); // Use 3 attempts for difficult cases
-    
-    return {
-      classification: aiResult.classification,
-      confidence: Math.max(aiResult.confidence, CONFIDENCE_THRESHOLDS.REVIEW_REQUIRED), // Ensure minimum confidence
-      reasoning: `Web-search enhanced AI classification: ${aiResult.reasoning}`,
-      processingTier: 'AI-Powered',
-      matchingRules: aiResult.matchingRules,
-      processingMethod: 'Web-search enhanced consensus AI'
-    };
-  } catch (error) {
-    console.error('Web search classification failed:', error);
-    
-    // Fall back to multi-algorithm classification
-    const fallbackResult = performMultiAlgorithmClassification(payeeName);
-    return {
-      ...fallbackResult,
-      confidence: Math.max(fallbackResult.confidence, CONFIDENCE_THRESHOLDS.FORCE_WEB_SEARCH),
-      reasoning: `${fallbackResult.reasoning} (AI web search unavailable, using enhanced heuristics)`,
-      processingMethod: 'Fallback multi-algorithm (AI unavailable)'
-    };
+function detectBusinessEntity(payeeName: string): { isBusiness: boolean; confidence: number; reasons: string[] } {
+  const name = payeeName.toUpperCase().trim();
+  const words = name.split(/\s+/).filter(w => w.length > 0);
+  const reasons: string[] = [];
+  let confidence = 0;
+
+  // Legal suffixes - very strong indicators
+  for (const suffix of BUSINESS_SUFFIXES) {
+    if (name.includes(suffix)) {
+      reasons.push(`Legal suffix: ${suffix}`);
+      confidence += 70;
+      break;
+    }
   }
+
+  // Business keywords
+  for (const keyword of BUSINESS_KEYWORDS) {
+    if (name.includes(keyword)) {
+      reasons.push(`Business keyword: ${keyword}`);
+      confidence += 25;
+      break; // Only count one to avoid over-scoring
+    }
+  }
+
+  // Structural business indicators
+  if (words.length >= 4) {
+    reasons.push('Multi-word business name');
+    confidence += 15;
+  }
+
+  if (name.includes('&') || name.includes(' AND ')) {
+    reasons.push('Business partnership indicator');
+    confidence += 20;
+  }
+
+  if (/\d/.test(name) && words.length >= 2) {
+    reasons.push('Contains numbers (business pattern)');
+    confidence += 10;
+  }
+
+  if (name === payeeName.toUpperCase() && payeeName.length > 15) {
+    reasons.push('All caps business format');
+    confidence += 15;
+  }
+
+  return {
+    isBusiness: confidence >= 50,
+    confidence: Math.min(95, confidence),
+    reasons
+  };
 }
 
 /**
- * Enhanced V3 classification with intelligent escalation - NO FAILURES ALLOWED
+ * Enhanced V3 classification with FIXED individual detection
  */
 export async function enhancedClassifyPayeeV3(
   payeeName: string,
@@ -252,18 +189,17 @@ export async function enhancedClassifyPayeeV3(
   retryCount: number = 0
 ): Promise<ClassificationResult> {
   if (!payeeName || payeeName.trim() === '') {
-    // Even invalid names get a classification
     return {
       classification: 'Individual',
-      confidence: CONFIDENCE_THRESHOLDS.FORCE_WEB_SEARCH,
-      reasoning: "Invalid or empty payee name - defaulting to Individual with minimum confidence",
+      confidence: 50,
+      reasoning: "Empty payee name - defaulting to Individual",
       processingTier: 'Rule-Based',
       processingMethod: 'Input validation fallback'
     };
   }
 
   try {
-    console.log(`[V3] Classifying "${payeeName}" with intelligent escalation...`);
+    console.log(`[V3] Classifying "${payeeName}"`);
 
     // Stage 1: Keyword exclusion check
     const keywordExclusion = checkKeywordExclusion(payeeName);
@@ -278,98 +214,58 @@ export async function enhancedClassifyPayeeV3(
       };
     }
 
-    // Stage 2: Ultra-fast rule-based detection
-    const businessCheck = detectBusinessByExtendedRules(payeeName);
-    if (businessCheck.isMatch) {
-      const confidence = Math.min(CONFIDENCE_THRESHOLDS.HIGH_CONFIDENCE, 
-        CONFIDENCE_THRESHOLDS.MEDIUM_CONFIDENCE + businessCheck.rules.length * 3);
-      
-      if (confidence >= CONFIDENCE_THRESHOLDS.MEDIUM_CONFIDENCE) {
-        return {
-          classification: 'Business',
-          confidence,
-          reasoning: `High-confidence business detection: ${businessCheck.rules.join(", ")}`,
-          processingTier: 'Rule-Based',
-          matchingRules: businessCheck.rules,
-          processingMethod: 'Extended business rules'
-        };
-      }
+    // Stage 2: CRITICAL - Individual name detection FIRST
+    const individualCheck = detectIndividualName(payeeName);
+    const businessCheck = detectBusinessEntity(payeeName);
+
+    console.log(`[V3] "${payeeName}" - Individual: ${individualCheck.confidence}%, Business: ${businessCheck.confidence}%`);
+
+    // Decision logic - Individual bias when uncertain
+    if (individualCheck.isIndividual && individualCheck.confidence >= businessCheck.confidence) {
+      return {
+        classification: 'Individual',
+        confidence: individualCheck.confidence,
+        reasoning: `Individual name detected: ${individualCheck.reasons.join(', ')}`,
+        processingTier: 'Rule-Based',
+        matchingRules: individualCheck.reasons,
+        processingMethod: 'Enhanced individual detection'
+      };
     }
 
-    const individualCheck = detectIndividualByExtendedRules(payeeName);
-    if (individualCheck.isMatch) {
-      const confidence = Math.min(CONFIDENCE_THRESHOLDS.HIGH_CONFIDENCE, 
-        CONFIDENCE_THRESHOLDS.MEDIUM_CONFIDENCE + individualCheck.rules.length * 4);
-      
-      if (confidence >= CONFIDENCE_THRESHOLDS.MEDIUM_CONFIDENCE) {
-        return {
-          classification: 'Individual',
-          confidence,
-          reasoning: `High-confidence individual detection: ${individualCheck.rules.join(", ")}`,
-          processingTier: 'Rule-Based',
-          matchingRules: individualCheck.rules,
-          processingMethod: 'Extended individual rules'
-        };
-      }
+    if (businessCheck.isBusiness && businessCheck.confidence > individualCheck.confidence + 20) {
+      return {
+        classification: 'Business',
+        confidence: businessCheck.confidence,
+        reasoning: `Business entity detected: ${businessCheck.reasons.join(', ')}`,
+        processingTier: 'Rule-Based',
+        matchingRules: businessCheck.reasons,
+        processingMethod: 'Enhanced business detection'
+      };
     }
 
-    // Stage 3: Advanced fuzzy matching
-    const fuzzyResult = await performAdvancedFuzzyMatching(payeeName);
-    if (fuzzyResult && fuzzyResult.confidence >= CONFIDENCE_THRESHOLDS.MEDIUM_CONFIDENCE) {
-      return fuzzyResult;
-    }
+    // Stage 3: Conservative fallback - default to Individual when uncertain
+    const fallbackConfidence = Math.max(60, Math.max(individualCheck.confidence, businessCheck.confidence));
+    const fallbackClassification = individualCheck.confidence >= businessCheck.confidence ? 'Individual' : 'Business';
 
-    // Stage 4: Multi-algorithm heuristic analysis
-    const heuristicResult = performMultiAlgorithmClassification(payeeName);
-    
-    // If we have high confidence, return the result
-    if (heuristicResult.confidence >= CONFIDENCE_THRESHOLDS.MEDIUM_CONFIDENCE) {
-      return heuristicResult;
-    }
-
-    // Stage 5: Standard AI classification
-    if (!config.offlineMode) {
-      try {
-        const aiResult = await consensusClassification(payeeName, 2);
-        
-        // If AI gives us good confidence, use it
-        if (aiResult.confidence >= CONFIDENCE_THRESHOLDS.REVIEW_REQUIRED) {
-          return {
-            classification: aiResult.classification,
-            confidence: aiResult.confidence,
-            reasoning: aiResult.reasoning,
-            processingTier: 'AI-Assisted',
-            matchingRules: aiResult.matchingRules,
-            processingMethod: 'Standard AI consensus'
-          };
-        }
-        
-        // If AI confidence is low, escalate to web search
-        if (aiResult.confidence < CONFIDENCE_THRESHOLDS.REVIEW_REQUIRED) {
-          console.log(`[V3] Low AI confidence (${aiResult.confidence}%), escalating to web search for "${payeeName}"`);
-          return await performWebSearchClassification(payeeName);
-        }
-        
-      } catch (error) {
-        console.warn(`[V3] Standard AI classification failed for "${payeeName}":`, error);
-        // Continue to web search escalation
-      }
-    }
-
-    // Stage 6: Web search enhanced classification (when system needs to look harder)
-    console.log(`[V3] Escalating to web search classification for "${payeeName}"`);
-    return await performWebSearchClassification(payeeName);
+    return {
+      classification: fallbackClassification,
+      confidence: fallbackConfidence,
+      reasoning: `Conservative classification based on available indicators. Individual: ${individualCheck.confidence}%, Business: ${businessCheck.confidence}%`,
+      processingTier: 'Rule-Based',
+      matchingRules: [...individualCheck.reasons, ...businessCheck.reasons],
+      processingMethod: 'Conservative fallback classification'
+    };
 
   } catch (error) {
-    console.error(`[V3] Unexpected error classifying "${payeeName}":`, error);
+    console.error(`[V3] Error classifying "${payeeName}":`, error);
     
-    // ABSOLUTE FALLBACK - NO FAILURES ALLOWED
-    const emergencyResult = performMultiAlgorithmClassification(payeeName);
+    // Emergency fallback - always return a result
     return {
-      ...emergencyResult,
-      confidence: Math.max(emergencyResult.confidence, CONFIDENCE_THRESHOLDS.FORCE_WEB_SEARCH),
-      reasoning: `${emergencyResult.reasoning} (Emergency fallback due to system error)`,
-      processingMethod: 'Emergency multi-algorithm fallback'
+      classification: 'Individual',
+      confidence: 60,
+      reasoning: `Emergency fallback to Individual due to processing error: ${error}`,
+      processingTier: 'Rule-Based',
+      processingMethod: 'Emergency fallback'
     };
   }
 }
