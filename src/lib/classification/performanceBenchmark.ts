@@ -113,7 +113,7 @@ export const BENCHMARK_TEST_CASES = [
 export async function quickPerformanceTest(): Promise<void> {
   console.log('[QUICK-TEST] Running performance test...');
   
-  const result = await benchmarkClass ificationEngine(BENCHMARK_TEST_CASES);
+  const result = await benchmarkClassificationEngine(BENCHMARK_TEST_CASES);
   
   console.log('[QUICK-TEST] Performance Results:');
   console.log(`  Average time per classification: ${result.averageTime.toFixed(2)}ms`);
