@@ -83,7 +83,6 @@ interface defined in `src/lib/types.ts`. Default values are provided in
 | ------ | ----------- |
 | `aiThreshold` | Minimum confidence required for rule‑based or NLP results before AI processing is triggered. |
 | `bypassRuleNLP` | Skip rule‑based and NLP checks and go straight to AI. |
-| `useEnhanced` | Enable advanced classification logic. |
 | `offlineMode` | Disable API calls and rely solely on local heuristics. |
 | `useFuzzyMatching` | Apply fuzzy name matching when deduplicating batch input. |
 | `useCacheForDuplicates` | Cache results for repeated names in a batch. |

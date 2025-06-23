@@ -24,7 +24,6 @@ const SingleClassificationForm = ({ onComplete }: SingleClassificationFormProps)
   const [config, setConfig] = useState<ClassificationConfig>({
     aiThreshold: 80,
     bypassRuleNLP: true,
-    useEnhanced: true,
     offlineMode: false
   });
   const { toast } = useToast();

@@ -41,7 +41,6 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
         {
           aiThreshold: 100, // Force rule-based only
           bypassRuleNLP: false,
-          useEnhanced: true,
           offlineMode: true
         },
         originalFileData
@@ -80,7 +79,6 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
         const result = await enhancedClassifyPayeeV3(name, {
           aiThreshold: 100, // Force rule-based only
           bypassRuleNLP: false,
-          useEnhanced: true,
           offlineMode: true
         });
         

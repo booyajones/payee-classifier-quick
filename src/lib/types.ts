@@ -67,7 +67,6 @@ export interface ParsedCorporation {
 export interface ClassificationConfig {
   aiThreshold: number;
   bypassRuleNLP: boolean;
-  useEnhanced?: boolean;
   offlineMode?: boolean;
   useFuzzyMatching?: boolean;
   useCacheForDuplicates?: boolean;

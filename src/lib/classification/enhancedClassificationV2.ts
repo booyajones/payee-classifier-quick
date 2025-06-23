@@ -2,7 +2,7 @@ import { ClassificationResult, ClassificationConfig } from '../types';
 import { DEFAULT_CLASSIFICATION_CONFIG } from './config';
 import { applyRuleBasedClassification } from './ruleBasedClassification';
 import { applyNLPClassification } from './nlpClassification';
-import { enhancedClassifyPayeeWithAI, consensusClassification } from '../openai/enhancedClassification';
+import { applyAIClassification } from './aiClassification';
 import { detectBusinessByExtendedRules, detectIndividualByExtendedRules, normalizeText } from './enhancedRules';
 import { checkKeywordExclusion } from './enhancedKeywordExclusion';
 
@@ -77,22 +77,10 @@ export async function enhancedClassifyPayeeV2(
     };
   }
   
-  // If bypassing rule-based and NLP, go straight to AI
+  // If bypassing rule-based and NLP, go straight to AI heuristic
   if (config.bypassRuleNLP) {
-    try {
-      const aiResult = await consensusClassification(payeeName, 2);
-      return {
-        classification: aiResult.classification,
-        confidence: aiResult.confidence,
-        reasoning: aiResult.reasoning,
-        processingTier: 'AI-Assisted',
-        matchingRules: aiResult.matchingRules,
-        keywordExclusion: exclusionResult
-      };
-    } catch (error) {
-      console.error("Error with AI classification:", error);
-      // Fall through to rule-based backup
-    }
+    const aiResult = await applyAIClassification(payeeName);
+    return { ...aiResult, keywordExclusion: exclusionResult };
   }
   
   // Regular tiered approach
@@ -115,42 +103,20 @@ export async function enhancedClassifyPayeeV2(
     };
   }
   
-  // Tier 3: Apply AI-assisted classification
+  // Tier 3: Apply AI-assisted heuristic
   try {
-    const aiResult = await consensusClassification(payeeName, 2);
+    const aiResult = await applyAIClassification(payeeName);
+    return { ...aiResult, keywordExclusion: exclusionResult };
+  } catch (error) {
+    console.error("Error with AI heuristic:", error);
+
+    // Last resort: basic heuristic
     return {
-      classification: aiResult.classification,
-      confidence: aiResult.confidence,
-      reasoning: aiResult.reasoning,
-      processingTier: 'AI-Assisted',
-      matchingRules: aiResult.matchingRules,
+      classification: payeeName.split(/\s+/).length <= 2 ? 'Individual' : 'Business',
+      confidence: 51,
+      reasoning: "Classification based on fallback heuristics due to service errors",
+      processingTier: 'Rule-Based',
       keywordExclusion: exclusionResult
     };
-  } catch (error) {
-    console.error("Error with consensus classification:", error);
-    
-    // Fallback to single AI classification
-    try {
-      const result = await enhancedClassifyPayeeWithAI(payeeName);
-      return {
-        classification: result.classification,
-        confidence: result.confidence,
-        reasoning: result.reasoning,
-        processingTier: 'AI-Assisted',
-        matchingRules: result.matchingRules,
-        keywordExclusion: exclusionResult
-      };
-    } catch (innerError) {
-      console.error("Error with enhanced AI classification:", innerError);
-      
-      // Last resort: basic heuristic
-      return {
-        classification: payeeName.split(/\s+/).length <= 2 ? 'Individual' : 'Business',
-        confidence: 51,
-        reasoning: "Classification based on fallback heuristics due to service errors",
-        processingTier: 'Rule-Based',
-        keywordExclusion: exclusionResult
-      };
-    }
   }
 }
