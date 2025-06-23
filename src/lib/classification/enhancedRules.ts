@@ -183,7 +183,7 @@ export function detectBusinessByExtendedRules(payeeName: string): { isMatch: boo
     { pattern: /\b(LLC|INC|CORP|LTD|CO|LP|LLP|PC|PLC|GMBH|SA|AG|PTY|LIMITED|INCORPORATED|COMPANY|CORPORATION)\b/i, rule: 'Legal suffix' },
     { pattern: /\b(SERVICES|SOLUTIONS|SYSTEMS|INDUSTRIES|ENTERPRISES|ASSOCIATES|CONSULTANTS|GROUP|AGENCY|STUDIOS|PARTNERS)\b/i, rule: 'Business suffix' },
     { pattern: /\b(GLOBAL|INTERNATIONAL|WORLDWIDE|NATIONAL|REGIONAL|LOCAL)\b/i, rule: 'Geographic scope indicator' },
-    { pattern: /\b(POOL|POOLS|MAINTENANCE|GAS|PROPANE|HVAC|TRAVEL|PRO|DESIGNS|PLANNERS|EVENTS|DISTRIBUTORS|ENTERTAINMENT|SURFACE|HOTEL|IMAGE|BAKERY|RESTAURANT|CAFE|GRAPHICS|CREATIVE|MECHANICAL)\b/i, rule: 'Industry/service term' },
+    { pattern: /\b(FIRE|ALARM|SECURITY|ELECTRIC|POOL|POOLS|MAINTENANCE|GAS|PROPANE|HVAC|TRAVEL|PRO|DESIGNS|PLANNERS|EVENTS|DISTRIBUTORS|ENTERTAINMENT|SURFACE|HOTEL|IMAGE|BAKERY|RESTAURANT|CAFE|GRAPHICS|CREATIVE|MECHANICAL)\b/i, rule: 'Industry/service term' },
     { pattern: /\b(AIR|DELTA|AMERICAN|ADVANCED|EXPERT|CLEAN|CRUISE|CURATED|FLORAL)\b/i, rule: 'Business descriptor' },
     { pattern: /\b(AT|BY)\b/i, rule: 'Business relationship term' },
     { pattern: /\&/i, rule: 'Ampersand (common in business names)' },

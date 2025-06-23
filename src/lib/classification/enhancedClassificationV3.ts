@@ -41,7 +41,9 @@ const BUSINESS_SUFFIXES = [
 // Reduced business keywords - only clear business indicators
 const BUSINESS_KEYWORDS = [
   'AGENCY', 'STUDIO', 'MANAGEMENT', 'CONSULTING', 'SERVICES', 'SOLUTIONS', 'SYSTEMS', 'TECHNOLOGIES',
-  'DISTRIBUTORS', 'BAKERY', 'ENTERTAINMENT', 'CONSTRUCTION', 'RESTAURANT', 'CAFE', 'BAR', 'HOTEL'
+  'DISTRIBUTORS', 'BAKERY', 'ENTERTAINMENT', 'CONSTRUCTION', 'RESTAURANT', 'CAFE', 'BAR', 'HOTEL',
+  // Security and emergency services
+  'FIRE', 'ALARM', 'SECURITY', 'ELECTRIC'
 ];
 
 // Individual indicators
