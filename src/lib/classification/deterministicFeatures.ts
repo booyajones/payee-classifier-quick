@@ -4,6 +4,7 @@ import { COMMON_FIRST_NAMES } from './firstNamesDatabase';
 
 /**
  * Phase C: Generate Feature Flags
+ * Updated based on latest training data analysis
  */
 export function generateFeatureFlags(cleanName: string): FeatureFlags {
   const tokens = cleanName.split(/\s+/).filter(t => t.length > 0);
@@ -14,7 +15,7 @@ export function generateFeatureFlags(cleanName: string): FeatureFlags {
     'INCORPORATED', 'LIMITED', 'BANK', 'TRUST', 'FOUNDATION', 'UNIVERSITY', 'HOSPITAL', 
     'INSTITUTE', 'GROUP', 'ASSOCIATES', 'PARTNERS', 'ENTERPRISES', 'HOLDINGS', 'PROPERTIES',
     'SERVICES', 'SOLUTIONS', 'SYSTEMS', 'TECHNOLOGIES', 'COMMUNICATIONS', 'DEPARTMENT',
-    'AUTHORITY', 'DISTRICT', 'AGENCY', 'DIVISION'
+    'AUTHORITY', 'DISTRICT', 'AGENCY', 'DIVISION', 'INTERNATIONAL', 'GLOBAL'
   ];
   
   const has_business_suffix = businessSuffixes.some(suffix => 
@@ -41,22 +42,28 @@ export function generateFeatureFlags(cleanName: string): FeatureFlags {
     // Core business terms
     'SERVICES', 'SOLUTIONS', 'SYSTEMS', 'TECHNOLOGIES', 'COMMUNICATIONS', 'RESOURCES',
     'DEVELOPMENT', 'MANAGEMENT', 'CONSULTING', 'CONSTRUCTION', 'CONTRACTORS', 'ENTERPRISES',
+    'SUPPLY', 'DISTRIBUTION', 'WHOLESALE', 'RETAIL', 'MANUFACTURING', 'REPAIR', 'EQUIPMENT',
     
-    // Industry specific
-    'PLUMBING', 'HEATING', 'COOLING', 'ELECTRICAL', 'LANDSCAPING', 'CLEANING', 'MAINTENANCE',
-    'SECURITY', 'PROTECTION', 'FIRE', 'ALARM', 'ROOFING', 'FLOORING', 'PAINTING', 'CARPET',
-    'GLASS', 'SUPPLY', 'DISTRIBUTION', 'WHOLESALE', 'RETAIL', 'MANUFACTURING', 'REPAIR',
-    'RESTORATION', 'RENOVATION', 'REMODELING', 'APPLIANCE', 'ELEVATOR', 'WASTE', 'DISPOSAL',
-    'PEST', 'CONTROL', 'POOL', 'SPA', 'LANDSCAPE', 'LAWN', 'TREE', 'DOOR', 'WINDOW',
-    'LOCKSMITH', 'MECHANCIAL', 'HVAC', 'AIR', 'CONDITIONING', 'INSPECTION', 'TESTING',
+    // Industry specific from new training data
+    'APARTMENT', 'APARTMENTS', 'ELEVATOR', 'FIRE', 'PROTECTION', 'SECURITY', 'GLASS', 'MIRROR',
+    'CLEANING', 'CARPET', 'PLUMBING', 'HEATING', 'COOLING', 'AIR', 'CONDITIONING', 'ELECTRIC',
+    'ELECTRICAL', 'MECHANICAL', 'PEST', 'CONTROL', 'LANDSCAPING', 'LANDSCAPE', 'POOL', 'SPA',
+    'ROOFING', 'FLOORING', 'PAINTING', 'REFINISHING', 'RESURFACING', 'RESTORATION', 'WASTE',
+    'DISPOSAL', 'DISPOSAL', 'EXTERMINATOR', 'ALARM', 'OVERHEAD', 'DOOR', 'GARAGE', 'WINDOW',
+    'LOCK', 'KEY', 'SAFE', 'BACKFLOW', 'SPRINKLER', 'FITNESS', 'GYM', 'COPIER', 'OFFICE',
+    'COMMUNICATIONS', 'PHONE', 'TELECOM', 'NETWORK', 'COMPUTER', 'TECH', 'SOFTWARE', 'HARDWARE',
     
     // Government/institutional
     'CITY', 'COUNTY', 'STATE', 'DEPARTMENT', 'AUTHORITY', 'DISTRICT', 'GOVERNMENT',
     'MUNICIPAL', 'FEDERAL', 'BUREAU', 'COMMISSION', 'BOARD', 'OFFICE', 'ADMINISTRATION',
+    'COURT', 'HEALTH', 'PUBLIC', 'UNIVERSITY', 'COLLEGE', 'SCHOOL',
     
-    // Apartment/property related
-    'APARTMENTS', 'APARTMENT', 'PROPERTIES', 'PROPERTY', 'MANAGEMENT', 'REALTY', 'REAL ESTATE',
-    'HOUSING', 'RESIDENTIAL', 'COMMERCIAL', 'LEASING', 'RENTAL', 'RENTALS'
+    // Property/apartment related
+    'PROPERTIES', 'PROPERTY', 'MANAGEMENT', 'REALTY', 'REAL ESTATE', 'HOUSING', 'RESIDENTIAL',
+    'COMMERCIAL', 'LEASING', 'RENTAL', 'RENTALS', 'VILLAGE', 'VILLA', 'VILLAS', 'RIDGE',
+    'PARK', 'PLACE', 'PLAZA', 'TOWER', 'TOWERS', 'CROSSING', 'CROSSINGS', 'STATION', 'POINT',
+    'GROVE', 'GLEN', 'SPRINGS', 'HEIGHTS', 'HILLS', 'GARDENS', 'COURT', 'CLUB', 'RESERVE',
+    'LANDING', 'COMMONS', 'MEADOWS', 'OAKS', 'VIEW', 'VISTA', 'EDGE', 'WOODS', 'CREEK'
   ];
   
   const contains_business_keyword = businessKeywords.some(keyword => cleanName.includes(keyword));

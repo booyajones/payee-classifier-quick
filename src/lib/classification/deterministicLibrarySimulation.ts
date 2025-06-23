@@ -4,6 +4,7 @@ import { COMMON_FIRST_NAMES } from './firstNamesDatabase';
 
 /**
  * Phase B: Simulate Library Passes
+ * Updated with better patterns from training data
  */
 export function simulateLibraryPasses(cleanName: string): LibrarySimulation {
   const tokens = cleanName.split(/\s+/);
@@ -14,22 +15,28 @@ export function simulateLibraryPasses(cleanName: string): LibrarySimulation {
     'LLC', 'INC', 'CORP', 'LTD', 'COMPANY', 'CO', 'SERVICES', 'GROUP', 'SOLUTIONS',
     'SYSTEMS', 'ENTERPRISES', 'ASSOCIATES', 'PARTNERS', 'HOLDINGS', 'PROPERTIES',
     'CONSULTING', 'TECHNOLOGIES', 'COMMUNICATIONS', 'RESOURCES', 'DEVELOPMENT',
-    'MANAGEMENT', 'CONTRACTORS', 'CONSTRUCTION',
+    'MANAGEMENT', 'CONTRACTORS', 'CONSTRUCTION', 'SUPPLY', 'DISTRIBUTION', 'EQUIPMENT',
     
-    // Service industries
+    // Service industries from training data
     'PLUMBING', 'HEATING', 'COOLING', 'ELECTRICAL', 'LANDSCAPING', 'CLEANING', 'MAINTENANCE',
     'SECURITY', 'PROTECTION', 'FIRE', 'ALARM', 'ROOFING', 'FLOORING', 'PAINTING', 'CARPET',
     'RESTORATION', 'RENOVATION', 'REMODELING', 'REPAIR', 'APPLIANCE', 'ELEVATOR', 'GLASS',
     'WASTE', 'DISPOSAL', 'PEST', 'CONTROL', 'POOL', 'SPA', 'LANDSCAPE', 'LAWN', 'TREE',
     'DOOR', 'WINDOW', 'LOCKSMITH', 'MECHANICAL', 'HVAC', 'AIR', 'CONDITIONING', 'INSPECTION',
+    'EXTERMINATOR', 'REFINISHING', 'RESURFACING', 'FITNESS', 'GYM', 'COPIER', 'OFFICE',
+    'COMMUNICATIONS', 'PHONE', 'TELECOM', 'NETWORK', 'COMPUTER', 'TECH', 'SOFTWARE', 'HARDWARE',
     
     // Government/institutional
     'CITY', 'COUNTY', 'STATE', 'DEPARTMENT', 'AUTHORITY', 'DISTRICT', 'GOVERNMENT',
     'MUNICIPAL', 'FEDERAL', 'BUREAU', 'COMMISSION', 'BOARD', 'OFFICE', 'ADMINISTRATION',
+    'COURT', 'HEALTH', 'PUBLIC', 'UNIVERSITY', 'COLLEGE', 'SCHOOL',
     
     // Property/apartment related
-    'APARTMENTS', 'APARTMENT', 'PROPERTIES', 'PROPERTY', 'REALTY', 'HOUSING', 'RESIDENTIAL',
-    'COMMERCIAL', 'LEASING', 'RENTAL', 'RENTALS', 'MANAGEMENT'
+    'APARTMENTS', 'APARTMENT', 'PROPERTIES', 'PROPERTY', 'MANAGEMENT', 'REALTY', 'HOUSING',
+    'RESIDENTIAL', 'COMMERCIAL', 'LEASING', 'RENTAL', 'RENTALS', 'VILLAGE', 'VILLA', 'VILLAS',
+    'RIDGE', 'PARK', 'PLACE', 'PLAZA', 'TOWER', 'TOWERS', 'CROSSING', 'CROSSINGS', 'STATION',
+    'POINT', 'GROVE', 'GLEN', 'SPRINGS', 'HEIGHTS', 'HILLS', 'GARDENS', 'COURT', 'CLUB',
+    'RESERVE', 'LANDING', 'COMMONS', 'MEADOWS', 'OAKS', 'VIEW', 'VISTA', 'EDGE', 'WOODS', 'CREEK'
   ];
   
   const hasBusinessKeyword = businessKeywords.some(keyword => cleanName.includes(keyword));
@@ -42,13 +49,13 @@ export function simulateLibraryPasses(cleanName: string): LibrarySimulation {
   let probablepeople_person_prob = 0.75;
   
   if (hasBusinessKeyword || hasGovPattern) {
-    probablepeople_business_prob = 0.90;
-    probablepeople_person_prob = 0.10;
+    probablepeople_business_prob = 0.92;
+    probablepeople_person_prob = 0.08;
   } else if (tokens.length >= 2 && tokens.length <= 4) {
     const firstToken = tokens[0];
     if (COMMON_FIRST_NAMES.has(firstToken)) {
-      probablepeople_person_prob = 0.85;
-      probablepeople_business_prob = 0.15;
+      probablepeople_person_prob = 0.88;
+      probablepeople_business_prob = 0.12;
     }
   }
   
@@ -57,13 +64,19 @@ export function simulateLibraryPasses(cleanName: string): LibrarySimulation {
   let spacy_person_prob = 0.05;
   
   if (hasBusinessKeyword || hasGovPattern || cleanName.includes('HOLDINGS') || cleanName.includes('ENTERPRISES')) {
-    spacy_org_prob = 0.95;
+    spacy_org_prob = 0.96;
   }
   
-  // Check for personal name patterns
+  // Check for personal name patterns - enhanced detection
   const firstToken = tokens[0];
+  const lastToken = tokens[tokens.length - 1];
+  
+  // Strong individual indicators
   if (COMMON_FIRST_NAMES.has(firstToken) && tokens.length >= 2 && tokens.length <= 4) {
-    spacy_person_prob = 0.90;
+    // Check if last token is also a potential last name (not a business keyword)
+    if (!businessKeywords.some(keyword => lastToken.includes(keyword))) {
+      spacy_person_prob = 0.92;
+    }
   }
   
   return {

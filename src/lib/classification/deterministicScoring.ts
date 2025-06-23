@@ -3,27 +3,28 @@ import { FeatureFlags, LibrarySimulation, DeterministicResult } from './determin
 
 /**
  * Phase D: Calculate Weighted Score & Make Decision
+ * Updated scoring based on comprehensive training data analysis
  */
 export function calculateScoreAndDecision(features: FeatureFlags, library: LibrarySimulation): DeterministicResult {
   // Updated scoring based on training data patterns
   const score = 
-    (+0.65 * (features.has_business_suffix ? 1 : 0)) +         // Very strong indicator
-    (+0.45 * (features.contains_business_keyword ? 1 : 0)) +   // Strong indicator
+    (+0.70 * (features.has_business_suffix ? 1 : 0)) +         // Very strong indicator
+    (+0.50 * (features.contains_business_keyword ? 1 : 0)) +   // Strong indicator
     (+0.25 * (features.has_ampersand_or_and ? 1 : 0)) +       // Moderate indicator
-    (+0.20 * library.spacy_org_prob) +                        // Library support
+    (+0.22 * library.spacy_org_prob) +                        // Library support
     (+0.15 * (features.looks_like_tax_id ? 1 : 0)) +          // Weak indicator
-    (-0.55 * (features.has_first_name_match ? 1 : 0)) +       // Very strong penalty
-    (-0.40 * (features.has_honorific ? 1 : 0)) +              // Strong penalty  
-    (-0.30 * library.spacy_person_prob) +                     // Library penalty
-    (-0.20 * (features.has_generation_suffix ? 1 : 0)) +      // Moderate penalty
-    (-0.15 * (features.token_count === 2 ? 1 : 0));           // Slight penalty for simple names
+    (-0.60 * (features.has_first_name_match ? 1 : 0)) +       // Very strong penalty
+    (-0.45 * (features.has_honorific ? 1 : 0)) +              // Strong penalty  
+    (-0.32 * library.spacy_person_prob) +                     // Library penalty
+    (-0.22 * (features.has_generation_suffix ? 1 : 0)) +      // Moderate penalty
+    (-0.18 * (features.token_count === 2 ? 1 : 0));           // Slight penalty for simple names
 
   // Enhanced decision rule based on training data
   let entity_type: 'individual' | 'business';
   
-  if (score >= 0.20) {  // Clear business threshold
+  if (score >= 0.25) {  // Clear business threshold
     entity_type = 'business';
-  } else if (score <= -0.20) {  // Clear individual threshold
+  } else if (score <= -0.25) {  // Clear individual threshold
     entity_type = 'individual';
   } else {
     // Improved tie-breaking logic
@@ -37,7 +38,7 @@ export function calculateScoreAndDecision(features: FeatureFlags, library: Libra
   }
   
   // Enhanced confidence calibration
-  const confidence = Math.min(1.0, 0.60 + (0.35 * Math.abs(score)));
+  const confidence = Math.min(1.0, 0.62 + (0.33 * Math.abs(score)));
   
   // Generate rationale
   const rationale = generateRationale(features, library, score);
