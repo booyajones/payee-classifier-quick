@@ -1,7 +1,7 @@
-
 import { getOpenAIClient } from './client';
 import { makeAPIRequest } from './apiUtils';
 import { logger } from '../logger';
+import type OpenAI from 'openai';
 
 export interface BatchJob {
   id: string;
@@ -83,7 +83,7 @@ export async function checkBatchJobStatus(jobId: string): Promise<BatchJob> {
       throw new Error("OpenAI client not initialized. Please check your API key.");
     }
 
-    const result = await makeAPIRequest(
+    const result: OpenAI.Batches.Batch = await makeAPIRequest(
       () => openaiClient.batches.retrieve(jobId),
       { isStatusCheck: true, retries: 3, retryDelay: 2000 }
     );
@@ -162,7 +162,7 @@ export async function createBatchJob(
     logger.info("[BATCH API] Uploading file to OpenAI...");
     
     // Upload file with retry
-    const uploadedFile = await makeAPIRequest(
+    const uploadedFile: OpenAI.Files.FileObject = await makeAPIRequest(
       () => openaiClient.files.create({
         file: file,
         purpose: 'batch'
@@ -174,7 +174,7 @@ export async function createBatchJob(
 
     // Create batch job with retry
     logger.info("[BATCH API] Creating batch job...");
-    const result = await makeAPIRequest(
+    const result: OpenAI.Batches.Batch = await makeAPIRequest(
       () => openaiClient.batches.create({
         input_file_id: uploadedFile.id,
         endpoint: '/v1/chat/completions',
@@ -239,7 +239,7 @@ export async function getBatchJobResults(
     }
 
     // Download results with retry
-    const fileContent = await makeAPIRequest(
+    const fileContent: Response = await makeAPIRequest(
       () => openaiClient.files.content(job.output_file_id!),
       { retries: 3, retryDelay: 2000 }
     );
@@ -344,7 +344,7 @@ export async function cancelBatchJob(jobId: string): Promise<BatchJob> {
       throw new Error("OpenAI client not initialized. Please check your API key.");
     }
 
-    const result = await makeAPIRequest(
+    const result: OpenAI.Batches.Batch = await makeAPIRequest(
       () => openaiClient.batches.cancel(jobId),
       { retries: 2, retryDelay: 2000 }
     );

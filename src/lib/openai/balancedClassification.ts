@@ -3,6 +3,7 @@ import { getOpenAIClient } from './client';
 import { timeoutPromise } from './utils';
 import { API_TIMEOUT, CLASSIFICATION_MODEL } from './config';
 import { logger } from '../logger';
+import type OpenAI from 'openai';
 
 /**
  * Balanced classification with improved prompts and validation
@@ -65,7 +66,7 @@ Return JSON: {"classification": "Business|Individual", "confidence": number, "re
       max_tokens: 200
     });
     
-    const response = await timeoutPromise(apiCall, timeout);
+    const response: OpenAI.Chat.Completions.ChatCompletion = await timeoutPromise(apiCall, timeout);
     const content = response.choices[0]?.message?.content;
     
     if (!content) {

@@ -1,9 +1,9 @@
 
-import OpenAI from 'openai';
 import { getOpenAIClient } from './client';
 import { timeoutPromise } from './utils';
 import { API_TIMEOUT, CLASSIFICATION_MODEL } from './config';
 import { logger } from '../logger';
+import type OpenAI from 'openai';
 
 /**
  * Classify a single payee name using the OpenAI API
@@ -47,7 +47,7 @@ export async function classifyPayeeWithAI(
     
     logger.info(`[DEBUG] Making API call for "${payeeName}"...`);
     
-    const response = await timeoutPromise(apiCall, timeout);
+    const response: OpenAI.Chat.Completions.ChatCompletion = await timeoutPromise(apiCall, timeout);
 
     const content = response.choices[0]?.message?.content;
     if (!content) {
