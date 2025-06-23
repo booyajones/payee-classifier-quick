@@ -8,10 +8,11 @@ import { probablepeople } from './probablepeople';
 export async function applyNLPClassification(payeeName: string): Promise<ClassificationResult | null> {
   const matchingPatterns: string[] = [];
   
-  try {
-    // Try to get detailed parsing from probablepeople
-    const [parsed, nameType] = await probablepeople.parse(payeeName);
-    
+  // Try to get detailed parsing from probablepeople
+  const parsedResult = await probablepeople.parse(payeeName);
+  if (parsedResult && Array.isArray(parsedResult)) {
+    const [parsed, nameType] = parsedResult;
+
     // If we get a confident result but it wasn't strong enough for rule-based tier
     if (nameType === 'person') {
       // Extract components that indicate a person
@@ -58,8 +59,6 @@ export async function applyNLPClassification(payeeName: string): Promise<Classif
         };
       }
     }
-  } catch (error) {
-    // Parsing failed, fall back to other NLP methods
   }
   
   const name = payeeName.trim();

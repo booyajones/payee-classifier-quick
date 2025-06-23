@@ -14,10 +14,11 @@ export async function applyRuleBasedClassification(payeeName: string): Promise<C
   let isBusinessIndicator = false;
   let isIndividualIndicator = false;
 
-  // Use probablepeople to parse the name
-  try {
-    const [parsed, nameType] = await probablepeople.parse(payeeName);
-    
+  // Use probablepeople to parse the name if available
+  const parsedResult = await probablepeople.parse(payeeName);
+  if (parsedResult && Array.isArray(parsedResult)) {
+    const [parsed, nameType] = parsedResult;
+
     // If probablepeople confidently identifies the type
     if (nameType === 'person') {
       matchingRules.push("Identified as person by name structure analysis");
@@ -26,9 +27,6 @@ export async function applyRuleBasedClassification(payeeName: string): Promise<C
       matchingRules.push("Identified as corporation by name structure analysis");
       isBusinessIndicator = true;
     }
-  } catch (error) {
-    // Parsing failed, continue with other rules
-    console.log("Probablepeople parsing failed, using fallback rules");
   }
 
   // Check for legal suffixes
