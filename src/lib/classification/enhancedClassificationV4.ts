@@ -9,7 +9,13 @@ import { applyRuleBasedClassification } from './ruleBasedClassification';
  */
 export async function enhancedClassifyPayeeV4(
   payeeName: string,
-  config: ClassificationConfig = {}
+  config: ClassificationConfig = {
+    aiThreshold: 80,
+    bypassRuleNLP: false,
+    offlineMode: true,
+    useFuzzyMatching: false,
+    useCacheForDuplicates: false
+  }
 ): Promise<ClassificationResult> {
   
   if (!payeeName || payeeName.trim() === '') {
