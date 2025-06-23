@@ -54,3 +54,12 @@ export { findResultByName } from './batchExporter';
 
 // Export from the new exporters module (includes the main export function)
 export * from './exporters';
+
+// Export NEW rule-only classification functions (no AI dependencies)
+export { 
+  ruleOnlyClassification, 
+  batchRuleOnlyClassification 
+} from './ruleOnlyClassification';
+
+// Export the clean batch processor for rule-based processing
+export { cleanProcessBatch } from './cleanBatchProcessor';
