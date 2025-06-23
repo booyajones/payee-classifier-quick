@@ -1,8 +1,8 @@
 
 import { ClassificationResult, ClassificationConfig } from '../types';
-import { processBatchClassification } from '../openai/batchAPI';
-import { filterPayeeNames, ExclusionResult } from './keywordExclusion';
+import { filterPayeeNames } from './keywordExclusion';
 import { DEFAULT_CLASSIFICATION_CONFIG } from './config';
+import { enhancedClassifyPayee } from './enhancedClassification';
 
 interface ProcessingStats {
   totalNames: number;
@@ -14,7 +14,7 @@ interface ProcessingStats {
 }
 
 /**
- * Enhanced batch processing with OpenAI Batch API and keyword exclusions
+ * Enhanced batch processing using local classification and keyword exclusions
  */
 export async function enhancedProcessBatch(
   payeeNames: string[],
@@ -94,69 +94,38 @@ export async function enhancedProcessBatch(
       });
     }
 
-    // Phase 2: Process remaining names with OpenAI Batch API
+    // Phase 2: Process remaining names with local classification
     if (validNames.length > 0) {
-      console.log(`[ENHANCED] Phase 2: Processing ${validNames.length} names with OpenAI Batch API`);
-      
-      try {
-        const batchResults = await processBatchClassification({
-          payeeNames: validNames,
-          onProgress: (status: string, progress: number) => {
-            // Map batch API progress to overall progress
-            const batchProgressWeight = 90; // 90% of remaining progress
-            const baseProgress = (stats.excludedCount / total) * 100;
-            const adjustedProgress = baseProgress + ((progress / 100) * batchProgressWeight * (validNames.length / total));
-            
-            if (onProgress) {
-              onProgress(stats.processedCount, total, Math.round(adjustedProgress), {
-                phase: status,
-                excludedCount: stats.excludedCount,
-                batchProgress: progress
-              });
-            }
-          }
-        });
+      console.log(`[ENHANCED] Phase 2: Processing ${validNames.length} names locally`);
 
-        // Map batch results back to positions
-        batchResults.forEach((batchResult, index) => {
-          const name = validNames[index];
-          if (name) {
-            const globalIndex = validPayeeNames.indexOf(name);
-            if (globalIndex !== -1) {
-              results[globalIndex] = {
-                classification: batchResult.classification,
-                confidence: batchResult.confidence,
-                reasoning: batchResult.reasoning,
-                processingTier: batchResult.status === 'success' ? 'AI-Powered' : 'Failed'
-              };
-              
-              if (batchResult.status === 'success') {
-                stats.successCount++;
-              } else {
-                stats.failureCount++;
-              }
-              stats.processedCount++;
-            }
-          }
-        });
+      for (const name of validNames) {
+        const globalIndex = validPayeeNames.indexOf(name);
+        if (globalIndex === -1) continue;
 
-      } catch (error) {
-        console.error(`[ENHANCED] Batch API processing failed:`, error);
-        
-        // Create fallback results for batch API failures
-        validNames.forEach(name => {
-          const globalIndex = validPayeeNames.indexOf(name);
-          if (globalIndex !== -1 && !results[globalIndex]) {
-            results[globalIndex] = {
-              classification: 'Individual',
-              confidence: 0,
-              reasoning: `Batch API processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-              processingTier: 'Failed'
-            };
-            stats.failureCount++;
-            stats.processedCount++;
-          }
-        });
+        try {
+          const classification = await enhancedClassifyPayee(name, config);
+          results[globalIndex] = classification;
+          stats.successCount++;
+        } catch (error) {
+          console.error(`[ENHANCED] Error classifying "${name}":`, error);
+          results[globalIndex] = {
+            classification: 'Individual',
+            confidence: 0,
+            reasoning: `Processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            processingTier: 'Failed'
+          };
+          stats.failureCount++;
+        }
+
+        stats.processedCount++;
+
+        if (onProgress) {
+          const percentage = Math.round((stats.processedCount / total) * 100);
+          onProgress(stats.processedCount, total, percentage, {
+            phase: 'Processing',
+            excludedCount: stats.excludedCount
+          });
+        }
       }
     }
 

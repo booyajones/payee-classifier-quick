@@ -13,7 +13,6 @@ const getEnvVar = (key: string, defaultValue: string): string => {
 export const DEFAULT_CLASSIFICATION_CONFIG: ClassificationConfig = {
   aiThreshold: 75, // Default threshold - use AI when confidence is below 75%
   bypassRuleNLP: true, // Always bypass rule-based and NLP classification for accuracy
-  useEnhanced: false, // Default to NOT using enhanced classification
   offlineMode: false, // Default to online mode
   useFuzzyMatching: true, // Use fuzzy matching for better results
   useCacheForDuplicates: true // Deduplicate similar names

@@ -10,7 +10,6 @@ export async function ruleOnlyClassification(payeeName: string): Promise<Classif
   console.log(`[RULE-ONLY-FIXED] Processing "${payeeName}" with V3 engine`);
   return await enhancedClassifyPayeeV3(payeeName, {
     offlineMode: true,
-    useEnhanced: true,
     aiThreshold: 100 // Force rule-based only
   } as any);
 }
