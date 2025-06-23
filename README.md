@@ -133,3 +133,15 @@ boolean parameter.
 - When `true` (default), the exported rows contain every original field along
   with additional AI columns.
 - When `false`, only the AI-related columns are included.
+
+## Command line usage
+
+After installing dependencies you can classify payee names directly from the
+terminal:
+
+```sh
+npm run classify -- "Acme LLC" "John Doe"
+```
+
+Each argument is passed to `enhancedClassifyPayeeV3` and the classification
+result is printed to stdout.
