@@ -1,21 +1,32 @@
 
 import { ClassificationResult } from '../types';
-import { enhancedRuleOnlyClassification, enhancedBatchRuleOnlyClassification } from './enhancedRuleOnlyClassification';
+import { enhancedClassifyPayeeV3 } from './enhancedClassificationV3';
 
 /**
- * OVERHAULED Pure rule-based classification without any AI dependencies
- * Now powered by fixed individual detection engine
+ * FIXED Pure rule-based classification using the V3 engine
+ * Now properly detects individuals vs businesses
  */
 export async function ruleOnlyClassification(payeeName: string): Promise<ClassificationResult> {
-  console.log(`[RULE-ONLY] Processing "${payeeName}" with overhauled engine`);
-  return await enhancedRuleOnlyClassification(payeeName);
+  console.log(`[RULE-ONLY-FIXED] Processing "${payeeName}" with V3 engine`);
+  return await enhancedClassifyPayeeV3(payeeName, {
+    offlineMode: true,
+    useEnhanced: true,
+    aiThreshold: 100 // Force rule-based only
+  } as any);
 }
 
 /**
- * OVERHAULED Batch rule-only classification for multiple payees
- * Now powered by fixed individual detection engine
+ * FIXED Batch rule-only classification using V3 engine
  */
 export async function batchRuleOnlyClassification(payeeNames: string[]): Promise<ClassificationResult[]> {
-  console.log(`[BATCH-RULE-ONLY] Processing ${payeeNames.length} payees with overhauled classification`);
-  return await enhancedBatchRuleOnlyClassification(payeeNames);
+  console.log(`[BATCH-RULE-ONLY-FIXED] Processing ${payeeNames.length} payees with V3 engine`);
+  
+  const results: ClassificationResult[] = [];
+  
+  for (const name of payeeNames) {
+    const result = await ruleOnlyClassification(name);
+    results.push(result);
+  }
+  
+  return results;
 }

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -34,16 +33,16 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
         originalIndex: index
       })).filter(item => item.name);
 
-      console.log(`Processing ${payeeNames.length} payees with V3 classification`);
+      console.log(`Processing ${payeeNames.length} payees with FIXED V3 classification`);
       
-      // Use V3 batch processor with offline mode for rule-based processing
+      // Use FIXED V3 batch processor with rule-based processing
       const result = await enhancedProcessBatchV3(
         payeeNames.map(item => item.name),
         {
-          aiThreshold: 75,
+          aiThreshold: 100, // Force rule-based only
           bypassRuleNLP: false,
           useEnhanced: true,
-          offlineMode: true // Rule-based only for now
+          offlineMode: true
         },
         originalFileData
       );
@@ -54,7 +53,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
       
       toast({
         title: "Processing Complete",
-        description: `Successfully processed ${result.results.length} payees with V3 classification.`,
+        description: `Successfully processed ${result.results.length} payees with FIXED V3 classification.`,
       });
       
     } catch (error) {
@@ -73,16 +72,16 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     setIsProcessing(true);
     
     try {
-      console.log(`Processing ${names.length} payees with V3 classification`);
+      console.log(`Processing ${names.length} payees with FIXED V3 classification`);
       const results: PayeeClassification[] = [];
       
-      // Use V3 classification for each name
+      // Use FIXED V3 classification for each name
       for (const name of names) {
         const result = await enhancedClassifyPayeeV3(name, {
-          aiThreshold: 75,
+          aiThreshold: 100, // Force rule-based only
           bypassRuleNLP: false,
           useEnhanced: true,
-          offlineMode: true // Rule-based only for consistency
+          offlineMode: true
         });
         
         results.push({
@@ -123,7 +122,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
       
       toast({
         title: "Processing Complete",
-        description: `Successfully processed ${results.length} payees with V3 classification.`,
+        description: `Successfully processed ${results.length} payees with FIXED V3 classification.`,
       });
       
     } catch (error) {
@@ -148,7 +147,7 @@ const BatchClassificationForm = ({ onComplete }: BatchClassificationFormProps) =
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Payee Classification (V3 System)</CardTitle>
+          <CardTitle>Payee Classification (FIXED V3 System)</CardTitle>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="file" className="w-full">
