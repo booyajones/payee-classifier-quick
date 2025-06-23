@@ -1,8 +1,9 @@
+
 export interface ClassificationResult {
   classification: 'Business' | 'Individual';
   confidence: number;
   reasoning: string;
-  processingTier: 'Rule-Based' | 'NLP-Based' | 'AI-Assisted' | 'AI-Powered' | 'Excluded' | 'Failed' | 'Advanced-Weighted' | 'Deterministic' | 'Deterministic-Primary' | 'Deterministic-Fallback' | 'Rule-Based-Backup' | 'Rule-Based-Final' | 'Error-Fallback';
+  processingTier: 'Rule-Based' | 'NLP-Based' | 'AI-Assisted' | 'AI-Powered' | 'Excluded' | 'Failed' | 'Advanced-Weighted' | 'Deterministic' | 'Deterministic-Primary' | 'Deterministic-Fallback' | 'Rule-Based-Backup' | 'Rule-Based-Final' | 'Error-Fallback' | 'Deterministic-Enhanced';
   matchingRules?: string[];
   similarityScores?: SimilarityScores;
   keywordExclusion?: KeywordExclusionResult;
