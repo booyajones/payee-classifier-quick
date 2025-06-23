@@ -81,3 +81,12 @@ export {
 } from './localLLMClassifier';
 
 export { ensembleClassifyPayee } from './ensembleClassifier';
+
+// Export new enhanced deterministic classifier modules
+export { EnhancedDeterministicClassifier, enhancedDeterministicClassifyPayee, getEnhancedDeterministicJSON } from './enhancedDeterministicClassifier';
+export * from './enhancedDeterministicConstants';
+export * from './enhancedDeterministicTypes';
+export * from './enhancedDeterministicLibrary';
+export * from './enhancedDeterministicFeatures';
+export * from './enhancedDeterministicScoring';
+export * from './enhancedDeterministicNormalizer';
