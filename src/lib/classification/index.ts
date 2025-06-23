@@ -1,4 +1,3 @@
-
 // Main export file for the classification module
 // Re-exports all functionality from the individual modules
 export * from './config';
@@ -63,3 +62,10 @@ export {
 
 // Export the clean batch processor for rule-based processing
 export { cleanProcessBatch } from './cleanBatchProcessor';
+
+// Export new world-class deterministic classification engine
+export { worldClassClassification } from './worldClassRules';
+export { 
+  enhancedRuleOnlyClassification, 
+  enhancedBatchRuleOnlyClassification 
+} from './enhancedRuleOnlyClassification';
