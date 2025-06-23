@@ -1,4 +1,3 @@
-
 export interface ClassificationResult {
   classification: 'Business' | 'Individual';
   confidence: number;
@@ -73,6 +72,8 @@ export interface ClassificationConfig {
   similarityThreshold?: number; // For fuzzy matching
   retryFailedClassifications?: boolean;
   maxRetries?: number;
+  useLLMClassification?: boolean; // NEW: Enable/disable LLM classification
+  llmConfidenceThreshold?: number; // NEW: Minimum confidence for LLM results
 }
 
 export interface EnhancedBatchStatistics {

@@ -1,4 +1,3 @@
-
 import { ClassificationConfig } from '../types';
 
 // Helper function to safely get environment variables
@@ -9,13 +8,15 @@ const getEnvVar = (key: string, defaultValue: string): string => {
   return defaultValue;
 };
 
-// Default classification configuration
+// Default classification configuration - updated with LLM options
 export const DEFAULT_CLASSIFICATION_CONFIG: ClassificationConfig = {
   aiThreshold: 75, // Use AI only when confidence is below 75%
   bypassRuleNLP: false, // Run rule and NLP tiers before any AI heuristics
-  offlineMode: true, // Default to deterministic, offline processing
+  offlineMode: false, // Enable LLM by default for better accuracy
   useFuzzyMatching: true, // Use fuzzy matching for better results
-  useCacheForDuplicates: true // Deduplicate similar names
+  useCacheForDuplicates: true, // Deduplicate similar names
+  useLLMClassification: true, // NEW: Enable local LLM classification
+  llmConfidenceThreshold: 70 // NEW: Minimum confidence for LLM results
 };
 
 // Increased concurrency limits for better parallel processing

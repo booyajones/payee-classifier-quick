@@ -1,4 +1,3 @@
-
 import { ClassificationResult, ClassificationConfig } from '../types';
 import { DEFAULT_CLASSIFICATION_CONFIG } from './config';
 import { applyRuleBasedClassification } from './ruleBasedClassification';
@@ -7,10 +6,11 @@ import { checkKeywordExclusion } from './keywordExclusion';
 import { detectBusinessByExtendedRules, detectIndividualByExtendedRules, jaroWinklerSimilarity, normalizeText } from './enhancedRules';
 import { worldClassClassification } from './worldClassRules';
 import { advancedClassifyPayee } from './advancedPayeeClassifier';
+import { ensembleClassifyPayee } from './ensembleClassifier';
 
 /**
  * Enhanced V3 Classification Engine
- * Combines rule-based, NLP, and AI classification with intelligent escalation
+ * Now includes local LLM and ensemble classification for improved accuracy
  */
 export async function enhancedClassifyPayeeV3(
   payeeName: string,
@@ -30,7 +30,21 @@ export async function enhancedClassifyPayeeV3(
   }
 
   try {
-    // TIER 1: Advanced weighted classifier (new priority method)
+    // TIER 0: Ensemble Classification (NEW - highest priority for accuracy)
+    if (!config.offlineMode || config.aiThreshold < 90) {
+      console.log(`[ENHANCED-V3] TIER 0: Ensemble classification with LLM`);
+      try {
+        const ensembleResult = await ensembleClassifyPayee(payeeName);
+        if (ensembleResult.confidence >= 70) {
+          console.log(`[ENHANCED-V3] Ensemble classifier confident result: ${ensembleResult.classification} (${ensembleResult.confidence}%)`);
+          return ensembleResult;
+        }
+      } catch (error) {
+        console.warn(`[ENHANCED-V3] Ensemble classification failed, falling back to other methods:`, error);
+      }
+    }
+
+    // TIER 1: Advanced weighted classifier
     console.log(`[ENHANCED-V3] TIER 1: Advanced weighted classification`);
     const advancedResult = advancedClassifyPayee(payeeName);
     if (advancedResult.confidence >= 70) {

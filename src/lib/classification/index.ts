@@ -72,3 +72,12 @@ export {
 
 // Export new advanced classifier
 export { AdvancedPayeeClassifier, advancedClassifyPayee } from './advancedPayeeClassifier';
+
+// Export new LLM and ensemble classifiers
+export { 
+  classifyWithLocalLLM, 
+  isLLMAvailable,
+  LocalLLMClassifier 
+} from './localLLMClassifier';
+
+export { ensembleClassifyPayee } from './ensembleClassifier';
