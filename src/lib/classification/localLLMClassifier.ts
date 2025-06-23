@@ -1,5 +1,5 @@
 
-import { pipeline, Pipeline } from '@huggingface/transformers';
+import { pipeline } from '@huggingface/transformers';
 import { ClassificationResult } from '../types';
 
 interface LLMClassificationResult {
@@ -12,7 +12,7 @@ interface LLMClassificationResult {
  * Uses a lightweight BERT model for entity classification
  */
 export class LocalLLMClassifier {
-  private classifier: Pipeline | null = null;
+  private classifier: any = null; // Using any to avoid complex type issues
   private isInitialized = false;
   private initializationPromise: Promise<void> | null = null;
 
