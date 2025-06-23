@@ -1,6 +1,6 @@
 
 import { PayeeClassification, BatchProcessingResult, ClassificationConfig } from '../types';
-import { checkKeywordExclusion, getComprehensiveExclusionKeywords } from './keywordExclusion';
+import { checkKeywordExclusion, loadExclusionKeywords } from './keywordExclusion';
 import { balancedRuleBasedClassification } from './balancedRuleClassification';
 import { DEFAULT_CLASSIFICATION_CONFIG } from './config';
 
@@ -27,8 +27,8 @@ export async function cleanProcessBatch(
     throw new Error('No column selected for processing');
   }
   
-  // Get the comprehensive exclusion keywords
-  const exclusionKeywords = getComprehensiveExclusionKeywords();
+  // Load the comprehensive exclusion keywords
+  const exclusionKeywords = await loadExclusionKeywords();
   console.log(`[CLEAN BATCH] Loaded ${exclusionKeywords.length} exclusion keywords for processing`);
   console.log(`[CLEAN BATCH] Sample keywords: ${exclusionKeywords.slice(0, 10).join(', ')}`);
   

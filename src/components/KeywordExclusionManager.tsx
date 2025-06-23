@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
 import { Plus, Edit, Trash } from "lucide-react";
 import {
-  getComprehensiveExclusionKeywords,
+  loadExclusionKeywords,
   validateExclusionKeywords,
   checkKeywordExclusion,
   ExclusionResult
@@ -52,13 +52,12 @@ const KeywordExclusionManager = () => {
   };
 
   useEffect(() => {
-    const stored = loadKeywordsFromStorage();
-    if (stored.length > 0) {
-      setKeywords(stored);
-    } else {
-      const initialKeywords = getComprehensiveExclusionKeywords();
-      setKeywords(initialKeywords);
-    }
+      const stored = loadKeywordsFromStorage();
+      if (stored.length > 0) {
+        setKeywords(stored);
+      } else {
+        loadExclusionKeywords().then(setKeywords);
+      }
   }, []);
 
   const handleAddKeyword = () => {
@@ -151,8 +150,8 @@ const KeywordExclusionManager = () => {
     setTestResult(result);
   };
 
-  const resetToDefaults = () => {
-    const defaultKeywords = getComprehensiveExclusionKeywords();
+  const resetToDefaults = async () => {
+    const defaultKeywords = await loadExclusionKeywords();
     setKeywords(defaultKeywords);
     saveKeywordsToStorage(defaultKeywords);
     
