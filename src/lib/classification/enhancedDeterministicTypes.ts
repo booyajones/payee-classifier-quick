@@ -1,5 +1,5 @@
 
-import { DeterministicResult } from './deterministicTypes';
+import { ClassificationResult } from '../types';
 
 // Mock library interfaces
 export interface LibrarySignals {
@@ -31,5 +31,16 @@ export interface FeatureFlags {
   all_caps_pattern: boolean;
 }
 
-// Re-export the deterministic result type
-export type { DeterministicResult };
+// Enhanced deterministic result interface that matches ClassificationResult structure
+export interface DeterministicResult {
+  classification: 'Business' | 'Individual';
+  confidence: number;
+  reasoning: string;
+  processingTier: 'Deterministic-Enhanced';
+  metadata?: {
+    score: number;
+    features: FeatureFlags;
+    signals: LibrarySignals;
+    normalizedName: string;
+  };
+}
