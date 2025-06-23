@@ -1,6 +1,7 @@
 
 import { ClassificationResult } from '../types';
 import { worldClassClassification } from './worldClassRules';
+import { logger } from '../logger';
 
 /**
  * OVERHAULED Enhanced rule-only classification
@@ -8,23 +9,23 @@ import { worldClassClassification } from './worldClassRules';
  */
 export async function enhancedRuleOnlyClassification(payeeName: string): Promise<ClassificationResult> {
   try {
-    console.log(`[ENHANCED-RULE-ONLY] Processing "${payeeName}"`);
+    logger.info(`[ENHANCED-RULE-ONLY] Processing "${payeeName}"`);
     
     // Use the overhauled world-class classification engine
     const result = await worldClassClassification(payeeName);
     
-    console.log(`[ENHANCED-RULE-ONLY] Result: ${result.classification} (${result.confidence}%)`);
+    logger.info(`[ENHANCED-RULE-ONLY] Result: ${result.classification} (${result.confidence}%)`);
     
     // Only enhance if confidence is very low (< 50)
     if (result.confidence < 50) {
       const enhancedResult = await applyAdditionalHeuristics(payeeName, result);
-      console.log(`[ENHANCED-RULE-ONLY] Enhanced result: ${enhancedResult.classification} (${enhancedResult.confidence}%)`);
+      logger.info(`[ENHANCED-RULE-ONLY] Enhanced result: ${enhancedResult.classification} (${enhancedResult.confidence}%)`);
       return enhancedResult;
     }
     
     return result;
   } catch (error) {
-    console.error('[ENHANCED-RULE-ONLY] Error in classification:', error);
+    logger.error('[ENHANCED-RULE-ONLY] Error in classification:', error);
     
     // Simple fallback - default to Individual for safety
     return await simpleFallbackClassification(payeeName);
@@ -117,7 +118,7 @@ async function simpleFallbackClassification(payeeName: string): Promise<Classifi
  * OVERHAULED Batch processing with better individual detection
  */
 export async function enhancedBatchRuleOnlyClassification(payeeNames: string[]): Promise<ClassificationResult[]> {
-  console.log(`[ENHANCED-BATCH-RULE-ONLY] Processing ${payeeNames.length} payees with overhauled classification`);
+  logger.info(`[ENHANCED-BATCH-RULE-ONLY] Processing ${payeeNames.length} payees with overhauled classification`);
   
   const results: ClassificationResult[] = [];
   const startTime = Date.now();
@@ -128,7 +129,7 @@ export async function enhancedBatchRuleOnlyClassification(payeeNames: string[]):
   
   for (let i = 0; i < payeeNames.length; i++) {
     if (i % 50 === 0) {
-      console.log(`[ENHANCED-BATCH-RULE-ONLY] Progress: ${i}/${payeeNames.length} (${Math.round((i / payeeNames.length) * 100)}%)`);
+      logger.info(`[ENHANCED-BATCH-RULE-ONLY] Progress: ${i}/${payeeNames.length} (${Math.round((i / payeeNames.length) * 100)}%)`);
     }
     
     const result = await enhancedRuleOnlyClassification(payeeNames[i]);
@@ -142,9 +143,9 @@ export async function enhancedBatchRuleOnlyClassification(payeeNames: string[]):
   }
   
   const processingTime = Date.now() - startTime;
-  console.log(`[ENHANCED-BATCH-RULE-ONLY] Completed ${results.length} classifications in ${processingTime}ms`);
-  console.log(`[ENHANCED-BATCH-RULE-ONLY] Results: ${individualCount} individuals, ${businessCount} businesses`);
-  console.log(`[ENHANCED-BATCH-RULE-ONLY] Average: ${(processingTime / results.length).toFixed(2)}ms per classification`);
+  logger.info(`[ENHANCED-BATCH-RULE-ONLY] Completed ${results.length} classifications in ${processingTime}ms`);
+  logger.info(`[ENHANCED-BATCH-RULE-ONLY] Results: ${individualCount} individuals, ${businessCount} businesses`);
+  logger.info(`[ENHANCED-BATCH-RULE-ONLY] Average: ${(processingTime / results.length).toFixed(2)}ms per classification`);
   
   return results;
 }
