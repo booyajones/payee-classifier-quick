@@ -2,7 +2,7 @@
 import OpenAI from 'openai';
 import { getOpenAIClient } from './client';
 import { timeoutPromise } from './utils';
-import { DEFAULT_API_TIMEOUT, CLASSIFICATION_MODEL } from './config';
+import { API_TIMEOUT, CLASSIFICATION_MODEL } from './config';
 import { logger } from '../logger';
 
 /**
@@ -10,7 +10,7 @@ import { logger } from '../logger';
  */
 export async function classifyPayeeWithAI(
   payeeName: string, 
-  timeout: number = DEFAULT_API_TIMEOUT
+  timeout: number = API_TIMEOUT
 ): Promise<{
   classification: 'Business' | 'Individual';
   confidence: number;

@@ -3,7 +3,7 @@ import { logger } from "../logger";
 import { getOpenAIClient } from './client';
 import { timeoutPromise } from './utils';
 import { classifyPayeeWithAI } from './singleClassification';
-import { DEFAULT_API_TIMEOUT, CLASSIFICATION_MODEL } from './config';
+import { API_TIMEOUT, CLASSIFICATION_MODEL } from './config';
 import { MAX_CONCURRENCY as BATCH_CONCURRENCY } from '../classification/config';
 
 export const MAX_BATCH_SIZE = 5; // Reduced for better reliability
@@ -14,7 +14,7 @@ export { BATCH_CONCURRENCY };
  */
 export async function classifyPayeesBatchWithAI(
   payeeNames: string[],
-  timeout: number = DEFAULT_API_TIMEOUT
+  timeout: number = API_TIMEOUT
 ): Promise<Array<{
   payeeName: string;
   classification: 'Business' | 'Individual';

@@ -95,9 +95,10 @@ Additional constants in `config.ts` include `MAX_CONCURRENCY` for controlling
 the number of concurrent classification requests and `MAX_BATCH_SIZE` for
 limiting batch size. The OpenAI client settings in `openai/config.ts` expose
 `DEFAULT_API_TIMEOUT` (20&nbsp;seconds by default) which defines how long the
-system waits for each API response. You can override this timeout by setting the
-`OPENAI_TIMEOUT_MS` environment variable or by passing a `timeout` parameter to
-the classification functions.
+system waits for each API response. If the `OPENAI_TIMEOUT_MS` environment
+variable is set, its integer value is used and exported as `API_TIMEOUT`; invalid
+or missing values fall back to `DEFAULT_API_TIMEOUT`. You can also override this
+timeout by passing a `timeout` parameter to the classification functions.
 
 The library also respects several optional environment variables:
 

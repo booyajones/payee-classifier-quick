@@ -1,6 +1,6 @@
 import { getOpenAIClient } from './client';
 import { timeoutPromise } from './utils';
-import { DEFAULT_API_TIMEOUT, CLASSIFICATION_MODEL, MAX_PARALLEL_BATCHES } from './config';
+import { API_TIMEOUT, CLASSIFICATION_MODEL, MAX_PARALLEL_BATCHES } from './config';
 import { logger } from '../logger';
 
 export const OPTIMIZED_BATCH_SIZE = 10; // Reduced for better reliability
@@ -416,7 +416,7 @@ async function processBatch(
  */
 export async function optimizedBatchClassification(
   payeeNames: string[],
-  timeout: number = DEFAULT_API_TIMEOUT
+  timeout: number = API_TIMEOUT
 ): Promise<Array<{
   payeeName: string;
   classification: 'Business' | 'Individual';
